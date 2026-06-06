@@ -9,3 +9,4 @@ service-account.json
 npm-debug.log*
 *.log
 .DS_Store
+connections.json
