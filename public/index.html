@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Virgo ACP Dashboard</title>
+
+  <script>
+    (function() {
+      var t = localStorage.getItem('acp-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="/css/styles.css?v=5"/>
+</head>
+
+<body>
+
+<div id="row-tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div id="tt-body"></div>
+</div>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">V</div>
+      <div>
+        <div class="brand-name">Virgo ACP</div>
+        <div class="brand-sub">Intelligence Hub</div>
+      </div>
+    </div>
+
+    <div class="sidebar-scrollable">
+      <nav>
+        <div class="nav-section">Overview</div>
+        <div class="nav-item active" data-page="overview" onclick="navigate('overview')">
+          <span class="nav-icon"><i class="ph ph-squares-four"></i></span>
+          <span class="nav-label">Dashboard</span>
+        </div>
+
+        <div class="nav-section" style="margin-top:12px;">Analytics</div>
+
+        <div class="nav-item" data-page="outstanding" onclick="navigate('outstanding')">
+          <span class="nav-icon"><i class="ph ph-currency-inr"></i></span>
+          <span class="nav-label">Outstandings</span>
+        </div>
+
+        <div class="nav-item" data-page="hodqoq" onclick="navigate('hodqoq')">
+          <span class="nav-icon"><i class="ph ph-users-three"></i></span>
+          <span class="nav-label">HOD Sales Performance</span>
+        </div>
+
+        <div class="nav-item" data-page="hodtargets" onclick="navigate('hodtargets')">
+          <span class="nav-icon"><i class="ph ph-crosshair"></i></span>
+          <span class="nav-label">HOD Targets & Achv.</span>
+        </div>
+
+        <div class="nav-item" data-page="targets" onclick="navigate('targets')">
+          <span class="nav-icon"><i class="ph ph-target"></i></span>
+          <span class="nav-label">Exec. Targets & Achv.</span>
+        </div>
+
+        <div class="nav-item" data-page="custqoq" onclick="navigate('custqoq')">
+          <span class="nav-icon"><i class="ph ph-user-list"></i></span>
+          <span class="nav-label">Customers Sales</span>
+        </div>
+
+        <div class="nav-group-btn" id="custhealth-group-btn" onclick="this.classList.toggle('open'); document.getElementById('custhealth-submenu').classList.toggle('open');">
+          <span class="nav-group-icon"><i class="ph ph-heartbeat"></i></span>
+          <span class="nav-group-label">Customer Health</span>
+          <span class="nav-chevron"><i class="ph ph-caret-down"></i></span>
+        </div>
+        <div class="nav-submenu" id="custhealth-submenu">
+          <div class="nav-item" data-page="pareto" onclick="navigate('pareto')">
+            <span class="nav-label">Top 80% Contributors</span>
+          </div>
+          <div class="nav-item" data-page="rfm" onclick="navigate('rfm')">
+            <span class="nav-label">RFM Matrix</span>
+          </div>
+          <div class="nav-item" data-page="risk" onclick="navigate('risk')">
+            <span class="nav-label">Churn Risk</span>
+          </div>
+        </div>
+
+        <div class="nav-group-btn" id="product-group-btn" onclick="toggleProductNav(this)">
+          <span class="nav-group-icon"><i class="ph ph-package"></i></span>
+          <span class="nav-group-label">Products</span>
+          <span class="nav-chevron"><i class="ph ph-caret-down"></i></span>
+        </div>
+        <div class="nav-submenu" id="product-submenu">
+          <div class="nav-item" data-page="product" onclick="navigate('product')">
+            <span class="nav-label">Brand &amp; Finish</span>
+          </div>
+          <div class="nav-item" data-page="producttype" onclick="navigate('producttype')">
+            <span class="nav-label">Product Types</span>
+          </div>
+          <div class="nav-item" data-page="topsku" onclick="navigate('topsku')">
+            <span class="nav-label">Top SKUs</span>
+          </div>
+          <div class="nav-item" data-page="skutypeqoq" onclick="navigate('skutypeqoq')">
+            <span class="nav-label">SKU Type Wise</span>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+        <span class="nav-icon"><i class="ph ph-gear"></i></span>
+        <span class="nav-label">Settings</span>
+      </div>
+    </div>
+  </aside>
+
+  <div id="main">
+    <header id="header">
+      <div class="header-left">
+        <button id="toggle-sidebar" onclick="toggleSidebar()"><i class="ph ph-list"></i></button>
+        <span class="page-title" id="page-title">Dashboard</span>
+      </div>
+
+      <div class="header-center-wrap">
+        <div id="poll-status-text"></div>
+        <div class="header-loader" id="header-loader">
+          <div class="header-loader-bar" id="header-loader-bar"></div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <span id="last-updated-val" style="font-size:10px;color:var(--text4);font-weight:600;white-space:nowrap;display:none"></span>
+        
+        <button id="copilot-toggle-btn" onclick="toggleCopilot()" title="Virgo AI Copilot" style="background:var(--brand-muted);border:1px solid var(--brand-primary);color:var(--brand-primary);cursor:pointer;font-size:18px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
+          <i class="ph ph-sparkle"></i>
+        </button>
+
+        <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
+          <i class="ph ph-funnel"></i>
+        </button>
+        <button id="header-theme-btn" onclick="toggleTheme()" title="Toggle dark/light mode" style="background:var(--surface2);border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s cubic-bezier(0.2,0.8,0.2,1);box-shadow:0 2px 8px rgba(0,0,0,0.65);">
+          <i class="ph ph-sun-dim" id="header-theme-icon"></i>
+        </button>
+      </div>
+    </header>
+
+    <div id="filter-panel" class="filter-panel hidden" style="background:var(--surface2); border:1px solid var(--border); box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+      <div class="command-group">
+        <div class="command-icon"><i class="ph ph-calendar-blank"></i></div>
+        <div class="ms-wrap" id="wrap-fy">
+          <div class="ms-display" onclick="toggleFilterDrop('fy', event)">
+            <span class="ms-label" id="ms-lbl-fy">All FY</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-fy"></div>
+        </div>
+        <div class="command-divider"></div>
+        <div class="ms-wrap" id="wrap-quarter">
+          <div class="ms-display" onclick="toggleFilterDrop('quarter', event)">
+            <span class="ms-label" id="ms-lbl-quarter">All Qtrs</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-quarter"></div>
+        </div>
+        <div class="command-divider"></div>
+        <div class="ms-wrap" id="wrap-month">
+          <div class="ms-display" onclick="toggleFilterDrop('month', event)">
+            <span class="ms-label" id="ms-lbl-month">All Mos</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-month"></div>
+        </div>
+      </div>
+      <div class="command-group">
+        <div class="command-icon"><i class="ph ph-map-pin"></i></div>
+        <div class="ms-wrap" id="wrap-zone">
+          <div class="ms-display" onclick="toggleFilterDrop('zone', event)">
+            <span class="ms-label" id="ms-lbl-zone">All Zones</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-zone"></div>
+        </div>
+        <div class="command-divider"></div>
+        <div class="ms-wrap" id="wrap-state">
+          <div class="ms-display" onclick="toggleFilterDrop('state', event)">
+            <span class="ms-label" id="ms-lbl-state">All States</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-state"></div>
+        </div>
+        <div class="command-divider"></div>
+        <div class="ms-wrap" id="wrap-hod">
+          <div class="ms-display" onclick="toggleFilterDrop('hod', event)">
+            <span class="ms-label" id="ms-lbl-hod">All HODs</span><i class="ph ph-caret-down ms-caret"></i>
+          </div>
+          <div class="ms-dropdown" id="ms-drop-hod"></div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; padding-top:4px; gap:8px;">
+        <button class="btn btn-sm btn-ghost" onclick="resetFilters()">Reset</button>
+        <button class="btn btn-sm btn-primary" onclick="applyMultiFilters()">Apply Filters</button>
+      </div>
+    </div>
+
+    <div id="content">
+      <section id="page-overview" class="page active">
+        <div id="kpi-grid" class="kpi-grid"></div>
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-chart-line-up"></i> Monthly SQ FT &amp; SQM Trend</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-monthly"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-map-pin"></i> SQ FT by State</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-state"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-chart-pie"></i> SQ FT Split by FY (QoQ)</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-fy"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-hodqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-users-three"></i> HOD Performance</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-hodqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or State..." onkeyup="handleSearch('hodqoq')">
+            </div>
+            <div class="btn-group" id="hod-toggles" style="margin-left:12px;">
+              </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodqoq', 'HOD Performance')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-hodqoq-head', 'tbl-hodqoq-body', 'HOD_Performance')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-hodqoq-head"></thead>
+              <tbody id="tbl-hodqoq-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-custqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-user-list"></i> Customer Wise Sale</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-custqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Customer, HOD, or State..." onkeyup="handleSearch('custqoq')">
+            </div>
+            <div class="btn-group" id="custqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setCustView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setCustView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setCustView('year',this)">Year</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('custqoq', 'Customer Wise Sale')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-custqoq-head', 'tbl-custqoq-body', 'Customer_Wise_Sale')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-custqoq-head"></thead>
+              <tbody id="tbl-custqoq-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-custqoq"></div>
+        </div>
+      </section>
+
+      <section id="page-hodtargets" class="page">
+        <div id="hod-targets-kpi-grid" class="kpi-grid stagger-1"></div>
+        <div class="table-card stagger-2">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-crosshair"></i> HOD Wise Targets</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-hodtargets" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or State..." onkeyup="handleSearch('hodtargets')">
+            </div>
+            <div class="btn-group" id="hodtarget-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-primary" id="hodtarget-btn-month" onclick="setHodTargetView('month',this)">Month</button>
+              <button class="btn btn-sm btn-ghost" id="hodtarget-btn-quarter" onclick="setHodTargetView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" id="hodtarget-btn-year" onclick="setHodTargetView('year',this)">Year</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-hod-head', 'tbl-targets-hod-body', 'HOD_Targets_Wise')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncTargets(event)">
+              <i class="ph ph-arrows-clockwise"></i> Sync
+            </button>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-targets-hod-head"></thead>
+              <tbody id="tbl-targets-hod-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-hodtargets"></div>
+        </div>
+      </section>
+
+      <section id="page-targets" class="page">
+        <div id="targets-kpi-grid" class="kpi-grid stagger-1"></div>
+        <div class="table-card stagger-2">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-target"></i> Targets Executive wise</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-targets" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Executive or State..." onkeyup="handleSearch('targets')">
+            </div>
+            <div class="btn-group" id="target-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-primary" id="target-btn-month" onclick="setTargetView('month',this)">Month</button>
+              <button class="btn btn-sm btn-ghost" id="target-btn-quarter" onclick="setTargetView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" id="target-btn-year" onclick="setTargetView('year',this)">Year</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('targets', 'Executive Targets')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-head', 'tbl-targets-body', 'Executive_Targets')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncTargets(event)">
+              <i class="ph ph-arrows-clockwise"></i> Sync
+            </button>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-targets-head"></thead>
+              <tbody id="tbl-targets-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-targets"></div>
+        </div>
+      </section>
+
+      <section id="page-outstanding" class="page">
+        <div id="outstanding-kpi-grid" class="kpi-grid stagger-1"></div>
+        <div class="bento-card table-card stagger-2" style="flex:1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-currency-inr"></i> Outstanding Summary</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-outstanding" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:240px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Customer or State..." onkeyup="handleSearch('outstanding')">
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('outstanding', 'Outstanding Summary')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-outstanding-head', 'tbl-outstanding-body', 'Outstanding_Summary')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncOutstanding(event)">
+              <i class="ph ph-arrows-clockwise"></i> Sync
+            </button>
+            <div style="font-size:11px;color:var(--text4);font-weight:600;margin-left:8px;" id="outstanding-sync-label"></div>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-outstanding-head"></thead>
+              <tbody id="tbl-outstanding-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-outstanding"></div>
+        </div>
+      </section>
+
+      <section id="page-pareto" class="page">
+          <div id="customers-kpi-grid" class="kpi-grid"></div>
+          <div class="table-card">
+            <div class="table-toolbar">
+              <span class="table-title"><i class="ph ph-star"></i> Top 80% Volume Contributors</span>
+              <div style="position:relative; margin-left:auto;">
+                <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+                <input type="text" id="search-customers" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('customers')">
+              </div>
+              <div class="btn-group" style="margin-left:12px;">
+                <button class="btn btn-sm btn-primary" onclick="setCustSort('sqm',this)">By SQ FT</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setCustSort('quantity',this)">By Qty</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setCustSort('frequency',this)">By Freq</button>
+              </div>
+              <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('customers', 'Top 80% Contributors')">
+                <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+              </button>
+              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-customers-body', 'Top_80_Accounts')">
+                <i class="ph ph-download-simple"></i> Export
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>HOD Name</th><th>SQ FT</th><th>SQM</th><th>Txns</th><th>Last Purchase</th><th>Days</th></tr></thead>
+                <tbody id="tbl-customers-body"></tbody>
+              </table>
+            </div>
+            <div id="pagination-customers"></div>
+          </div>
+        </section>
+
+        <section id="page-rfm" class="page">
+          <div id="rfm-kpi-grid" class="kpi-grid"></div>
+          <div class="table-card">
+            <div class="table-toolbar">
+              <span class="table-title"><i class="ph ph-table"></i> RFM Matrix</span>
+              <div style="position:relative; margin-left:auto;">
+                <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+                <input type="text" id="search-rfm" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:180px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('rfm')">
+              </div>
+              <div class="btn-group" style="margin-left:12px;">
+                <button class="btn btn-sm btn-primary" onclick="setRfmSeg('All',this)">All</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Champions',this)">Champions</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Loyal',this)">Loyal</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('At Risk',this)">At Risk</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Hibernating',this)">Hibernating</button>
+                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Lost',this)">Lost</button>
+              </div>
+              <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('rfm', 'RFM Matrix')">
+                <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+              </button>
+              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-rfm-body', 'RFM_Matrix')">
+                <i class="ph ph-download-simple"></i> Export
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>R/F Summary</th><th>SQ FT</th><th>Scores</th><th>Total/15</th><th>Segment</th></tr></thead>
+                <tbody id="tbl-rfm-body"></tbody>
+              </table>
+            </div>
+            <div id="pagination-rfm"></div>
+          </div>
+        </section>
+
+        <section id="page-risk" class="page">
+           
+           <div id="pane-declining" class="risk-pane active">
+             <div id="declining-kpi-grid" class="kpi-grid"></div>
+             <div class="alert-warn"><i class="ph ph-warning-circle"></i> Showing accounts with 30%+ volume drop in the last 6 months vs previous 6 months.</div>
+             <div class="table-card">
+               <div class="table-toolbar">
+                 <span class="table-title"><i class="ph ph-trend-down"></i> Declining Customers</span>
+                 <div style="position:relative; margin-left:auto;">
+                   <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+                   <input type="text" id="search-declining" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('declining')">
+                 </div>
+                 <div class="btn-group" style="margin-left:12px;">
+                    <button class="btn btn-sm btn-primary risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
+                 </div>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('declining', 'Declining Accounts')">
+                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+                 </button>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-declining-body', 'Declining_Customers')">
+                   <i class="ph ph-download-simple"></i> Export
+                 </button>
+               </div>
+               <div class="table-wrap">
+                 <table>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Prev 6M SQ FT</th><th>Last 6M SQ FT</th><th>Change</th><th>Decline %</th><th>Category</th></tr></thead>
+                   <tbody id="tbl-declining-body"></tbody>
+                 </table>
+               </div>
+               <div id="pagination-declining"></div>
+             </div>
+           </div>
+
+           <div id="pane-inactive" class="risk-pane">
+             <div id="inactive-kpi-grid" class="kpi-grid"></div>
+             <div class="table-card">
+               <div class="table-toolbar">
+                 <span class="table-title"><i class="ph ph-clock"></i> Inactive Accounts</span>
+                 <div style="position:relative; margin-left:auto;">
+                   <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+                   <input type="text" id="search-inactive" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('inactive')">
+                 </div>
+                 <div class="btn-group" style="margin-left:12px;">
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
+                    <button class="btn btn-sm btn-primary risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
+                 </div>
+                 <div class="btn-group" style="margin-left:8px;">
+                   <button class="btn btn-sm btn-primary" onclick="setInactiveDays(90,this)">90+ Days</button>
+                   <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(120,this)">120+ Days</button>
+                   <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(180,this)">180+ Days</button>
+                 </div>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('inactive', 'Inactive Accounts')">
+                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+                 </button>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-inactive-body', 'Inactive_Accounts')">
+                   <i class="ph ph-download-simple"></i> Export
+                 </button>
+               </div>
+               <div class="table-wrap">
+                 <table>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Last Purchase</th><th>Days Inactive</th><th>Lifetime SQ FT</th><th>Txns</th><th>Category</th></tr></thead>
+                   <tbody id="tbl-inactive-body"></tbody>
+                 </table>
+               </div>
+               <div id="pagination-inactive"></div>
+             </div>
+           </div>
+
+           <div id="pane-losthv" class="risk-pane">
+             <div id="losthv-kpi-grid" class="kpi-grid"></div>
+             <div class="alert-danger"><i class="ph ph-x-circle"></i> Critical Risk: Top 20% tier customers with zero billing in the last 6 months.</div>
+             <div class="table-card">
+               <div class="table-toolbar">
+                 <span class="table-title"><i class="ph ph-warning-circle"></i> Lost High-Volume Customers</span>
+                 <div style="position:relative; margin-left:auto;">
+                   <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+                   <input type="text" id="search-losthv" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('losthv')">
+                 </div>
+                 <div class="btn-group" style="margin-left:12px;">
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
+                    <button class="btn btn-sm btn-primary risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
+                 </div>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('losthv', 'Lost High-Volume')">
+                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+                 </button>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-losthv-body', 'Lost_High_Value')">
+                   <i class="ph ph-download-simple"></i> Export
+                 </button>
+               </div>
+               <div class="table-wrap">
+                 <table>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Lifetime SQ FT</th><th>Last Purchase</th><th>Days Inactive</th><th>Percentile</th></tr></thead>
+                   <tbody id="tbl-losthv-body"></tbody>
+                 </table>
+               </div>
+               <div id="pagination-losthv"></div>
+             </div>
+           </div>
+
+        </section>
+
+      <section id="page-product" class="page">
+        <div id="prod-kpi-grid" class="kpi-grid stagger-1"></div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 24px;" class="stagger-2">
+          <div class="chart-card" style="min-height: 320px;">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-chart-bar"></i> SQ FT by Brand</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-brand"></canvas></div>
+          </div>
+          <div class="chart-card" style="min-height: 320px;">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-paint-bucket"></i> Finish Distribution</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-finish"></canvas></div>
+          </div>
+        </div>
+        <div class="table-card stagger-3">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-table"></i> Brand Performance</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-brand" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Brands..." onkeyup="handleSearch('brand')">
+            </div>
+            <div class="btn-group" style="margin-left:12px;">
+              <button class="btn btn-sm btn-primary" onclick="setProdSort('sqm',this)">SQ FT</button>
+              <button class="btn btn-sm btn-ghost"   onclick="setProdSort('qty',this)">Quantity</button>
+              <button class="btn btn-sm btn-ghost"   onclick="setProdSort('txns',this)">Transactions</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('product', 'Brand Performance')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-brand-body', 'Brand_Performance')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Brand</th><th>SQ FT</th><th>Share</th><th>SQM</th><th>Qty Sheets</th><th>Txns</th><th>Avg Order</th><th>SKU Split</th></tr></thead>
+              <tbody id="tbl-brand-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-producttype" class="page">
+        <div class="stagger-1" style="height:300px;margin-bottom:16px;flex-shrink:0;">
+          <div class="chart-card" style="height:100%;">
+            <div class="chart-header">
+              <div class="chart-title"><i class="ph ph-stack"></i> Volume by Product Type</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="chart-prodtype"></canvas></div>
+          </div>
+        </div>
+        <div class="table-card stagger-2">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-stack"></i> Product Type Breakdown</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-prodtype" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Product Types..." onkeyup="handleSearch('prodtype')">
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('producttype', 'Product Type Breakdown')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-prodtype-body', 'Product_Type')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Product Type</th><th>Brand</th><th>SQ FT</th><th>Share</th><th>SQM</th><th>Qty Sheets</th><th>Txns</th><th>Unique Cust</th></tr></thead>
+              <tbody id="tbl-prodtype-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-topsku" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar" style="gap:12px;">
+            <span class="table-title"><i class="ph ph-barcode"></i> Top SKUs</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-topsku" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Items..." onkeyup="handleSearch('topsku')">
+            </div>
+            <div class="btn-group" id="sku-brand-filter" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setSkuBrand('All',this)">All</button>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-primary" onclick="setSkuType('All',this)">All</button>
+              <button class="btn btn-sm btn-ghost"   onclick="setSkuType('STANDARD',this)">Standard</button>
+              <button class="btn btn-sm btn-ghost"   onclick="setSkuType('REGULAR',this)">Regular</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('topsku', 'Top SKUs')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-topsku-body', 'Top_SKUs')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Item Code</th><th>Description</th><th>Brand</th><th>Finish</th><th>Size</th><th>SKU Type</th><th>SQ FT</th><th>SQM</th><th>Qty</th><th>Txns</th></tr></thead>
+              <tbody id="tbl-topsku-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-topsku"></div>
+        </div>
+      </section>
+
+      <section id="page-skutypeqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-stack"></i> SKU Type Wise Sale</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-skutypeqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search State, HOD, or SKU..." onkeyup="handleSearch('skutypeqoq')">
+            </div>
+            <div class="btn-group" id="skutypeqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setSkuTypeView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setSkuTypeView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setSkuTypeView('year',this)">Year</button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('skutypeqoq', 'SKU Type Wise Sale')">
+              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-skutypeqoq-head', 'tbl-skutypeqoq-body', 'SKU_Type_Wise_Sale')">
+              <i class="ph ph-download-simple"></i> Export
+            </button>
+          </div>
+          <div class="table-wrap" style="overflow-x:auto">
+            <table style="border-collapse:separate">
+              <thead id="tbl-skutypeqoq-head"></thead>
+              <tbody id="tbl-skutypeqoq-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-skutypeqoq"></div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="settings-layout">
+          
+          <div class="settings-sidebar">
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;padding:0 14px;">Settings</div>
+            
+            <div class="settings-tab active" data-tab="tab-sheets" onclick="switchSettingsTab('tab-sheets')">
+              <i class="ph ph-table"></i> Google Sheets
+            </div>
+            <div class="settings-tab" data-tab="tab-connections" onclick="switchSettingsTab('tab-connections')">
+              <i class="ph ph-database"></i> Database Connections
+            </div>
+            <div class="settings-tab" data-tab="tab-sync" onclick="switchSettingsTab('tab-sync')">
+              <i class="ph ph-arrows-clockwise"></i> Data Sync
+            </div>
+            <div class="settings-tab" data-tab="tab-users" onclick="switchSettingsTab('tab-users')">
+              <i class="ph ph-users"></i> User Management
+            </div>
+            <div class="settings-tab" data-tab="tab-roles" onclick="switchSettingsTab('tab-roles')">
+              <i class="ph ph-mask-happy"></i> Role Simulator
+            </div>
+            <div class="settings-tab" data-tab="tab-theme" onclick="switchSettingsTab('tab-theme')">
+              <i class="ph ph-palette"></i> Appearance
+            </div>
+          </div>
+
+          <div class="settings-content">
+            
+            <!-- TAB: Database Connections -->
+            <div id="tab-connections" class="settings-pane">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Database Connections</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Configure multiple Supabase environments. The active connection is used globally by the dashboard.</div>
+                
+                <div id="connections-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+                  <!-- Rows injected by JS -->
+                </div>
+                
+                <div style="text-align:right;">
+                  <button class="btn btn-ghost btn-sm" onclick="addConnectionRow()"><i class="ph ph-plus"></i> Add Connection</button>
+                  <button class="btn btn-primary btn-sm" onclick="saveConnections(event)" style="margin-left:8px;"><i class="ph ph-floppy-disk"></i> Save Connections</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB: Google Sheets -->
+            <div id="tab-sheets" class="settings-pane active">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Google Sheets Configuration</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Link the source Google Sheets for different data streams. The service account must have read access to these sheets.</div>
+                
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
+                  <div class="form-field">
+                    <label class="form-label">
+                      Outstanding Master Sheet ID
+                      <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.customers</span>
+                    </label>
+                    <input class="form-input" id="cfg-outstanding-id" placeholder="e.g. 1wpaZwEqW6AHGYqz..."/>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Sheet Name</label>
+                    <input class="form-input" id="cfg-outstanding-name" placeholder="e.g. CUSTOMER MASTER"/>
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+                  <div class="form-field">
+                    <label class="form-label">
+                      Target Data Sheet ID
+                      <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.targets</span>
+                    </label>
+                    <input class="form-input" id="cfg-target-id" placeholder="e.g. 1aJomY8qL1cVJrUg..."/>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Sheet Name</label>
+                    <input class="form-input" id="cfg-target-name" placeholder="e.g. TARGET_DATA"/>
+                  </div>
+                </div>
+                
+                <div style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
+                  <div style="font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:6px;">
+                    <span>Sales Raw Data Sheets</span>
+                    <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.raw_data</span>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" style="margin-bottom:4px;" onclick="addSourceSheetRow()"><i class="ph ph-plus"></i> Add Year</button>
+                </div>
+                <div id="cfg-raw-sheets-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+                  <!-- Rows injected by JS -->
+                </div>
+                
+                <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;">
+                  <span id="cfg-save-status" style="font-size:12px;font-weight:600;color:var(--text3);"></span>
+                  <button class="btn btn-primary btn-sm" onclick="saveGoogleSheetsConfig()"><i class="ph ph-floppy-disk"></i> Save Configuration</button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- TAB: Data Sync -->
+            <div id="tab-sync" class="settings-pane" style="display:none;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Data Synchronization</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <button onclick="actionAppend(event)" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.2);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:16px;flex-shrink:0;"><i class="ph ph-arrows-clockwise"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px;">Append New Data</div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.4;">Sync new rows from Google Sheets.</div>
+                  </div>
+                </button>
+          
+                <button onclick="actionCache(event)" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;color:var(--accent3);font-size:16px;flex-shrink:0;"><i class="ph ph-lightning"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px;">Refresh Cache</div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.4;">Fetch latest from Supabase views.</div>
+                  </div>
+                </button>
+          
+                <button onclick="actionSyncOutstanding(event)" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.2);display:flex;align-items:center;justify-content:center;color:var(--accent4);font-size:16px;flex-shrink:0;"><i class="ph ph-currency-inr"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px;">Sync Outstanding</div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.4;">Update Customer Master data now.</div>
+                  </div>
+                </button>
+          
+                <button onclick="actionSyncTargets(event)" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.2);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-size:16px;flex-shrink:0;"><i class="ph ph-target"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px;">Sync Targets</div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.4;">Update Executive Targets data.</div>
+                  </div>
+                </button>
+          
+                <button onclick="actionReset(event)" style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start;grid-column:1/-1;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);display:flex;align-items:center;justify-content:center;color:var(--danger);font-size:16px;flex-shrink:0;"><i class="ph ph-warning-circle"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--danger);font-size:13px;margin-bottom:3px;">Hard Reset</div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.4;">Wipe all data and rebuild from scratch.</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- TAB: User Management -->
+            <div id="tab-users" class="settings-pane" style="display:none;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">User Management</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+                <div style="font-weight:700;color:var(--text);font-size:12.5px;margin-bottom:10px;">Provision New Account</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div class="form-field">
+                    <label class="form-label">Full Name</label>
+                    <input class="form-input" id="uf-name" placeholder="Rajesh Kumar"/>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" id="uf-email" type="email" placeholder="rajesh@virgoasia.com"/>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Password</label>
+                    <input class="form-input" id="uf-password" type="text" placeholder="Welcome@123"/>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Role</label>
+                    <select class="form-select" id="uf-role" onchange="onRoleChange()">
+                      <option value="viewer">Viewer</option>
+                      <option value="state_manager">State Manager</option>
+                      <option value="hod">HOD</option>
+                      <option value="super_admin">Super Admin</option>
+                    </select>
+                  </div>
+                  <div class="form-field" id="uf-hod-wrap" style="display:none;grid-column:1/-1;">
+                    <label class="form-label">Assigned HOD Name</label>
+                    <input class="form-input" id="uf-hod" placeholder="Matches exact hod_name in RAW data"/>
+                  </div>
+                  <div class="form-field" id="uf-states-wrap" style="display:none;grid-column:1/-1;">
+                    <label class="form-label">Allowed States (Comma Separated)</label>
+                    <input class="form-input" id="uf-states" placeholder="GUJARAT, RAJASTHAN"/>
+                  </div>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+                  <button class="btn btn-primary btn-sm" onclick="submitNewUser()"><i class="ph ph-user-plus"></i> Create User</button>
+                  <span id="uf-status" style="font-size:12px;font-weight:600;color:var(--text3)"></span>
+                </div>
+              </div>
+          
+              <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+                  <span style="font-size:12.5px;font-weight:700;color:var(--text);">Active Directory</span>
+                  <button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+                </div>
+                <div style="max-height:220px;overflow-y:auto;overflow-x:auto;">
+                  <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+                    <thead style="background:var(--surface3);position:sticky;top:0;z-index:10;">
+                      <tr>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Name / Email</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Role</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Status</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;text-align:right;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbl-users-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB: Role Simulator -->
+            <div id="tab-roles" class="settings-pane" style="display:none;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Role Simulator</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Test the dashboard exactly as other roles see it — without changing backend code. Data boundaries (HOD restrictions, zone filtering) are enforced live.</div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                  <select class="form-select" id="sim-role-select" style="flex:1;">
+                    <option value="super_admin">Super Admin (Unrestricted)</option>
+                    <option value="hod">HOD (Restricted to own data)</option>
+                    <option value="state_manager">State Manager (By states)</option>
+                    <option value="viewer">Viewer (Read-only subset)</option>
+                  </select>
+                  <button class="btn btn-primary btn-sm" onclick="applyRoleSimulation()"><i class="ph ph-user-switch"></i> Simulate</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB: Appearance / Theme -->
+            <div id="tab-theme" class="settings-pane" style="display:none;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Appearance</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--accent4);flex-shrink:0;"><i class="ph ph-moon" id="theme-icon-modal"></i></div>
+                  <div>
+                    <div style="font-weight:700;color:var(--text);font-size:13px;">Interface Theme</div>
+                    <div style="font-size:10.5px;color:var(--text4);">Toggle between dark and light modes globally.</div>
+                  </div>
+                </div>
+                <button class="btn btn-ghost btn-sm" style="border-radius:var(--radius-sm);background:var(--surface3);" onclick="toggleTheme()">Toggle Theme</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <style>
+        .settings-layout {
+          display: flex;
+          height: calc(100vh - 64px);
+          gap: 24px;
+          padding: 24px;
+        }
+        .settings-sidebar {
+          width: 240px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+        .settings-tab {
+          padding: 10px 14px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 600;
+          font-size: 13px;
+          color: var(--text3);
+          transition: all 0.2s ease;
+        }
+        .settings-tab:hover {
+          background: var(--surface2);
+          color: var(--text);
+        }
+        .settings-tab.active {
+          background: linear-gradient(135deg, var(--accent), var(--accent2));
+          color: #ffffff;
+          box-shadow: var(--shadow-sm);
+        }
+        .settings-content {
+          flex: 1;
+          background: var(--surface);
+          border-radius: var(--radius);
+          padding: 24px;
+          overflow-y: auto;
+          box-shadow: var(--shadow-sm);
+          border: 1px solid var(--border);
+        }
+      </style>
+
+    </div></div><div id="copilot-panel" class="copilot-panel hidden">
+    <div class="copilot-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="copilot-icon"><i class="ph ph-sparkle"></i></div>
+        <div>
+          <div class="copilot-title">Virgo AI Copilot</div>
+          <div class="copilot-sub" id="copilot-context-label">Context: Dashboard</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleCopilot()" style="padding:4px"><i class="ph ph-x"></i></button>
+    </div>
+    <div id="copilot-chat" class="copilot-chat">
+      <div class="chat-msg ai">Hello! I'm your Virgo AI Copilot. I'm aware of the data on your current page. What would you like to know?</div>
+    </div>
+    <div class="copilot-input-area">
+      <input type="text" id="copilot-input" class="form-input" placeholder="Ask a context-aware question..." onkeypress="handleCopilotEnter(event)">
+      <button class="btn btn-primary" style="padding:10px" onclick="submitCopilot()"><i class="ph ph-paper-plane-right"></i></button>
+    </div>
+  </div>
+
+</div><div id="table-ai-modal" class="modal-overlay" style="z-index:999999;">
+  <div class="modal-box settings-modal-box" style="max-width:600px; padding:0; display:flex; flex-direction:column; height:75vh; overflow:hidden;">
+    <div style="padding:20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:var(--brand-muted);color:var(--brand-primary);display:flex;align-items:center;justify-content:center;font-size:18px;"><i class="ph ph-magic-wand"></i></div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--text-main);">Table Insights AI</div>
+          <div style="font-size:11px;color:var(--text-muted);" id="table-ai-context">Analyzing current table view</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeTableAI()"><i class="ph ph-x"></i></button>
+    </div>
+    <div id="table-ai-chat" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px;">
+      <div class="chat-msg ai">Ask me anything specifically about the data currently loaded in this table.</div>
+    </div>
+    <div style="padding:16px; border-top:1px solid var(--border); display:flex; gap:10px; background:var(--surface2);">
+      <input type="text" id="table-ai-input" class="form-input" style="flex:1;" placeholder="E.g., Which region has the highest volume here?" onkeypress="handleTableAIEnter(event)">
+      <button class="btn btn-primary" onclick="submitTableAI()"><i class="ph ph-paper-plane-right"></i></button>
+    </div>
+  </div>
+</div>
+
+
+
+<div id="confirm-modal" class="modal-overlay" style="z-index:9999999;">
+  <div class="modal-box">
+    <div class="modal-icon-wrap"><i class="ph ph-warning-circle"></i></div>
+    <h3 class="modal-title" id="modal-title">System Action</h3>
+    <p class="modal-desc" id="modal-desc">Are you sure?</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmModalAction()">Confirm Proceed</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading-block">
+  <div class="loader-panel">
+    <div class="acp-spinner"></div>
+    <div class="loader-progress" style="width:100%">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:22px;font-family:'Plus Jakarta Sans';font-weight:800;color:var(--text)" id="loader-pct-text">0%</span>
+        <span style="font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;align-self:flex-end;">Processing</span>
+      </div>
+      <div style="height:6px;background:var(--surface3);border-radius:99px;overflow:hidden;">
+        <div id="block-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 0.4s ease;"></div>
+      </div>
+      <div id="block-progress-label" style="text-align:center;font-size:13px;font-weight:500;color:var(--text2);margin-top:12px;">Initializing System…</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script src="/js/javascript.js?v=5"></script>
+<script src="/js/javascript1.js?v=5"></script>
+<script src="/js/javascript2.js?v=5"></script>
+
+</body>
+</html>

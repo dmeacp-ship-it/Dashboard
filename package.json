@@ -1,0 +1,25 @@
+{
+  "name": "virgo-acp-dashboard",
+  "version": "1.0.0",
+  "description": "Virgo ACP Sales Dashboard — Vercel serverless backend with Supabase, Gemini AI, and Google Sheets sync",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "vercel-dev": "vercel dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^2.7.0",
+    "uuid": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

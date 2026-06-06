@@ -1,0 +1,11 @@
+node_modules/
+node_bin/
+.env
+.env.*
+!.env.example
+.vercel/
+service-account.json
+.claude/
+npm-debug.log*
+*.log
+.DS_Store
