@@ -427,7 +427,7 @@ nav { padding: 4px 0; flex: 1; }
 /* ── KPI STRIP ── */
 .kpi-grid { 
   display: flex; flex-wrap: nowrap; gap: 16px; overflow-x: auto; 
-  padding: 12px 12px 24px; margin: -12px -12px -8px; 
+  padding: 10px 10px 14px; margin: -12px -12px -8px;
   scrollbar-width: none; 
   -webkit-overflow-scrolling: touch;
   transform: translateZ(0); 
@@ -438,7 +438,7 @@ nav { padding: 4px 0; flex: 1; }
   flex: 1; min-width: 160px;
   background: var(--bg-card);
   border: 1px solid var(--border); border-top: 4px solid var(--kpi-color, var(--brand-primary));
-  border-radius: 16px; padding: 16px;
+  border-radius: 16px; padding: 12px 14px;
   position: relative;
   box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column; justify-content: flex-start; gap: 0;
@@ -453,9 +453,9 @@ nav { padding: 4px 0; flex: 1; }
   z-index: 50;
 }
 
-.kpi-header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.kpi-header-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
 .kpi-icon {
-  width: 26px; height: 26px; border-radius: 8px;
+  width: 24px; height: 24px; border-radius: 8px;
   background: rgba(0,0,0,0.2); color: var(--kpi-color, var(--brand-primary));
   display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
 }

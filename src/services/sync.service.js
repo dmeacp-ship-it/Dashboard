@@ -99,6 +99,26 @@ function formatDateForSQL(jsDate) {
   return y + '-' + m + '-' + d;
 }
 
+// Normalises a sheet date (Date object OR locale string) to Postgres-safe
+// ISO yyyy-mm-dd. Sheets read with FORMATTED_VALUE return strings like
+// "13-04-2024" (dd-mm-yyyy) which Postgres misreads as mm-dd → out of range.
+function _toSqlDate(val) {
+  if (val instanceof Date) return formatDateForSQL(val);
+  const s = String(val).trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/); // yyyy-mm-dd already
+  if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);   // dd-mm-yyyy (day first)
+  if (m) {
+    let d = m[1], mo = m[2], y = m[3];
+    if (y.length === 2) y = '20' + y;
+    if (parseInt(mo, 10) > 12 && parseInt(d, 10) <= 12) { const t = d; d = mo; mo = t; } // tolerate mm-dd-yyyy
+    return y + '-' + mo.padStart(2, '0') + '-' + d.padStart(2, '0');
+  }
+  const dt = new Date(s);
+  return isNaN(dt) ? null : formatDateForSQL(dt);
+}
+
 // Plain pipe-join (NOT a digest) — identical to Main.gs _computeRowHash so the
 // on_conflict=row_hash dedupe matches any rows the Apps Script already wrote.
 function _computeRowHash(rowObj) {
@@ -212,7 +232,9 @@ async function processAggregation(options) {
       if (sqlColumn) {
         let val = row[j];
         if (val !== '' && val !== null && val !== undefined) {
-          if (val instanceof Date) {
+          if (sqlColumn === 'sale_date' || sqlColumn.slice(-5) === '_date') {
+            val = _toSqlDate(val);
+          } else if (val instanceof Date) {
             val = formatDateForSQL(val);
           } else if (numericCols.indexOf(sqlColumn) !== -1) {
             const parsed = parseFloat(String(val).replace(/,/g, '').trim());
@@ -320,6 +342,8 @@ async function syncOutstandingData() {
       } else if (numericCols.indexOf(col) !== -1) {
         const n = parseFloat(String(val).replace(/[₹,\s]/g, ''));
         rowObj[col] = isNaN(n) ? 0 : n;
+      } else if (col.slice(-5) === '_date' || col === 'last_updated_src') {
+        rowObj[col] = _toSqlDate(val);
       } else if (val instanceof Date) {
         rowObj[col] = formatDateForSQL(val);
       } else {

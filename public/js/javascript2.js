@@ -714,11 +714,11 @@ window.renderKPIs = function(k, monthly) {
   }
 
   function _sep() {
-    return '<div style="height:1px;background:var(--border);margin:10px 0;flex-shrink:0;"></div>';
+    return '<div style="height:1px;background:var(--border);margin:5px 0;flex-shrink:0;"></div>';
   }
 
   function _kv(label, value, color) {
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:1px 0;">
       <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;">${label}</span>
       <span style="font-size:11px;font-weight:700;color:${color || 'var(--text-sub)'};">${value}</span>
     </div>`;
@@ -738,11 +738,11 @@ window.renderKPIs = function(k, monthly) {
     {v:c31_60, c:'#38bdf8'},
     {v:c61_90, c:'#f59e0b'},
     {v:c90p,   c:'#ef4444'}
-  ], window.fmt.short(totalC), 72);
+  ], window.fmt.short(totalC), 58);
 
   function cRow(clr, lbl, cnt) {
     const pct = totalC > 0 ? ((cnt/totalC)*100).toFixed(1) : '0.0';
-    return `<div style="padding:3px 0;">
+    return `<div style="padding:1px 0;">
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="width:7px;height:7px;border-radius:50%;background:${clr};flex-shrink:0;"></div>
         <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;flex:1;">${lbl}</span>
@@ -769,11 +769,11 @@ window.renderKPIs = function(k, monthly) {
     {v:osB45, c:'#10b981'},
     {v:osA45, c:'#f59e0b'},
     {v:os90,  c:'#ef4444'}
-  ], '₹', 72);
+  ], '₹', 58);
 
   function osRow(clr, lbl, cnt, amt) {
     const pct = totOs > 0 ? ((amt/totOs)*100).toFixed(0) : '0';
-    return `<div style="padding:2px 0;">
+    return `<div style="padding:1px 0;">
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="width:7px;height:7px;border-radius:2px;background:${clr};flex-shrink:0;"></div>
         <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;flex:1;">${lbl} <span style="color:${clr};font-size:10px;">(${cnt})</span></span>
@@ -792,15 +792,18 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
   `<div class="kpi-card" style="--kpi-color:#10b981;">
-    <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:#10b981;"><i class="ph ph-ruler"></i></div>
-      <div class="kpi-label">YTD SQ FT</div>
+    <div class="kpi-header-row" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div class="kpi-icon" style="color:#10b981;"><i class="ph ph-ruler"></i></div>
+        <div class="kpi-label">YTD SQ FT</div>
+      </div>
+      ${_dlt(yrGrowth)}
     </div>
     <div>
       <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currYrSqft)}</div>
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrSqft)} sqft &nbsp;·&nbsp; ${window.fmt.num(currYrSqm)} sqm</div>
     </div>
-    <div style="margin-top:10px;">
+    <div style="margin-top:6px;">
       <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-bottom:4px;">
         <span style="color:var(--text-muted);">vs ${prevFy || 'prev yr'} (${window.fmt.short(prevYrSqft)})</span>
         <span style="color:${yrGrowth>=0?'#10b981':'#ef4444'}">${window.fmt.pct(yrGrowth)}</span>
@@ -813,23 +816,25 @@ window.renderKPIs = function(k, monthly) {
       ${_kv('Months tracked', curFyMoCount + ' of 12', 'var(--text-sub)')}
       ${_kv('Prev FY total', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-      ${_dlt(yrGrowth)}
+    <div style="text-align:right;margin-top:6px;">
       <span style="font-size:10px;color:var(--text-faint);font-weight:600;">${currentFy}</span>
     </div>
   </div>`
 
   // ── Card 2 — MTD SALE SQ FT ───────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
-    <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-calendar"></i></div>
-      <div class="kpi-label">MTD SALE SQ FT</div>
+    <div class="kpi-header-row" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-calendar"></i></div>
+        <div class="kpi-label">MTD SALE SQ FT</div>
+      </div>
+      ${_dlt(k.momGrowth)}
     </div>
     <div>
       <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currMoSqft)}</div>
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currMoSqft)} sqft &nbsp;·&nbsp; ${window.fmt.num(currMoSqm)} sqm</div>
     </div>
-    <div style="margin-top:10px;">
+    <div style="margin-top:6px;">
       ${window._sparklineBar(k.last6MonthsTrend || [], 'var(--brand-primary)')}
     </div>
     ${_sep()}
@@ -838,23 +843,25 @@ window.renderKPIs = function(k, monthly) {
       ${_kv('Prev month', window.fmt.short(prevMoSqft) + ' sqft', 'var(--text-muted)')}
       ${_kv('Rev MoM Δ', window.fmt.pct(k.momRevGrowth || 0), (k.momRevGrowth||0) >= 0 ? '#10b981' : '#ef4444')}
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-      ${_dlt(k.momGrowth)}
+    <div style="text-align:right;margin-top:6px;">
       <span style="font-size:10px;color:var(--text-faint);font-weight:600;">${k.currentMonth || 'N/A'}</span>
     </div>
   </div>`
 
   // ── Card 3 — CURR YR AVG SQ FT / MO ──────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#8b5cf6;">
-    <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:#8b5cf6;"><i class="ph ph-chart-line"></i></div>
-      <div class="kpi-label">CURR YR AVG / MO</div>
+    <div class="kpi-header-row" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div class="kpi-icon" style="color:#8b5cf6;"><i class="ph ph-chart-line"></i></div>
+        <div class="kpi-label">CURR YR AVG / MO</div>
+      </div>
+      ${_dlt(avgSqftGrowth)}
     </div>
     <div>
       <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currYrAvgSqft)}</div>
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrAvgSqft)} sqft avg / month</div>
     </div>
-    <div style="margin-top:10px;">
+    <div style="margin-top:6px;">
       ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5), '#8b5cf6')}
     </div>
     ${_sep()}
@@ -863,26 +870,25 @@ window.renderKPIs = function(k, monthly) {
       ${_kv('Months elapsed', curFyMoCount + ' this FY', 'var(--text-sub)')}
       ${_kv('YoY SQ FT Δ', window.fmt.pct(k.yoyGrowth || 0), (k.yoyGrowth||0) >= 0 ? '#10b981' : '#ef4444')}
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-      ${_dlt(avgSqftGrowth)}
+    <div style="text-align:right;margin-top:6px;">
       <span style="font-size:10px;color:var(--text-faint);font-weight:600;">vs prev yr avg</span>
     </div>
   </div>`
 
   // ── Card 4 — TOTAL CUSTOMERS ───────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#ec4899;">
-    <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
-      <div class="kpi-label">TOTAL CUSTOMERS</div>
+    <div class="kpi-header-row" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
+        <div class="kpi-label">TOTAL CUSTOMERS</div>
+      </div>
+      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);color:#10b981;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${custDonutSvg}
       <div>
         <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.num(totalC)}</div>
         <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">total accounts</div>
-        <div style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);color:#10b981;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;margin-top:5px;">
-          <i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal
-        </div>
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:1px;">
@@ -900,7 +906,7 @@ window.renderKPIs = function(k, monthly) {
       <div class="kpi-label">80% VOLUME CONTRIBUTORS</div>
     </div>
     
-    <div style="display:flex; gap:10px; margin-top:12px; margin-bottom:8px; flex:1;">
+    <div style="display:flex; gap:10px; margin-top:7px; margin-bottom:8px; flex:1;">
       
       <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
         <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-primary); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
@@ -953,18 +959,18 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 6 — TOTAL OUTSTANDING ────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#ef4444;">
-    <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:#ef4444;"><i class="ph ph-currency-inr"></i></div>
-      <div class="kpi-label">TOTAL OUTSTANDING</div>
+    <div class="kpi-header-row" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div class="kpi-icon" style="color:#ef4444;"><i class="ph ph-currency-inr"></i></div>
+        <div class="kpi-label">TOTAL OUTSTANDING</div>
+      </div>
+      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.12);color:#ef4444;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;"><i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors</span>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${osDonutSvg}
       <div>
         <div class="kpi-value" style="font-size:22px;line-height:1;white-space:nowrap;">₹${window.fmt.short(totOs)}</div>
         <div style="font-size:10px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(totOs)} absolute</div>
-        <div style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.12);color:#ef4444;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;margin-top:5px;">
-          <i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors
-        </div>
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:2px;">
