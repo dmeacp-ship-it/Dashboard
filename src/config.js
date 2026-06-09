@@ -78,7 +78,9 @@ const DB_TABLES = Object.freeze({
 
 const ROLES = Object.freeze({
   SUPER_ADMIN:   'super_admin',
+  ADMIN:         'admin',
   HOD:           'hod',
+  ZONAL_HEAD:    'zonal_head',
   STATE_MANAGER: 'state_manager',
   VIEWER:        'viewer'
 });

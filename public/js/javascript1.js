@@ -391,15 +391,18 @@ window._targetTd = function(target, achv) {
        c = '#f59e0b'; 
    }
    
-   let html = '<td style="min-width:210px; padding:8px 12px; vertical-align:middle;">';
+   let html = '<td style="min-width:180px; padding:12px 16px; vertical-align:middle;">';
    if(target === 0 && achv === 0) {
        html += '<div style="color:var(--text-faint);text-align:center;font-size:14px;font-weight:600;">—</div></td>';
        return html;
    }
    
-   html += '<div style="display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:12px;">';
-   html += '<div style="font-size:14.5px; font-weight:800; color:var(--text-main); white-space:nowrap;" title="' + window.fmt.num(achv) + ' Achieved / ' + window.fmt.num(target) + ' Target">' + window.fmt.num(achv) + ' <span style="color:var(--text-muted); font-size:11.5px; font-weight:600;">/ ' + window.fmt.num(target) + '</span></div>';
-   html += '<div><span style="display:inline-flex; align-items:center; background:' + bg + '; color:' + c + '; border: 1px solid ' + border + '; padding:4px 10px; border-radius:100px; font-size:11px; font-weight:800; letter-spacing:0.03em; white-space:nowrap;">' + pct + '% ACH</span></div>';
+   html += '<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:8px;">';
+   html += '<div style="font-size:13.5px; font-weight:800; color:var(--text-main); white-space:nowrap;" title="' + window.fmt.num(achv) + ' Achieved / ' + window.fmt.num(target) + ' Target">' + window.fmt.short(achv) + ' <span style="color:var(--text-muted); font-size:11.5px; font-weight:600;">/ ' + window.fmt.short(target) + '</span></div>';
+   html += '<div style="font-size:12px; font-weight:800; color:' + c + ';">' + pct + '%</div>';
+   html += '</div>';
+   html += '<div style="height:6px; background:var(--bg-hover); border-radius:100px; overflow:hidden;">';
+   html += '<div style="height:100%; width:' + Math.min(pct, 100) + '%; background:' + c + '; border-radius:100px;"></div>';
    html += '</div></td>';
    return html;
 };
@@ -407,6 +410,55 @@ window._targetTd = function(target, achv) {
 // ══════════════════════════════════════════════════════════
 // HOD PERFORMANCE — YEAR / QUARTER / MONTH TOGGLE
 // ══════════════════════════════════════════════════════════
+
+window.comparisonMode = 'none';
+
+window.setComparisonMode = function(mode, btn) {
+  window.comparisonMode = mode;
+  document.querySelectorAll('.comp-toggles .btn').forEach(function(b) {
+    b.className = 'btn btn-sm btn-ghost';
+  });
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  
+  if (document.getElementById('page-hodqoq').classList.contains('active')) {
+    window.loadHODQoQ();
+  }
+  if (document.getElementById('page-custqoq').classList.contains('active')) {
+    window.loadCustSale(window.custSalePage || 1);
+  }
+  if (document.getElementById('page-product').classList.contains('active')) {
+    if (typeof window.loadTimeWiseSales === 'function') window.loadTimeWiseSales();
+  }
+  if (document.getElementById('page-hodsku').classList.contains('active')) {
+    if (typeof window.loadHodSkuSales === 'function') window.loadHodSkuSales();
+  }
+};
+
+window._getCompBaseIndex = function(selId, viewType, optionsArray, getValFn) {
+  const sel = document.getElementById(selId);
+  if (!sel) return 0;
+  if (window.comparisonMode === 'none' || optionsArray.length === 0) {
+    sel.style.display = 'none';
+    return 0;
+  }
+  
+  sel.style.display = 'inline-block';
+  if (sel.dataset.view !== viewType || sel.options.length === 0) {
+    sel.innerHTML = optionsArray.map(function(opt) {
+      const v = getValFn ? getValFn(opt) : opt;
+      const l = typeof opt === 'object' ? opt.label : opt;
+      return '<option value="' + v + '">Base: ' + l + '</option>';
+    }).join('');
+    sel.dataset.view = viewType;
+    sel.value = getValFn ? getValFn(optionsArray[0]) : optionsArray[0];
+  }
+  
+  if (sel.value) {
+    let idx = optionsArray.findIndex(function(opt) { return (getValFn ? getValFn(opt) : opt) === sel.value; });
+    return idx === -1 ? 0 : idx;
+  }
+  return 0;
+};
 
 window._currentQuarter = function() {
   const m = new Date().getMonth() + 1;
@@ -437,9 +489,9 @@ window._renderHodToggles = function() {
   if (!tbar) return;
   const old = document.getElementById('hod-toggles');
   if (old) old.innerHTML =
-    '<button class="btn btn-sm ' + (window.hodView === 'quarter' ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'quarter\',this)">Quarter</button>'
-  + '<button class="btn btn-sm ' + (window.hodView === 'year'    ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'year\',this)">Year</button>'
-  + '<button class="btn btn-sm ' + (window.hodView === 'month'   ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'month\',this)">Month</button>';
+    '<button class="btn btn-sm ' + (window.hodView === 'month'   ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'month\',this)">Month</button>'
+  + '<button class="btn btn-sm ' + (window.hodView === 'quarter' ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'quarter\',this)">Quarter</button>'
+  + '<button class="btn btn-sm ' + (window.hodView === 'year'    ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setHodView(\'year\',this)">Year</button>';
 };
 
 window.loadHODQoQ = async function() {
@@ -457,18 +509,44 @@ window.loadHODQoQ = async function() {
   }
 };
 
-window._hodTh = function(label, isCurrent, suffix) {
+window._hodTh = function(label, isCurrent, suffix, hasVariance) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:110px;padding:12px 14px;';
-  return '<th style="' + s + '">'
+    + 'white-space:nowrap;min-width:110px;padding:12px 14px;text-align:right;';
+  let html = '<th style="' + s + '">'
     + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
     + label
     + (isCurrent && suffix ? '<br><span style="font-size:10px;opacity:0.7;font-weight:600">(' + suffix + ')</span>' : '')
     + '</th>';
+  return html;
 };
 
-window._hodTd = function(val, isCurrent) {
-  return '<td style="padding:6px 12px;min-width:110px;' + (isCurrent ? 'font-weight:700;background:var(--brand-muted);color:var(--text-main)' : '') + '">' + val + '</td>';
+window._hodTd = function(rawVal, isCurrent, rawPrevVal) {
+  const v1 = parseFloat(rawVal) || 0;
+  let valStr = v1 !== 0 ? window.fmt.num(v1) : '<span style="color:var(--text-faint)">—</span>';
+  
+  if (rawPrevVal !== undefined) {
+      const v2 = parseFloat(rawPrevVal) || 0;
+      let pctHtml = '';
+      if (v1 === 0 && v2 === 0) {
+          pctHtml = '<span style="color:var(--text-muted); font-size:11.5px; font-weight:700;">0.0%</span>';
+      } else if (v2 === 0 && v1 > 0) {
+          pctHtml = '<span style="color:var(--accent3); font-size:11.5px; font-weight:700;">↑ 100.0%</span>';
+      } else if (v1 === 0 && v2 > 0) {
+          pctHtml = '<span style="color:var(--danger); font-size:11.5px; font-weight:700;">↓ 100.0%</span>';
+      } else {
+          const pct = (((v1 - v2) / v2) * 100).toFixed(1);
+          let color = pct > 0 ? 'var(--accent3)' : (pct < 0 ? 'var(--danger)' : 'var(--text-muted)');
+          let arrow = pct > 0 ? '↑ ' : (pct < 0 ? '↓ ' : '');
+          pctHtml = '<span style="color:' + color + '; font-size:11.5px; font-weight:700;">' + arrow + Math.abs(pct) + '%</span>';
+      }
+      
+      let inner = '<div>' + valStr + '</div>';
+      inner += '<div style="margin-top:2px;">' + pctHtml + '</div>';
+      
+      return '<td style="padding:12px 14px;min-width:110px;vertical-align:top;text-align:right;' + (isCurrent ? 'font-weight:700;background:var(--brand-muted);color:var(--text-main)' : '') + '">' + inner + '</td>';
+  }
+  
+  return '<td style="padding:12px 14px;min-width:110px;vertical-align:top;text-align:right;' + (isCurrent ? 'font-weight:700;background:var(--brand-muted);color:var(--text-main)' : '') + '">' + valStr + '</td>';
 };
 
 window._loadHODByMonth = async function(tbody, thead) {
@@ -505,29 +583,61 @@ window._loadHODByMonth = async function(tbody, thead) {
       if (recent.indexOf(r.MONTH) !== -1) hodMap[key][r.MONTH] = r.TOTAL_SQFT || 0;
     });
 
-    const sorted = Object.values(hodMap).sort(function(a, b) {
+    let sorted = Object.values(hodMap).sort(function(a, b) {
       return (b[recent[0]] || 0) - (a[recent[0]] || 0);
     });
     
     window.App.lastTableData['hodqoq'] = sorted;
 
+    const baseIdx = window._getCompBaseIndex('hod-comp-period', 'month', recent);
+    const offsetRecent = recent.slice(baseIdx);
+
+    let displayMonths = offsetRecent;
+    if (window.comparisonMode === 'pop') {
+        displayMonths = offsetRecent.slice(0, 2);
+    } else if (window.comparisonMode === 'yoy') {
+        displayMonths = [];
+        let currM = offsetRecent[0];
+        while (currM && recent.indexOf(currM) !== -1) {
+            displayMonths.push(currM);
+            currM = currM.replace(/\d+$/, function(yr) { return parseInt(yr) - 1; });
+        }
+    }
+
+    if (window.comparisonMode !== 'none' && displayMonths.length >= 2) {
+        sorted = sorted.filter(function(r) { 
+            return Math.abs(parseFloat(r[displayMonths[0]]) || 0) > 0.001 || Math.abs(parseFloat(r[displayMonths[1]]) || 0) > 0.001; 
+        });
+    }
+
     thead.innerHTML = '<tr>'
       + '<th style="' + stickyN + '">#</th>'
       + '<th style="' + stickyHOD + '">HOD Name</th>'
       + '<th style="' + stickyST + '">State</th>'
-      + recent.map(function(m, i) { return window._hodTh(m, i === 0, 'latest'); }).join('')
+      + displayMonths.map(function(m, i) { 
+          let sub = '';
+          if (i === 0) sub = 'latest';
+          else if (window.comparisonMode === 'pop') sub = 'prev';
+          else if (window.comparisonMode === 'yoy') sub = i + ' yr ago';
+          const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayMonths.length);
+          return window._hodTh(m, i === 0, sub, hasVar); 
+        }).join('')
       + '</tr>';
 
-    if (!sorted.length) { tbody.innerHTML = window._emptyRow(recent.length + 3, 'No data found.'); return; }
+    if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayMonths.length + 3, 'No data found.'); return; }
     
     let htmlStr = '';
     sorted.forEach(function(r, i) {
       let html = '<td style="' + stickyRowN + '">' + (i+1) + '</td>'
         + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + stickyRowHOD + ';color:var(--text-main)">' + r.HOD + '</td>'
         + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
-        + recent.map(function(m, mi) {
+        + displayMonths.map(function(m, mi) {
             const val = r[m] || 0;
-            return window._hodTd(val ? window.fmt.num(val) : '<span style="color:var(--text-faint)">—</span>', mi === 0);
+            let prevVal;
+            if (window.comparisonMode !== 'none' && (mi + 1 < displayMonths.length)) {
+                prevVal = r[displayMonths[mi + 1]] || 0;
+            }
+            return window._hodTd(val, mi === 0, prevVal);
           }).join('');
       htmlStr += '<tr>' + html + '</tr>';
     });
@@ -595,7 +705,7 @@ window._loadHODByQuarter = async function(tbody, thead) {
     });
   });
 
-  const sorted = Object.keys(allKeys).map(function(k) {
+  let sorted = Object.keys(allKeys).map(function(k) {
     const entry = Object.assign({}, allKeys[k]);
     cols.forEach(function(col) {
       const row = (fyData[col.fy] || {})[k];
@@ -616,23 +726,62 @@ window._loadHODByQuarter = async function(tbody, thead) {
   const stickyRowHOD = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:204px;z-index:1;background:var(--bg-card);min-width:110px;border-right:1px solid var(--border);padding:6px 12px;';
 
+  const baseIdx = window._getCompBaseIndex('hod-comp-period', 'quarter', cols, function(c) { return c.key; });
+  const offsetCols = cols.slice(baseIdx);
+
+  let displayCols = offsetCols;
+  if (window.comparisonMode === 'pop' && offsetCols.length >= 2) {
+      displayCols = [offsetCols[0], offsetCols[1]];
+  } else if (window.comparisonMode === 'yoy' && offsetCols.length > 0) {
+      displayCols = [];
+      let currKey = offsetCols[0].key;
+      while (currKey) {
+          const colObj = cols.find(function(c) { return c.key === currKey; });
+          if (!colObj) {
+              displayCols.push({ key: currKey, label: currKey.replace('_', ' ').replace('FY ','FY-'), current: false });
+          } else {
+              displayCols.push(colObj);
+          }
+          const nextKey = currKey.replace(/FY (\d+)-(\d+)/, function(match, y1, y2) { return 'FY ' + (parseInt(y1) - 1) + '-' + (parseInt(y2) - 1); });
+          if (!allFYs.includes(nextKey.split('_')[0])) break;
+          currKey = nextKey;
+      }
+  }
+
+  if (window.comparisonMode !== 'none' && displayCols.length >= 2) {
+      sorted = sorted.filter(function(r) { 
+          return Math.abs(parseFloat(r[displayCols[0].key]) || 0) > 0.001 || Math.abs(parseFloat(r[displayCols[1].key]) || 0) > 0.001; 
+      });
+  }
+
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
     + '<th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="' + stickyST + '">State</th>'
-    + cols.map(function(c) { return window._hodTh(c.label, c.current, 'current'); }).join('')
+    + displayCols.map(function(c, i) { 
+        let sub = '';
+        if (c.current) sub = 'current';
+        else if (window.comparisonMode === 'pop') sub = 'prev';
+        else if (window.comparisonMode === 'yoy' && i > 0) sub = i + ' yr ago';
+        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+        return window._hodTh(c.label, c.current, sub, hasVar); 
+      }).join('')
     + '</tr>';
 
-  if (!sorted.length) { tbody.innerHTML = window._emptyRow(cols.length + 3, 'No data.'); return; }
+  if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayCols.length + 3, 'No data.'); return; }
   
   let htmlStr = '';
   sorted.forEach(function(r, i) {
     let html = '<td style="' + stickyRowN + '">' + (i + 1) + '</td>'
       + '<td style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-main);' + stickyRowHOD + '">' + r.HOD + '</td>'
       + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
-      + cols.map(function(c) {
+      + displayCols.map(function(c, mi) {
           const val = r[c.key] || 0;
-          return window._hodTd(val ? window.fmt.num(val) : '<span style="color:var(--text-faint)">—</span>', c.current);
+          let prevVal;
+          if (window.comparisonMode !== 'none' && (mi + 1 < displayCols.length)) {
+              prevVal = r[displayCols[mi + 1].key] || 0;
+          }
+          return window._hodTd(val, c.current, prevVal);
         }).join('');
     htmlStr += '<tr>' + html + '</tr>';
   });
@@ -678,7 +827,7 @@ window._loadHODByYear = async function(tbody, thead) {
     });
   });
 
-  const sorted = Object.keys(allKeys).map(function(k) {
+  let sorted = Object.keys(allKeys).map(function(k) {
     const entry = Object.assign({}, allKeys[k]);
     sortedFYs.forEach(function(fy) {
       const row = (fyData[fy] || {})[k];
@@ -697,25 +846,50 @@ window._loadHODByYear = async function(tbody, thead) {
   const stickyRowHOD = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:204px;z-index:1;background:var(--bg-card);min-width:110px;border-right:1px solid var(--border);padding:6px 12px;';
 
+  const baseIdx = window._getCompBaseIndex('hod-comp-period', 'year', sortedFYs);
+  const offsetFYs = sortedFYs.slice(baseIdx);
+
+  let displayFYs = offsetFYs;
+  if (window.comparisonMode === 'pop' && offsetFYs.length >= 2) {
+      displayFYs = [offsetFYs[0], offsetFYs[1]];
+  } else if (window.comparisonMode === 'yoy') {
+      displayFYs = offsetFYs;
+  }
+
+  if (window.comparisonMode !== 'none' && displayFYs.length >= 2) {
+      sorted = sorted.filter(function(r) { 
+          return Math.abs(parseFloat(r[displayFYs[0]]) || 0) > 0.001 || Math.abs(parseFloat(r[displayFYs[1]]) || 0) > 0.001; 
+      });
+  }
+
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
     + '<th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="' + stickyST + '">State</th>'
-    + sortedFYs.map(function(fy) { return window._hodTh(fy, fy === curFY, 'current'); }).join('')
+    + displayFYs.map(function(fy, i) { 
+        let sub = '';
+        if (fy === curFY) sub = 'current';
+        else if (window.comparisonMode === 'pop' && i===1) sub = 'prev';
+        else if (window.comparisonMode === 'yoy' && i > 0) sub = i + ' yr ago';
+        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayFYs.length);
+        return window._hodTh(fy, fy === curFY, sub, hasVar); 
+      }).join('')
     + '</tr>';
 
-  if (!sorted.length) { tbody.innerHTML = window._emptyRow(sortedFYs.length + 3, 'No data.'); return; }
+  if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayFYs.length + 3, 'No data.'); return; }
   
   let htmlStr = '';
   sorted.forEach(function(r, i) {
-    const maxVal = Math.max.apply(null, sortedFYs.map(function(f) { return r[f] || 0; })) || 1;
     let html = '<td style="' + stickyRowN + '">' + (i+1) + '</td>'
       + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + r.HOD + '</td>'
       + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
-      + sortedFYs.map(function(fy) {
+      + displayFYs.map(function(fy, mi) {
           const val = r[fy] || 0, isCur = fy === curFY;
-          const bar = val > 0 ? '<div style="height:3px;width:' + Math.round((val/maxVal)*56) + 'px;background:' + (isCur?'var(--brand-primary)':'var(--text-faint)') + ';border-radius:100px;margin-top:6px;opacity:0.8"></div>' : '';
-          return window._hodTd((val ? window.fmt.num(val) : '<span style="color:var(--text-faint)">—</span>') + bar, isCur);
+          let prevVal;
+          if (window.comparisonMode !== 'none' && (mi + 1 < displayFYs.length)) {
+              prevVal = r[displayFYs[mi + 1]] || 0;
+          }
+          return window._hodTd(val, isCur, prevVal);
         }).join('');
     htmlStr += '<tr>' + html + '</tr>';
   });
@@ -765,19 +939,18 @@ window.loadCustSale = async function(page = 1) {
   }
 };
 
-window._custTh = function(label, isCurrent, suffix) {
+window._custTh = function(label, isCurrent, suffix, hasVariance) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:110px;padding:12px 14px;';
-  return '<th style="' + s + '">'
+    + 'white-space:nowrap;min-width:110px;padding:12px 14px;text-align:right;';
+  let html = '<th style="' + s + '">'
     + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
     + label
     + (isCurrent && suffix ? '<br><span style="font-size:10px;opacity:0.7;font-weight:600">(' + suffix + ')</span>' : '')
     + '</th>';
+  return html;
 };
 
-window._custTd = function(val, isCurrent) {
-  return '<td style="padding:6px 12px;min-width:110px;' + (isCurrent ? 'font-weight:700;background:var(--brand-muted);color:var(--text-main)' : '') + '">' + val + '</td>';
-};
+window._custTd = window._hodTd;
 
 window._loadCustByMonth = async function(tbody, thead, page) {
   const months = (window.App.filterOptions.month || []).filter(m => m !== 'All');
@@ -805,20 +978,54 @@ window._loadCustByMonth = async function(tbody, thead, page) {
       if (recent.indexOf(r.MONTH) !== -1) map[key][r.MONTH] = r.TOTAL_SQFT;
     });
 
-    const sorted = Object.values(map).sort((a,b) => (b[recent[0]]||0) - (a[recent[0]]||0));
+    let sorted = Object.values(map).sort((a,b) => (b[recent[0]]||0) - (a[recent[0]]||0));
+
+    const baseIdx = window._getCompBaseIndex('cust-comp-period', 'month', recent);
+    const offsetRecent = recent.slice(baseIdx);
+
+    let displayMonths = offsetRecent;
+    if (window.comparisonMode === 'pop') {
+        displayMonths = offsetRecent.slice(0, 2);
+    } else if (window.comparisonMode === 'yoy') {
+        displayMonths = [];
+        let currM = offsetRecent[0];
+        while (currM && recent.indexOf(currM) !== -1) {
+            displayMonths.push(currM);
+            currM = currM.replace(/\d+$/, yr => parseInt(yr) - 1);
+        }
+    }
+
+    if (window.comparisonMode !== 'none' && displayMonths.length >= 2) {
+        sorted = sorted.filter(r => Math.abs(parseFloat(r[displayMonths[0]]) || 0) > 0.001 || Math.abs(parseFloat(r[displayMonths[1]]) || 0) > 0.001);
+    }
+
     const ps = 50, totalPages = Math.ceil(sorted.length / ps) || 1;
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
     thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
-      + recent.map((m, i) => window._custTh(m, i === 0, 'latest')).join('') + '</tr>';
+      + displayMonths.map((m, i) => {
+          let sub = '';
+          if (i === 0) sub = 'latest';
+          else if (window.comparisonMode === 'pop') sub = 'prev';
+          else if (window.comparisonMode === 'yoy') sub = i + ' yr ago';
+          const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayMonths.length);
+          return window._custTh(m, i === 0, sub, hasVar);
+      }).join('') + '</tr>';
 
-    if (!displayRows.length) { tbody.innerHTML = window._emptyRow(recent.length + 3); return; }
+    if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayMonths.length + 3); return; }
     
     let html = '';
     displayRows.forEach(r => {
       html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
-        + recent.map((m, mi) => window._custTd(r[m] ? window.fmt.num(r[m]) : '—', mi === 0)).join('') + '</tr>';
+        + displayMonths.map((m, mi) => {
+            const val = r[m] || 0;
+            let prevVal;
+            if (window.comparisonMode !== 'none' && (mi + 1 < displayMonths.length)) {
+                prevVal = r[displayMonths[mi + 1]] || 0;
+            }
+            return window._custTd(val, mi === 0, prevVal);
+        }).join('') + '</tr>';
     });
     tbody.innerHTML = html;
     window._renderPagination({ page: page, totalPages: totalPages, total: sorted.length }, 'setCustSalePage', 'pagination-custqoq');
@@ -884,7 +1091,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       });
     });
 
-    const sorted = Object.keys(allKeys).map(k => {
+    let sorted = Object.keys(allKeys).map(k => {
       const entry = Object.assign({}, allKeys[k]);
       cols.forEach(c => {
         const row = (fyData[c.fy] || {})[k];
@@ -893,19 +1100,59 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       return entry;
     }).sort((a, b) => (b[cols[0].key] || 0) - (a[cols[0].key] || 0));
 
+    const baseIdx = window._getCompBaseIndex('cust-comp-period', 'quarter', cols, c => c.key);
+    const offsetCols = cols.slice(baseIdx);
+
+    let displayCols = offsetCols;
+    if (window.comparisonMode === 'pop' && offsetCols.length >= 2) {
+        displayCols = [offsetCols[0], offsetCols[1]];
+    } else if (window.comparisonMode === 'yoy' && offsetCols.length > 0) {
+        displayCols = [];
+        let currKey = offsetCols[0].key;
+        while (currKey) {
+            const colObj = cols.find(c => c.key === currKey);
+            if (!colObj) {
+                displayCols.push({ key: currKey, label: currKey.replace('_', ' ').replace('FY ','FY-'), current: false });
+            } else {
+                displayCols.push(colObj);
+            }
+            const nextKey = currKey.replace(/FY (\d+)-(\d+)/, (match, y1, y2) => 'FY ' + (parseInt(y1) - 1) + '-' + (parseInt(y2) - 1));
+            if (!allFYsLocal.includes(nextKey.split('_')[0])) break;
+            currKey = nextKey;
+        }
+    }
+
+    if (window.comparisonMode !== 'none' && displayCols.length >= 2) {
+        sorted = sorted.filter(r => Math.abs(parseFloat(r[displayCols[0].key]) || 0) > 0.001 || Math.abs(parseFloat(r[displayCols[1].key]) || 0) > 0.001);
+    }
+
     const ps = 50, totalPages = Math.ceil(sorted.length / ps) || 1;
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
     thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
-      + cols.map(c => window._custTh(c.label, c.current, c.current ? 'current' : '')).join('') + '</tr>';
+      + displayCols.map((c, i) => {
+          let sub = '';
+          if (c.current) sub = 'current';
+          else if (window.comparisonMode === 'pop') sub = 'prev';
+          else if (window.comparisonMode === 'yoy' && i > 0) sub = i + ' yr ago';
+          const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+          return window._custTh(c.label, c.current, sub, hasVar);
+      }).join('') + '</tr>';
 
-    if (!sorted.length) { tbody.innerHTML = window._emptyRow(cols.length + 3, 'No data.'); return; }
+    if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayCols.length + 3, 'No data.'); return; }
 
     let html = '';
     displayRows.forEach(r => {
       html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
-        + cols.map(c => window._custTd(r[c.key] ? window.fmt.num(r[c.key]) : '<span style="color:var(--text-faint)">—</span>', c.current)).join('') + '</tr>';
+        + displayCols.map((c, mi) => {
+            const val = r[c.key] || 0;
+            let prevVal;
+            if (window.comparisonMode !== 'none' && (mi + 1 < displayCols.length)) {
+                prevVal = r[displayCols[mi + 1].key] || 0;
+            }
+            return window._custTd(val, c.current, prevVal);
+        }).join('') + '</tr>';
     });
     tbody.innerHTML = html;
     window._renderPagination({ page: page, totalPages: totalPages, total: sorted.length }, 'setCustSalePage', 'pagination-custqoq');
@@ -936,20 +1183,41 @@ window._loadCustByYear = async function(tbody, thead, page) {
       map[key][r.FY] = r.TOTAL_SQFT;
     });
 
-    const sorted = Object.values(map).sort((a,b) => (b[curFY]||0) - (a[curFY]||0));
-    const ps = 50, totalPages = Math.ceil(sorted.length / ps) || 1;
-    const displayRows = sorted.slice((page-1)*ps, page*ps);
-    window.App.lastTableData['custqoq'] = displayRows;
+    let sorted = Object.values(map).sort((a,b) => (b[curFY]||0) - (a[curFY]||0));
+
+    const baseIdx = window._getCompBaseIndex('cust-comp-period', 'year', allFYs);
+    const offsetFYs = allFYs.slice(baseIdx);
+
+    let displayFYs = offsetFYs;
+    if (window.comparisonMode === 'pop' && offsetFYs.length >= 2) {
+        displayFYs = [offsetFYs[0], offsetFYs[1]];
+    } else if (window.comparisonMode === 'yoy') {
+        displayFYs = offsetFYs;
+    }
 
     thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
-      + allFYs.map(fy => window._custTh(fy, fy === curFY, 'latest')).join('') + '</tr>';
+      + displayFYs.map((fy, i) => {
+          let sub = '';
+          if (fy === curFY) sub = 'current';
+          else if (window.comparisonMode === 'pop' && i===1) sub = 'prev';
+          else if (window.comparisonMode === 'yoy' && i > 0) sub = i + ' yr ago';
+          const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayFYs.length);
+          return window._custTh(fy, fy === curFY, sub, hasVar);
+      }).join('') + '</tr>';
 
-    if (!displayRows.length) { tbody.innerHTML = window._emptyRow(allFYs.length + 3); return; }
+    if (!displayRows.length) { tbody.innerHTML = window._emptyRow(displayFYs.length + 3); return; }
     
     let html = '';
     displayRows.forEach(r => {
       html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
-        + allFYs.map(fy => window._custTd(r[fy] ? window.fmt.num(r[fy]) : '—', fy === curFY)).join('') + '</tr>';
+        + displayFYs.map((fy, mi) => {
+            const val = r[fy] || 0;
+            let prevVal;
+            if (window.comparisonMode !== 'none' && (mi + 1 < displayFYs.length)) {
+                prevVal = r[displayFYs[mi + 1]] || 0;
+            }
+            return window._custTd(val, fy === curFY, prevVal);
+        }).join('') + '</tr>';
     });
     tbody.innerHTML = html;
     window._renderPagination({ page: page, totalPages: totalPages, total: sorted.length }, 'setCustSalePage', 'pagination-custqoq');

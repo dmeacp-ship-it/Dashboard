@@ -108,7 +108,11 @@ window.handleSearch = function(pageId) {
 
 window.api = function(action, extra) {
   extra = extra || {};
-  var payload = Object.assign({ action: action, filters: window.App.filters }, extra);
+  var payload = Object.assign({
+    action: action,
+    filters: window.App.filters,
+    token: localStorage.getItem('acp_token') || ''
+  }, extra);
   return fetch('/api', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -119,10 +123,83 @@ window.api = function(action, extra) {
       var r;
       try { r = txt ? JSON.parse(txt) : {}; }
       catch(e) { throw new Error('Parse error: ' + e.message); }
+      // session expired / not signed in → bounce to login (except for the
+      // login/profile probes themselves)
+      if (resp.status === 401 || (r.error && String(r.error).indexOf('AUTH_REQUIRED') === 0)) {
+        if (action !== 'login' && action !== 'getProfile' && window._forceLogin) window._forceLogin();
+        throw new Error(r.error || 'Session expired. Please sign in.');
+      }
       if (r.ok) return r.data;
       throw new Error(r.error || ('Server error on action: ' + action));
     });
   });
+};
+
+/* ── Auth gate ─────────────────────────────────────────────── */
+window._forceLogin = function() {
+  localStorage.removeItem('acp_token');
+  window.App.currentUser = null;
+  window._appReady = false;
+  var ls = document.getElementById('login-screen');
+  if (ls) ls.style.display = 'flex';
+  var app = document.getElementById('app');
+  if (app) app.style.visibility = 'hidden';
+};
+window._afterLogin = function() {
+  var ls = document.getElementById('login-screen');
+  if (ls) ls.style.display = 'none';
+  var app = document.getElementById('app');
+  if (app) app.style.visibility = 'visible';
+  if (window._applyRoleUI) window._applyRoleUI();
+  if (window._bootDashboard) window._bootDashboard();
+};
+window.doLogin = function() {
+  var u = (document.getElementById('login-username') || {}).value || '';
+  var p = (document.getElementById('login-password') || {}).value || '';
+  u = u.trim();
+  var btn = document.getElementById('login-btn');
+  var err = document.getElementById('login-err');
+  if (err) err.style.display = 'none';
+  if (!u || !p) { if (err) { err.textContent = 'Enter your username and password.'; err.style.display = 'block'; } return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  window.api('login', { username: u, password: p })
+    .then(function(data) {
+      localStorage.setItem('acp_token', data.token);
+      window.App.currentUser = data.profile;
+      window._afterLogin();
+    })
+    .catch(function(e) {
+      if (err) { err.textContent = e.message || 'Login failed.'; err.style.display = 'block'; }
+    })
+    .finally(function() { if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; } });
+};
+window.doLogout = function() {
+  window.api('logout').catch(function(){});
+  window._forceLogin();
+  window.toast && window.toast('Signed out.', 'success', 2500);
+};
+window._applyRoleUI = function() {
+  var role = (window.App.currentUser && window.App.currentUser.role) || '';
+  var canSettings = (role === 'super_admin' || role === 'admin');
+  var settingsNav = document.querySelector('.nav-item[data-page="settings"]');
+  if (settingsNav) settingsNav.style.display = canSettings ? '' : 'none';
+  var usersTab = document.querySelector('.settings-tab[data-tab="tab-users"]');
+  if (usersTab) usersTab.style.display = (role === 'super_admin') ? '' : 'none';
+  var nameEl = document.getElementById('sidebar-user-name');
+  if (nameEl && window.App.currentUser) nameEl.textContent = window.App.currentUser.full_name || window.App.currentUser.username || '';
+  var roleEl = document.getElementById('sidebar-user-role');
+  if (roleEl) roleEl.textContent = ({ super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head' }[role] || role);
+  if (window.FMS && window.FMS.applyRole) window.FMS.applyRole();
+};
+window._initAuth = function() {
+  var token = localStorage.getItem('acp_token');
+  if (!token) { window._forceLogin(); return; }
+  window.api('getProfile').then(function(p) {
+    if (p && p.role) {
+      window.App.currentUser = p;
+      window._afterLogin();
+    } else { window._forceLogin(); }
+  }).catch(function() { window._forceLogin(); });
 };
 
 window.toast = function(msg, type, dur) {
@@ -274,7 +351,8 @@ window.fmt = {
     const d = new Date(s);
     if (!isNaN(d.getTime())) return String(d.getDate()).padStart(2, '0') + ' ' + window.MN[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2);
     return s.split('T')[0];
-  }
+  },
+  currency: function(v) { return '₹' + window.fmt.short(v); }
 };
 
 window.fmtK = function(v) {
@@ -821,7 +899,8 @@ window.loadPage = function(id, page = 1, useCache = false) {
         else if(window._activeRiskTab === 'inactive' && window.loadInactive) window.loadInactive(page);
         else if(window._activeRiskTab === 'losthv' && window.loadLostHV) window.loadLostHV(page);
     },
-    product:      () => typeof window.loadBrandFinish === 'function' ? window.loadBrandFinish() : null,
+    product:      () => typeof window.loadTimeWiseSales === 'function' ? window.loadTimeWiseSales() : null,
+    hodsku:       () => typeof window.loadHodSkuSales === 'function' ? window.loadHodSkuSales() : null,
     producttype:  () => typeof window.loadProductType === 'function' ? window.loadProductType() : null,
     topsku:       () => typeof window.loadTopSKUs === 'function' ? window.loadTopSKUs(page) : null
   };
@@ -829,7 +908,29 @@ window.loadPage = function(id, page = 1, useCache = false) {
 };
 
 window.toggleAnalytics = function(btn)  { btn.classList.toggle('open'); document.getElementById('analytics-submenu').classList.toggle('open'); };
-window.toggleProductNav = function(btn) { btn.classList.toggle('open'); document.getElementById('product-submenu').classList.toggle('open'); };
+window.togglePopover = function(btn, menuId, e) {
+  e.stopPropagation();
+  const menu = document.getElementById(menuId);
+  const isOpen = menu.classList.contains('open');
+  
+  document.querySelectorAll('.nav-submenu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.nav-group-btn.open').forEach(b => b.classList.remove('open'));
+
+  if (!isOpen) {
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = Math.max(0, rect.top - 10) + 'px';
+    menu.style.left = rect.right + 4 + 'px';
+    menu.classList.add('open');
+    btn.classList.add('open');
+  }
+};
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.nav-group-wrapper') && !e.target.closest('.nav-submenu')) {
+    document.querySelectorAll('.nav-submenu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.nav-group-btn.open').forEach(b => b.classList.remove('open'));
+  }
+});
 
 window.actionAppend = function(e) { if (e) e.stopPropagation(); window.closeSettingsModal(); window.triggerAggregation(); };
 window.actionCache = function(e)  { if (e) e.stopPropagation(); window.closeSettingsModal(); if(window.debouncedCacheUpdate) window.debouncedCacheUpdate(); };
@@ -987,60 +1088,105 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+window._ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head' };
+
 window.loadUsers = async function() {
   const tbody = document.getElementById('tbl-users-body');
   if (!tbody) return;
+  // populate the HOD / Zone pickers from the current filter options
+  window._populateScopePickers();
   tbody.innerHTML = window._loadingRow(4);
   try {
     const users = await window.api('listUsers');
     if (!users || !users.length) { tbody.innerHTML = window._emptyRow(4, 'No users found.'); return; }
-    const rc = { super_admin: 'badge-amber', hod: 'badge-blue', state_manager: 'badge-green', viewer: 'badge-gray' };
-    
+    const rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
     let htmlStr = '';
     users.forEach(function(u) {
+      var scope = (u.role === 'hod') ? ((u.allowed_hods || []).join(', ') || '—')
+        : (u.role === 'zonal_head') ? ((u.allowed_zones || []).join(', ') || '—')
+        : 'All data';
       htmlStr += '<tr>'
-        + '<td style="padding:12px 18px;"><b>' + u.full_name + '</b><br><span style="color:var(--text-muted);font-size:11px;">' + u.email + '</span></td>'
-        + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + u.role + '</span></td>'
+        + '<td style="padding:12px 18px;"><b>' + (u.full_name || u.username) + '</b><br><span style="color:var(--text-muted);font-size:11px;">@' + u.username + '</span>'
+        + '<div style="color:var(--text-muted);font-size:10.5px;margin-top:3px;max-width:260px;">' + scope + '</div></td>'
+        + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
         + '<td style="padding:12px 18px;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
-        + '<td style="padding:12px 18px;text-align:right;"><button class="btn btn-ghost btn-sm" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button></td>'
+        + '<td style="padding:12px 18px;text-align:right;white-space:nowrap;">'
+        + '<button class="btn btn-ghost btn-sm" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button>'
+        + (u.username === 'superadmin' ? '' : ' <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.deleteUser(\'' + u.id + '\',\'' + u.username + '\')"><i class="ph ph-trash"></i></button>')
+        + '</td>'
         + '</tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { window.toast('Failed to load users: ' + e.message, 'error'); }
 };
 
+// Fill the multi-select HOD/Zone pickers from App.filterOptions (loaded at boot).
+window._populateScopePickers = function() {
+  var opts = window.App.filterOptions || {};
+  var hodSel = document.getElementById('uf-hods');
+  var zoneSel = document.getElementById('uf-zones');
+  var fill = function(sel, list) {
+    if (!sel) return;
+    var cur = list || [];
+    sel.innerHTML = cur.filter(function(v){ return v && v !== 'All'; })
+      .map(function(v){ return '<option value="' + window._escAttr(v) + '">' + v + '</option>'; }).join('');
+  };
+  fill(hodSel, opts.hod);
+  fill(zoneSel, opts.zone);
+};
+window._escAttr = function(s){ return String(s).replace(/"/g, '&quot;'); };
+
 window.onRoleChange = function() {
-  const role = document.getElementById('uf-role').value;
-  const hw   = document.getElementById('uf-hod-wrap');
-  const sw   = document.getElementById('uf-states-wrap');
-  if (hw) hw.style.display = role === 'hod'                                  ? 'flex' : 'none';
-  if (sw) sw.style.display = (role === 'state_manager' || role === 'viewer') ? 'flex' : 'none';
+  var roleEl = document.getElementById('uf-role');
+  if (!roleEl) return;
+  var role = roleEl.value;
+  var hw = document.getElementById('uf-hods-wrap');
+  var zw = document.getElementById('uf-zones-wrap');
+  if (hw) hw.style.display = (role === 'hod') ? 'block' : 'none';
+  if (zw) zw.style.display = (role === 'zonal_head') ? 'block' : 'none';
 };
 
 window.submitNewUser = function() {
-  const name     = document.getElementById('uf-name').value.trim();
-  const email    = document.getElementById('uf-email').value.trim();
-  const password = document.getElementById('uf-password').value.trim();
-  const role     = document.getElementById('uf-role').value;
-  const hod      = document.getElementById('uf-hod').value.trim();
-  const stRaw    = document.getElementById('uf-states').value.trim();
-  const status   = document.getElementById('uf-status');
-  
-  if (!name || !email) { window.toast('Name and email are required.', 'error'); return; }
-  
-  const states = stRaw ? stRaw.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(Boolean) : null;
-  status.textContent = 'Creating user…'; status.style.color = 'var(--text-muted)';
-  
-  window.api('createUser', { userData: { full_name: name, email: email, password: password || 'Welcome@123', role: role, hod_name: hod || null, allowed_states: states } })
+  var name     = (document.getElementById('uf-name') || {}).value || '';
+  var username = (document.getElementById('uf-username') || {}).value || '';
+  var password = (document.getElementById('uf-password') || {}).value || '';
+  var role     = (document.getElementById('uf-role') || {}).value || 'hod';
+  var status   = document.getElementById('uf-status');
+  name = name.trim(); username = username.trim();
+
+  if (!username) { window.toast('Username is required.', 'error'); return; }
+  if (!password) { window.toast('Password is required.', 'error'); return; }
+
+  var allowed_hods = [], allowed_zones = [];
+  if (role === 'hod') {
+    allowed_hods = window._selectedValues('uf-hods');
+    if (!allowed_hods.length) { window.toast('Select at least one HOD name for an HOD user.', 'error'); return; }
+  } else if (role === 'zonal_head') {
+    allowed_zones = window._selectedValues('uf-zones');
+    if (!allowed_zones.length) { window.toast('Select at least one zone for a Zonal Head.', 'error'); return; }
+  }
+
+  if (status) { status.textContent = 'Creating user…'; status.style.color = 'var(--text-muted)'; }
+  window.api('createUser', { userData: {
+    username: username, full_name: name || username, password: password,
+    role: role, allowed_hods: allowed_hods, allowed_zones: allowed_zones
+  } })
     .then(function() {
-      status.textContent = '✓ User created!'; status.style.color = 'var(--accent3)';
-      window.toast(name + ' added successfully.', 'success');
-      ['uf-name','uf-email','uf-password','uf-hod','uf-states'].forEach(function(id) {
-        const el = document.getElementById(id); if (el) el.value = '';
-      });
-      if(window.loadUsers) window.loadUsers();
+      if (status) { status.textContent = '✓ User created!'; status.style.color = 'var(--accent3)'; }
+      window.toast(username + ' added successfully.', 'success');
+      ['uf-name','uf-username','uf-password'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+      var h = document.getElementById('uf-hods'), z = document.getElementById('uf-zones');
+      if (h) Array.from(h.options).forEach(function(o){ o.selected = false; });
+      if (z) Array.from(z.options).forEach(function(o){ o.selected = false; });
+      if (window.loadUsers) window.loadUsers();
     })
-    .catch(function(e) { status.textContent = '✗ ' + e.message; status.style.color = 'var(--danger)'; window.toast('Create failed: ' + e.message, 'error'); });
+    .catch(function(e) { if (status) { status.textContent = '✗ ' + e.message; status.style.color = 'var(--danger)'; } window.toast('Create failed: ' + e.message, 'error'); });
+};
+
+window._selectedValues = function(selId) {
+  var sel = document.getElementById(selId);
+  if (!sel) return [];
+  return Array.from(sel.selectedOptions || []).map(function(o){ return o.value; });
 };
 
 window.toggleUserActive = function(profileId, currentlyActive) {
@@ -1049,14 +1195,17 @@ window.toggleUserActive = function(profileId, currentlyActive) {
     .catch(function(e) { window.toast('Update failed: ' + e.message, 'error'); });
 };
 
+window.deleteUser = function(profileId, username) {
+  if (!window.confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+  window.api('deleteUser', { profileId: profileId })
+    .then(function()   { window.toast('User "' + username + '" deleted.', 'success'); if(window.loadUsers) window.loadUsers(); })
+    .catch(function(e) { window.toast('Delete failed: ' + e.message, 'error'); });
+};
+
 window._bootDashboard = async function() {
+  if (!window.App.currentUser) { window._forceLogin(); return; }
   window.loading(true);
-  window.App.currentUser = {
-    id: 'bypass-001', full_name: 'Admin User',
-    email: 'admin@virgoasia.com', role: 'super_admin',
-    hod_name: null, allowed_states: null, is_active: true
-  };
-  
+
   const kg = document.getElementById('kpi-grid');
   if (kg) {
     let s = '';
@@ -1111,5 +1260,6 @@ window.addEventListener('DOMContentLoaded', function() {
   if (window.initTheme) window.initTheme();
   if (window.initTooltip) window.initTooltip();
   if (window.onRoleChange) window.onRoleChange();
-  if (window._bootDashboard) window._bootDashboard();
+  // Gate the whole app behind login (validates any stored token first).
+  if (window._initAuth) window._initAuth();
 });

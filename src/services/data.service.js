@@ -199,6 +199,12 @@ function _q(f, exclude) {
 
   const scope = f._scope || {};
   if (scope.hod_name) p.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
+  if (scope.allowed_hods && scope.allowed_hods.length) {
+    p.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+  }
+  if (scope.allowed_zones && scope.allowed_zones.length) {
+    p.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+  }
   if (scope.allowed_states && scope.allowed_states.length) {
     p.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
   }
@@ -210,6 +216,12 @@ async function _fetchOutstanding(f) {
   const scope = (f && f._scope) || {};
   const parts = [];
   if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
+  if (scope.allowed_hods && scope.allowed_hods.length) {
+    parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+  }
+  if (scope.allowed_zones && scope.allowed_zones.length) {
+    parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+  }
   if (scope.allowed_states && scope.allowed_states.length) {
     parts.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
   }
@@ -292,14 +304,16 @@ function _computeRFM(rows) {
 // ════════════════════════════════════════════════════════════════════════════
 
 async function getFilterOptions(userProfile) {
-  const cacheKey = 'filterOptions_' + (userProfile ? userProfile.role + '_' + (userProfile.hod_name || '') : 'all');
+  const role = userProfile ? userProfile.role : 'super_admin';
+  const scope = { role: role };
+  if (role === ROLES.HOD) scope.allowed_hods = (userProfile.allowed_hods && userProfile.allowed_hods.length) ? userProfile.allowed_hods : ['__none__'];
+  else if (role === ROLES.ZONAL_HEAD) scope.allowed_zones = (userProfile.allowed_zones && userProfile.allowed_zones.length) ? userProfile.allowed_zones : ['__none__'];
+  else if (role === ROLES.STATE_MANAGER || role === ROLES.VIEWER) scope.allowed_states = userProfile.allowed_states || null;
+
+  const cacheKey = 'filterOptions_' + role + '_' +
+    ((scope.allowed_hods || scope.allowed_zones || scope.allowed_states || []).join('|'));
   return cached(cacheKey, async function () {
-    const scopeFilter = {
-      _scope: {
-        hod_name: (userProfile && userProfile.role !== ROLES.SUPER_ADMIN) ? userProfile.hod_name : null,
-        allowed_states: (userProfile && (userProfile.role === ROLES.STATE_MANAGER || userProfile.role === ROLES.VIEWER)) ? userProfile.allowed_states : null
-      }
-    };
+    const scopeFilter = { _scope: scope };
 
     let rows;
     try {
@@ -834,6 +848,12 @@ async function getExecutiveTargets(f) {
     const scope = (f && f._scope) || {};
     const parts = [];
     if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
+    if (scope.allowed_hods && scope.allowed_hods.length) {
+      parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+    }
+    if (scope.allowed_zones && scope.allowed_zones.length) {
+      parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+    }
     if (scope.allowed_states && scope.allowed_states.length) {
       parts.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
     }
@@ -1060,10 +1080,15 @@ async function getBrandSummary(f) {
     const q = _q(f, ['month']); const map = {};
     (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       const b = _brand(r);
-      if (!map[b]) map[b] = { BRAND: b, TOTAL_SQFT: 0, TOTAL_SQM: 0, TOTAL_QTY: 0, TXN_COUNT: 0, STANDARD_COUNT: 0, REGULAR_COUNT: 0, NET_REVENUE: 0 };
+      if (!map[b]) map[b] = { BRAND: b, TOTAL_SQFT: 0, TOTAL_SQM: 0, TOTAL_QTY: 0, TXN_COUNT: 0, STANDARD_COUNT: 0, REGULAR_COUNT: 0, NET_REVENUE: 0, finishes: {} };
       map[b].TOTAL_SQFT += _sqft(r); map[b].TOTAL_SQM += _sqm(r);
       map[b].TOTAL_QTY += _qty(r); map[b].TXN_COUNT += _txns(r);
       map[b].NET_REVENUE += _rev(r);
+      const fn = _finish(r);
+      if (fn) {
+        if (!map[b].finishes[fn]) map[b].finishes[fn] = 0;
+        map[b].finishes[fn] += _sqft(r);
+      }
       if (_sku(r).indexOf('STANDARD') !== -1) map[b].STANDARD_COUNT += _txns(r);
       else map[b].REGULAR_COUNT += _txns(r);
     });
@@ -1144,9 +1169,202 @@ async function getTopSKUs(f, opts) {
     const sorted = Object.values(map)
       .map(function (s) { return Object.assign({}, s, { TOTAL_SQFT: Math.round(s.TOTAL_SQFT), TOTAL_SQM: +s.TOTAL_SQM.toFixed(2), TOTAL_QTY: +s.TOTAL_QTY.toFixed(2), NET_REVENUE: Math.round(s.NET_REVENUE) }); })
       .sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
-    const result = _paginate(sorted, opts);
+    
+    let finalRows = sorted;
+    if (opts && opts.pareto80) {
+      const totSqft = finalRows.reduce(function (sum, r) { return sum + r.TOTAL_SQFT; }, 0);
+      const target80 = totSqft * 0.8;
+      let run = 0; let cutIdx = finalRows.length;
+      for (let i = 0; i < finalRows.length; i++) {
+        run += finalRows[i].TOTAL_SQFT;
+        if (run >= target80) { cutIdx = i + 1; break; }
+      }
+      finalRows = finalRows.slice(0, cutIdx);
+    }
+    
+    const result = _paginate(finalRows, opts);
     result.brands = brands;
     return result;
+  });
+}
+
+async function getDimensionalSummary(f) {
+  return cached('dim_' + _stableStringify(f), async function () {
+    const q = _q(f, ['month']); const map = {};
+    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      const size = _s(r, 'size') || 'Unknown';
+      const thick = _thick(r) || 'Unknown';
+      const key = size + '||' + thick;
+      if (!map[key]) map[key] = { SIZE: size, THICKNESS: thick, TOTAL_SQFT: 0, NET_REVENUE: 0, TXN_COUNT: 0 };
+      map[key].TOTAL_SQFT += _sqft(r);
+      map[key].NET_REVENUE += _rev(r);
+      map[key].TXN_COUNT += _txns(r);
+    });
+    return Object.values(map)
+      .map(function (d) { return Object.assign({}, d, { TOTAL_SQFT: Math.round(d.TOTAL_SQFT), NET_REVENUE: Math.round(d.NET_REVENUE) }); })
+      .sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+  });
+}
+
+async function getProductPivotSales(f, opts) {
+  const timeGroup = opts && opts.timeGroup ? opts.timeGroup : 'quarter';
+  const rowGroup = opts && opts.rowGroup ? opts.rowGroup : 'product_type';
+  
+  return cached('pivot_' + timeGroup + '_' + rowGroup + '_' + _stableStringify(f), async function () {
+    const q = _q(f, []); 
+    const dataByRow = {};
+    const timeColsSet = new Set();
+    
+    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      let tKey = 'Unknown';
+      let tSortKey = '';
+      if (timeGroup === 'month') {
+        tKey = r['MONTH YEAR'] || r['month_year'] || _mo(r) || 'Unknown';
+        tSortKey = _mSk(tKey) || tKey;
+      } else if (timeGroup === 'quarter') {
+        tKey = r['QUARTER'] || r['quarter'] || _qtr(r) || 'Unknown';
+        tSortKey = tKey;
+      } else if (timeGroup === 'year') {
+        tKey = r['FY YEAR'] || r['fy_year'] || _robustFy(r) || 'Unknown';
+        tSortKey = tKey;
+      }
+      
+      const rKey = _s(r, rowGroup) || 'Unknown';
+      
+      if (!dataByRow[rKey]) dataByRow[rKey] = { CATEGORY: rKey, TOTAL_SQFT: 0 };
+      if (!dataByRow[rKey][tKey]) dataByRow[rKey][tKey] = 0;
+      
+      const sqft = _sqft(r);
+      dataByRow[rKey][tKey] += sqft;
+      dataByRow[rKey].TOTAL_SQFT += sqft;
+      
+      if (tKey !== 'Unknown') timeColsSet.add(JSON.stringify({ key: tKey, sortKey: tSortKey }));
+    });
+    
+    const timeCols = Array.from(timeColsSet).map(s => JSON.parse(s)).sort((a, b) => {
+       if (a.sortKey < b.sortKey) return -1;
+       if (a.sortKey > b.sortKey) return 1;
+       return 0;
+    }).map(x => x.key);
+    
+    const rows = Object.values(dataByRow).sort((a, b) => b.TOTAL_SQFT - a.TOTAL_SQFT).map(r => {
+      const out = { CATEGORY: r.CATEGORY, TOTAL_SQFT: Math.round(r.TOTAL_SQFT) };
+      timeCols.forEach(tc => { out[tc] = Math.round(r[tc] || 0); });
+      return out;
+    });
+    
+    return { columns: timeCols, rows: rows };
+  });
+}
+
+async function getHodSkuPivotSales(f, opts) {
+  const timeGroup = opts && opts.timeGroup ? opts.timeGroup : 'quarter';
+  
+  return cached('hodsku_' + timeGroup + '_' + _stableStringify(f), async function () {
+    const q = _q(f, []); 
+    const dataByRow = {};
+    const timeColsSet = new Set();
+    
+    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      let tKey = 'Unknown';
+      let tSortKey = '';
+      if (timeGroup === 'month') {
+        tKey = r['MONTH YEAR'] || r['month_year'] || _mo(r) || 'Unknown';
+        tSortKey = _mSk(tKey) || tKey;
+      } else if (timeGroup === 'quarter') {
+        tKey = r['QUARTER'] || r['quarter'] || _qtr(r) || 'Unknown';
+        tSortKey = tKey;
+      } else if (timeGroup === 'year') {
+        tKey = r['FY YEAR'] || r['fy_year'] || _robustFy(r) || 'Unknown';
+        tSortKey = tKey;
+      }
+      
+      const hodKey = _hod(r);
+      const skuKey = _sku(r);
+      const combinedKey = hodKey + '|' + skuKey;
+      
+      if (!dataByRow[combinedKey]) dataByRow[combinedKey] = { HOD: hodKey, SKU: skuKey, TOTAL_SQFT: 0 };
+      if (!dataByRow[combinedKey][tKey]) dataByRow[combinedKey][tKey] = 0;
+      
+      const sqft = _sqft(r);
+      dataByRow[combinedKey][tKey] += sqft;
+      dataByRow[combinedKey].TOTAL_SQFT += sqft;
+      
+      if (tKey !== 'Unknown') timeColsSet.add(JSON.stringify({ key: tKey, sortKey: tSortKey }));
+    });
+    
+    const timeCols = Array.from(timeColsSet).map(s => JSON.parse(s)).sort((a, b) => {
+       if (a.sortKey < b.sortKey) return -1;
+       if (a.sortKey > b.sortKey) return 1;
+       return 0;
+    }).map(x => x.key);
+    
+    // Sort by HOD name then by TOTAL_SQFT descending
+    const rows = Object.values(dataByRow).sort((a, b) => {
+      if (a.HOD < b.HOD) return -1;
+      if (a.HOD > b.HOD) return 1;
+      return b.TOTAL_SQFT - a.TOTAL_SQFT;
+    }).map(r => {
+      const out = { HOD: r.HOD, SKU: r.SKU, TOTAL_SQFT: Math.round(r.TOTAL_SQFT) };
+      timeCols.forEach(tc => { out[tc] = Math.round(r[tc] || 0); });
+      return out;
+    });
+    
+    return { columns: timeCols, rows: rows };
+  });
+}
+
+async function getTimeWiseSales(f, opts) {
+  const groupBy = opts && opts.groupBy ? opts.groupBy : 'month';
+  return cached('time_' + groupBy + '_' + _stableStringify(f), async function () {
+    const q = _q(f, ['month']); const map = {};
+    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      let key = 'Unknown';
+      let sortKey = '';
+      if (groupBy === 'month') {
+        if (Object.keys(map).length === 0) console.log('vw_sku_agg row keys:', Object.keys(r));
+        key = r['MONTH YEAR'] || r['month_year'] || _mo(r) || 'Unknown';
+        sortKey = _mSk(key) || key;
+      } else if (groupBy === 'quarter') {
+        key = r['QUARTER'] || r['quarter'] || _qtr(r) || 'Unknown';
+        sortKey = key;
+      } else if (groupBy === 'year') {
+        key = r['FY YEAR'] || r['fy_year'] || _robustFy(r) || 'Unknown';
+        sortKey = key;
+      }
+      
+      if (!map[key]) map[key] = { TIME_PERIOD: key, TOTAL_SQFT: 0, _SK: sortKey };
+      map[key].TOTAL_SQFT += _sqft(r);
+    });
+    return Object.values(map)
+      .map(function (c) { return Object.assign({}, c, { TOTAL_SQFT: Math.round(c.TOTAL_SQFT) }); })
+      .sort(function (a, b) { 
+        return (b._SK || '').localeCompare(a._SK || ''); 
+      });
+  });
+}
+
+async function getCategoricalPerformance(f, opts) {
+  const groupBy = opts && opts.groupBy ? opts.groupBy : 'FINISH';
+  return cached('cat_' + groupBy + '_' + _stableStringify(f), async function () {
+    const q = _q(f, ['month']); const map = {};
+    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      let key = 'Unknown';
+      if (groupBy === 'FINISH') key = _finish(r);
+      else if (groupBy === 'THICKNESS TYPE') key = _thick(r);
+      else if (groupBy === 'PRODUCT TYPE') key = _pt(r);
+      else if (groupBy === 'SKU TYPE') key = _sku(r);
+      
+      if (!key) key = 'Unknown';
+
+      if (!map[key]) map[key] = { CATEGORY: key, TOTAL_SQFT: 0, TOTAL_SQM: 0, TOTAL_QTY: 0, TXN_COUNT: 0, NET_REVENUE: 0 };
+      map[key].TOTAL_SQFT += _sqft(r); map[key].TOTAL_SQM += _sqm(r);
+      map[key].TOTAL_QTY += _qty(r); map[key].TXN_COUNT += _txns(r);
+      map[key].NET_REVENUE += _rev(r);
+    });
+    return Object.values(map)
+      .map(function (c) { return Object.assign({}, c, { TOTAL_SQFT: Math.round(c.TOTAL_SQFT), TOTAL_SQM: +c.TOTAL_SQM.toFixed(2), TOTAL_QTY: +c.TOTAL_QTY.toFixed(2), NET_REVENUE: Math.round(c.NET_REVENUE) }); })
+      .sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
   });
 }
 
@@ -1178,5 +1396,10 @@ module.exports = {
   getBrandSummary,
   getFinishSummary,
   getProductTypeSummary,
-  getTopSKUs
+  getTopSKUs,
+  getDimensionalSummary,
+  getCategoricalPerformance,
+  getTimeWiseSales,
+  getProductPivotSales,
+  getHodSkuPivotSales
 };

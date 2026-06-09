@@ -1,0 +1,210 @@
+/* ============================================================
+   FMS — OMS  integration styles
+   Faithful port of the Virgo ACP FMS component CSS, scoped under
+   .fms-scope and mapped onto the Dashboard's theme variables so
+   the GAS markup renders identically in dark + light, without
+   ever leaking into existing Dashboard styles.
+============================================================ */
+
+/* ── GAS variable bridge (only the names the Dashboard lacks) ── */
+.fms-scope {
+  --accentH: var(--brand-hover);
+  --card:    var(--bg-card);
+  --surface: var(--bg-surface);
+  --bg:      var(--bg-body);
+  --border2: var(--border-light);
+  --sub:     var(--text-sub);
+  --muted:   var(--text-muted);
+  --green:#22c55e; --yellow:#eab308; --red:#ef4444; --purple:#a855f7;
+  --orange:#f97316; --pink:#ec4899; --part:#0ea5e9; --full:#16a34a; --teal:#14b8a6;
+  --r: 8px;
+  --spring: cubic-bezier(0.175, 0.885, 0.32, 1.05);
+  color: var(--text-main);
+}
+/* --accent, --border, --text already exist in the Dashboard root */
+
+/* ── utility ── */
+.fms-scope .muted { color: var(--muted) !important; }
+.fms-scope .accent { color: var(--accentH) !important; }
+.fms-scope .teal { color: var(--teal) !important; }
+.fms-scope .pink { color: var(--pink) !important; }
+.fms-scope .red { color: var(--red) !important; }
+.fms-scope .green { color: var(--green) !important; }
+.fms-scope .orange { color: var(--orange) !important; }
+.fms-scope .purple { color: var(--purple) !important; }
+.fms-scope .part { color: var(--part) !important; }
+.fms-scope .fwb { font-weight: 700 !important; }
+.fms-scope .fw6 { font-weight: 600 !important; }
+.fms-scope .fw5 { font-weight: 500 !important; }
+.fms-scope .tc { text-align: center !important; }
+.fms-scope .tr { text-align: right !important; }
+.fms-scope .nowrap { white-space: nowrap !important; }
+.fms-scope .text-xs { font-size: 11px !important; }
+.fms-scope .text-sm { font-size: 12px !important; }
+.fms-scope .text-md { font-size: 15px !important; }
+.fms-scope .text-lg { font-size: 18px !important; }
+.fms-scope .break-word { max-width: 220px; word-break: break-word; white-space: normal; }
+.fms-scope .req { color: var(--red); }
+.fms-scope .w-full { width: 100% !important; }
+.fms-scope .lnk { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--accentH); }
+.fms-scope .lnk-t { color: var(--teal); }
+.fms-scope .spin { display: inline-block; animation: fmsSpin 0.7s linear infinite; }
+@keyframes fmsSpin { to { transform: rotate(360deg); } }
+
+/* stat-card colour helpers */
+.fms-scope .ca { color: var(--accentH) !important; }
+.fms-scope .co { color: var(--orange) !important; }
+.fms-scope .cg { color: var(--green) !important; }
+.fms-scope .cr { color: var(--red) !important; }
+.fms-scope .cy { color: var(--yellow) !important; }
+.fms-scope .cd { color: var(--part) !important; }
+.fms-scope .cp { color: var(--purple) !important; }
+.fms-scope .ct { color: var(--teal) !important; }
+.fms-scope .ck { color: var(--pink) !important; }
+
+/* ── stat cards ── */
+.fms-scope .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.fms-scope .stat {
+  flex: 1; min-width: 110px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 8px; text-align: center; position: relative; overflow: hidden;
+  box-shadow: var(--shadow-xs); transition: transform .2s var(--spring), box-shadow .2s;
+}
+.fms-scope .stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-sm); }
+.fms-scope .stat::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background: linear-gradient(90deg, var(--accent), var(--teal)); opacity:.85; }
+.fms-scope .stat-ic { font-size: 22px; margin-bottom: 8px; display: block; }
+.fms-scope .stat-n { font-size: 24px; font-weight: 800; line-height: 1; margin-bottom: 4px; font-family: 'Plus Jakarta Sans', sans-serif; }
+.fms-scope .stat-l { font-size: 10.5px; color: var(--sub); font-weight: 700; white-space: nowrap; letter-spacing: .3px; text-transform: uppercase; }
+
+/* ── cards & table ── */
+.fms-scope .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-xs); overflow: hidden; margin-bottom: 16px; }
+.fms-scope .tbl-top { padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface); }
+.fms-scope .tbl-ttl { font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.fms-scope .tbl-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.fms-scope .tbl-wrap { overflow: auto; }
+.fms-scope table { width: 100%; border-collapse: collapse; }
+.fms-scope thead th {
+  position: sticky; top: 0; z-index: 5; background: var(--accent); color: #fff;
+  padding: 10px 12px; text-align: left; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; white-space: nowrap;
+  border-right: 1px solid rgba(255,255,255,0.12);
+}
+.fms-scope tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--sub); vertical-align: middle; }
+.fms-scope tbody tr.clickable { cursor: pointer; }
+.fms-scope tbody tr:hover td { background: var(--bg-hover); }
+
+/* search + selects */
+.fms-scope .sw { position: relative; display: flex; align-items: center; }
+.fms-scope .sw i { position: absolute; left: 10px; color: var(--muted); font-size: 14px; pointer-events: none; }
+.fms-scope .tsearch {
+  background: var(--bg-elevated); border: 1px solid var(--border2); color: var(--text);
+  padding: 0 12px 0 32px; border-radius: 100px; font-size: 12px; width: 230px; height: 34px; outline: none; transition: all .2s;
+}
+.fms-scope .tsearch:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--brand-muted); }
+.fms-scope .filter-sel {
+  background: var(--bg-elevated); border: 1px solid var(--border2); color: var(--text);
+  padding: 0 28px 0 12px; border-radius: 100px; font-size: 12px; font-weight: 500; height: 34px;
+  outline: none; cursor: pointer; min-width: 150px;
+}
+
+/* ── badges (status / type pills) ── */
+.fms-scope .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.fms-scope .bdg { background: var(--surface); border: 1px solid var(--border); color: var(--sub); }
+.fms-scope .b-crr { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.fms-scope .b-acc { background: rgba(99,102,241,0.15); color: var(--accentH); }
+.fms-scope .b-auto { background: rgba(34,197,94,0.15); color: var(--green); }
+.fms-scope .b-ok { background: rgba(34,197,94,0.2); color: var(--green); }
+.fms-scope .b-rej { background: rgba(239,68,68,0.15); color: var(--red); }
+.fms-scope .b-fac { background: rgba(168,85,247,0.15); color: var(--purple); }
+.fms-scope .b-hold { background: rgba(236,72,153,0.15); color: var(--pink); }
+.fms-scope .b-part { background: rgba(2,136,209,0.15); color: var(--part); }
+.fms-scope .b-full { background: rgba(46,125,50,0.15); color: var(--full); }
+.fms-scope .b-plant { background: rgba(20,184,166,0.15); color: var(--teal); }
+.fms-scope .b-dogen { background: rgba(168,85,247,0.2); color: #a855f7; border: 1px solid rgba(168,85,247,0.4); }
+.fms-scope .b-stock { background: rgba(20,184,166,0.18); color: var(--teal); border: 1px solid rgba(20,184,166,0.4); }
+
+/* ── plant pills ── */
+.fms-scope .plant-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 100px; font-size: 12px; font-weight: 700; }
+.fms-scope .pp-pending { background: rgba(249,115,22,0.15); color: var(--orange); }
+.fms-scope .pp-prod { background: rgba(99,102,241,0.15); color: var(--accentH); }
+.fms-scope .pp-shortage { background: rgba(239,68,68,0.15); color: var(--red); }
+.fms-scope .pp-ready { background: rgba(34,197,94,0.15); color: var(--green); }
+
+/* ── buttons (FMS variants; base .btn/.btn-sm/.btn-ghost/.btn-primary come from Dashboard) ── */
+.fms-scope .btn-success { background: #16a34a; color: #fff; }
+.fms-scope .btn-success:hover { background: #15803d; }
+.fms-scope .btn-danger { background: #dc2626; color: #fff; }
+.fms-scope .btn-danger:hover { background: #b91c1c; }
+.fms-scope .btn-plant { background: var(--teal); color: #fff; }
+.fms-scope .btn-hold { background: #be185d; color: #fff; }
+.fms-scope .btn-warn { background: #d97706; color: #fff; }
+.fms-scope .btn-factory { background: var(--purple); color: #fff; }
+.fms-scope .btn-stock { background: var(--teal); color: #fff; }
+
+/* ── status tracker ── */
+.fms-scope .status-tracker { display: flex; justify-content: space-between; align-items: flex-start; position: relative; padding: 12px 16px 4px; margin-bottom: 12px; width: 100%; }
+.fms-scope .status-step { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; text-align: center; }
+.fms-scope .status-step:not(:last-child)::after { content:''; position:absolute; top:12px; left:50%; width:100%; height:3px; background: var(--border); z-index:-1; border-radius:4px; transition: background .3s; }
+.fms-scope .status-step.completed:not(:last-child)::after { background: var(--green); }
+.fms-scope .step-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; color: var(--muted); transition: all .3s var(--spring); }
+.fms-scope .status-step.completed .step-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.fms-scope .status-step.active .step-dot { background: var(--surface); border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--brand-muted); }
+.fms-scope .status-step.rejected .step-dot { background: var(--red); border-color: var(--red); color: #fff; }
+.fms-scope .status-step.hold .step-dot { background: var(--pink); border-color: var(--pink); color: #fff; }
+.fms-scope .step-lbl { font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: var(--muted); letter-spacing: .4px; line-height: 1.1; }
+.fms-scope .status-step.completed .step-lbl { color: var(--text); }
+.fms-scope .status-step.active .step-lbl { color: var(--accent); }
+.fms-scope .step-time { font-size: 10px; color: var(--muted); white-space: nowrap; font-weight: 500; }
+
+/* ── empty ── */
+.fms-scope .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.fms-scope .empty i { font-size: 48px; margin-bottom: 16px; display: block; color: var(--border2); }
+.fms-scope .empty h3 { font-size: 16px; color: var(--text); margin-bottom: 8px; font-weight: 700; }
+.fms-scope .empty p { font-size: 13px; max-width: 460px; margin: 0 auto; line-height: 1.5; }
+
+/* ── form bits used in modals ── */
+.fms-scope .fgrid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.fms-scope .fg { display: flex; flex-direction: column; gap: 6px; }
+.fms-scope .fg.full { grid-column: 1 / -1; }
+
+/* ── detail modal sections ── */
+.fms-scope .profile-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; }
+.fms-scope .profile-section-ttl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.fms-scope .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 10px; }
+.fms-scope .dr { display: flex; flex-direction: column; gap: 2px; }
+.fms-scope .dr.full { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+.fms-scope .dk { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+.fms-scope .dv { font-size: 12.5px; font-weight: 500; word-break: break-word; color: var(--text); }
+
+/* ── FMS modal overlay (independent of Dashboard modals) ── */
+#fms-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 100000; padding: 20px; }
+#fms-overlay.show { display: flex; }
+#fms-overlay .modal { background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 18px; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; animation: fmsModalIn .28s var(--spring); }
+#fms-overlay .modal.large { max-width: 1080px; }
+@keyframes fmsModalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+#fms-overlay .modal-header { padding: 16px 22px 12px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#fms-overlay .modal-ttl { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#fms-overlay .modal-ttl i { color: var(--accentH); font-size: 18px; }
+#fms-overlay .modal-body { flex: 1; overflow-y: auto; padding: 16px 22px; background: var(--bg-body); }
+#fms-overlay .modal-foot { padding: 12px 22px; background: var(--bg-card); border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
+
+/* ── sidebar group active tint ── */
+#sidebar .nav-group-btn.fms-on { color: var(--brand-primary); }
+
+/* ── pagination (generic tables) ── */
+.fms-scope .fms-pg { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.fms-scope .fms-pg-info { font-size: 12px; color: var(--muted); }
+.fms-scope .fms-pg-btns { display: flex; gap: 6px; align-items: center; }
+.fms-scope .fms-pg-num { font-size: 12.5px; font-weight: 600; color: var(--sub); padding: 0 6px; }
+
+/* ── DO aging bucket pills + ageing chips reuse .badge ── */
+.fms-scope .fms-bk { display:inline-flex; align-items:center; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:700; white-space:nowrap; }
+
+/* ── Orders table — matches the Dashboard's native table theme ── */
+.fms-scope table.fms-orders { font-size: 13.5px; }
+.fms-scope table.fms-orders thead th { background: var(--brand-primary); color: #fff; padding: 12px 18px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-right: none; }
+.fms-scope table.fms-orders tbody td { padding: 12px 18px; color: var(--text-sub); font-weight: 500; font-size: 13.5px; background: transparent; border-bottom: 1px dashed var(--border); }
+.fms-scope table.fms-orders tbody td:first-child { width: auto; color: var(--text-sub); font-size: 12px; font-weight: 500; padding: 12px 18px; }
+.fms-scope table.fms-orders tbody tr:nth-child(even) td { background: transparent; }
+.fms-scope table.fms-orders tbody tr:last-child td { border-bottom: none; }
+.fms-scope table.fms-orders tbody tr:hover td { background: rgba(79,70,229,0.08); }
+.fms-scope table.fms-orders tbody tr:hover td:first-child { box-shadow: inset 4px 0 0 var(--brand-primary); }

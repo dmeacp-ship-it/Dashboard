@@ -71,6 +71,21 @@ app.get('*', (_req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Cron / Background Tasks                                            */
+/* ------------------------------------------------------------------ */
+const SyncService = require('./src/services/sync.service.js');
+
+setInterval(async () => {
+  console.log(`[cron] Auto-syncing Outstanding data (every 2 hours)...`);
+  try {
+    const res = await SyncService.syncOutstandingData();
+    console.log(`[cron] Sync complete:`, res.message);
+  } catch (err) {
+    console.error(`[cron] Sync error:`, err);
+  }
+}, 2 * 60 * 60 * 1000); // 2 hours
+
+/* ------------------------------------------------------------------ */
 /*  Start                                                              */
 /* ------------------------------------------------------------------ */
 

@@ -350,19 +350,26 @@ async function syncOutstandingData() {
         rowObj[col] = String(val).trim();
       }
     });
-    if (hasCode) {
+    if (hasCode && rowObj.customer_code) {
       rowObj.synced_at = new Date().toISOString();
       payload.push(rowObj);
     }
   });
 
-  if (!payload.length) return { status: 'OK', message: 'No valid rows with customer codes.' };
+  // Deduplicate by customer_code (last one wins) to prevent Postgres ON CONFLICT errors
+  const dedupedMap = {};
+  payload.forEach(function(row) {
+      dedupedMap[row.customer_code] = row;
+  });
+  const finalPayload = Object.values(dedupedMap);
+
+  if (!finalPayload.length) return { status: 'OK', message: 'No valid rows with customer codes.' };
 
   const BATCH = 500;
   let errors = 0;
   let firstError = '';
-  for (let i = 0; i < payload.length; i += BATCH) {
-    const batch = payload.slice(i, i + BATCH);
+  for (let i = 0; i < finalPayload.length; i += BATCH) {
+    const batch = finalPayload.slice(i, i + BATCH);
     const res = await _supaRest(
       '/rest/v1/' + OUTSTANDING_CONFIG.TABLE_NAME + '?on_conflict=customer_code',
       'post', batch, 'resolution=merge-duplicates,return=minimal'
@@ -375,9 +382,9 @@ async function syncOutstandingData() {
 
   invalidateAll();
   const msg = errors
-    ? 'SYNC ERROR (' + errors + '/' + Math.ceil(payload.length / BATCH) + ' batches failed): ' + firstError
-    : 'Synced ' + payload.length + ' outstanding records successfully.';
-  return { status: errors ? 'ERROR' : 'OK', message: msg, count: payload.length, errors: errors };
+    ? 'SYNC ERROR (' + errors + '/' + Math.ceil(finalPayload.length / BATCH) + ' batches failed): ' + firstError
+    : 'Synced ' + finalPayload.length + ' outstanding records successfully.';
+  return { status: errors ? 'ERROR' : 'OK', message: msg, count: finalPayload.length, errors: errors };
 }
 
 // ════════════════════════════════════════════════════════════════════════════

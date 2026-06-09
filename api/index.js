@@ -16,6 +16,7 @@ const AIService = require('../src/services/ai.service.js');
 const CacheService = require('../src/services/cache.service.js');
 const SettingsService = require('../src/services/settings.service.js');
 const ConnectionService = require('../src/services/connection.service.js');
+const FmsService = require('../src/services/fms.service.js');
 const { getSalesRowCount } = require('../src/services/supabase.js');
 const { ROLES } = require('../src/config.js');
 
@@ -27,37 +28,32 @@ function _requireRole(profile, requiredRole) {
   if (profile.role !== requiredRole) throw new Error('ACCESS_DENIED: Action requires higher privileges.');
 }
 
-// Port of _applyScopeFilters from Main.gs.
+// Applies role-based data scoping. super_admin & admin are unrestricted; hod is
+// locked to its allowed_hods (one or more HOD names); zonal_head to its
+// allowed_zones. The restriction rides along in _scope so the data layer can
+// add the matching `hod_name=in.(…)` / `zone=in.(…)` filters.
 function _applyScopeFilters(clientFilters, profile) {
-  if (profile.role === ROLES.SUPER_ADMIN) return clientFilters;
+  const f = clientFilters || {};
+  if (profile.role === ROLES.SUPER_ADMIN || profile.role === ROLES.ADMIN) return f;
 
-  const scoped = {
-    fy: clientFilters.fy || 'All',
-    quarter: clientFilters.quarter || 'All',
-    month: clientFilters.month || 'All',
-    zone: 'All',
-    state: 'All',
-    _v: clientFilters._v || 1,
-    _scope: {
-      hod_name: profile.hod_name || null,
-      allowed_states: profile.allowed_states || null,
-      role: profile.role
-    }
-  };
+  const scoped = Object.assign({}, f, { _scope: { role: profile.role } });
 
-  if (profile.role === ROLES.HOD) return scoped;
-
-  if (profile.role === ROLES.STATE_MANAGER || profile.role === ROLES.VIEWER) {
-    if (
-      clientFilters.state &&
-      clientFilters.state !== 'All' &&
-      profile.allowed_states &&
-      profile.allowed_states.indexOf(clientFilters.state) !== -1
-    ) {
-      scoped.state = clientFilters.state;
-    }
+  if (profile.role === ROLES.HOD) {
+    const hods = (profile.allowed_hods && profile.allowed_hods.length) ? profile.allowed_hods : ['__none__'];
+    scoped._scope.allowed_hods = hods;
+    scoped.hod = 'All'; // the scope restriction supersedes any client hod filter
     return scoped;
   }
+
+  if (profile.role === ROLES.ZONAL_HEAD) {
+    const zones = (profile.allowed_zones && profile.allowed_zones.length) ? profile.allowed_zones : ['__none__'];
+    scoped._scope.allowed_zones = zones;
+    scoped.zone = 'All';
+    return scoped;
+  }
+
+  // legacy roles (state_manager / viewer) keep the old state scoping
+  scoped._scope.allowed_states = profile.allowed_states || null;
   return scoped;
 }
 
@@ -79,9 +75,9 @@ module.exports = async function handler(req, res) {
     const action = req_.action;
 
     // ── Open endpoints ──────────────────────────────────────────────────────
-    if (action === 'login') { res.json(_ok(await AuthService.login(req_.email, req_.password))); return; }
+    if (action === 'login') { res.json(_ok(await AuthService.login(req_.username, req_.password))); return; }
     if (action === 'logout') { res.json(_ok(await AuthService.logout())); return; }
-    if (action === 'getProfile') { res.json(_ok(await AuthService.getProfile())); return; }
+    if (action === 'getProfile') { res.json(_ok(await AuthService.getProfile(req_.token))); return; }
     if (action === 'clearServerCache') {
       const ts = String(Date.now());
       CacheService.invalidate();
@@ -92,13 +88,14 @@ module.exports = async function handler(req, res) {
     }
 
     // ── Secure endpoints ────────────────────────────────────────────────────
-    const userProfile = await AuthService.requireAuth();
+    const userProfile = await AuthService.requireAuth(req_.token);
     const scopedFilters = _applyScopeFilters(req_.filters || {}, userProfile);
 
-    // Admin-only: user management
+    // Admin-only: user management (super admin)
     if (action === 'listUsers') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.listUsers())); return; }
     if (action === 'createUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.createUser(req_.userData))); return; }
     if (action === 'updateUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.updateUser(req_.profileId, req_.userData))); return; }
+    if (action === 'deleteUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.deleteUser(req_.profileId))); return; }
 
     // Admin-only: sync actions
     if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
@@ -145,14 +142,32 @@ module.exports = async function handler(req, res) {
       getBrandSummary: () => DataService.getBrandSummary(scopedFilters),
       getFinishSummary: () => DataService.getFinishSummary(scopedFilters),
       getProductTypeSummary: () => DataService.getProductTypeSummary(scopedFilters),
-      getTopSKUs: () => DataService.getTopSKUs(scopedFilters, opts)
+      getDimensionalSummary: () => DataService.getDimensionalSummary(scopedFilters),
+      getCategoricalPerformance: () => DataService.getCategoricalPerformance(scopedFilters, opts),
+      getTimeWiseSales: () => DataService.getTimeWiseSales(scopedFilters, opts),
+      getProductPivotSales: () => DataService.getProductPivotSales(scopedFilters, opts),
+      getHodSkuPivotSales: () => DataService.getHodSkuPivotSales(scopedFilters, opts),
+      getTopSKUs: () => DataService.getTopSKUs(scopedFilters, opts),
+
+      // ── FMS / OMS live sheet tables ──────────────────────────────────────
+      getFmsTable: () => FmsService.getFmsTable(opts),
+      listFmsTables: () => FmsService.listFmsTables(),
+      getFmsOrders: () => FmsService.getFmsOrders(opts),
+      getFmsDashboard: () => FmsService.getFmsDashboard(),
+      getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts),
+      getFmsPartySummary: () => FmsService.getFmsPartySummary(),
+      getFmsReconcile: () => FmsService.getFmsReconcile(),
+      getFmsPlantItems: () => FmsService.getFmsPlantItems()
     };
 
     if (!routes[action]) throw new Error('Unknown action routed: ' + action);
     res.json(_ok(await routes[action]()));
   } catch (err) {
     console.error('[apiRouter ERROR] Action: ' + (req_ ? req_.action : 'Unknown') + ' | ' + (err && err.stack ? err.stack : err));
-    const status = (err.message || '').indexOf('ACCESS_DENIED') === 0 ? 403 : 500;
-    res.status(status).json(_err(err.message || 'Internal server error'));
+    const m = err.message || '';
+    const status = m.indexOf('ACCESS_DENIED') === 0 ? 403
+      : (m.indexOf('AUTH_REQUIRED') === 0 || m.indexOf('SESSION') === 0) ? 401
+        : 500;
+    res.status(status).json(_err(m || 'Internal server error'));
   }
 };

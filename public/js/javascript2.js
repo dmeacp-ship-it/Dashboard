@@ -44,6 +44,11 @@ window.loadSkuTypeSale = async function(page = 1) {
   }
 
   try {
+    if (page === 1) {
+       const trendData = await window.api('getSkuTypeMonthlySummary');
+       if (trendData && trendData.length) window.renderSkuTypeTrendChart(trendData);
+    }
+    
     if (window.skuTypeSaleView === 'year')       await window._loadSkuTypeByYear(tbody, thead, page);
     else if (window.skuTypeSaleView === 'month') await window._loadSkuTypeByMonth(tbody, thead, page);
     else                                          await window._loadSkuTypeByQuarter(tbody, thead, page);
@@ -453,42 +458,337 @@ window.loadRFM = async function(page = 1) {
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
 };
 
-window.setProdSort = function(s, btn) {
-  window.prodSort = s; document.querySelectorAll('#page-product .btn-group:last-of-type .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
-  if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadBrandFinish();
+window.categoricalGroupBy = 'FINISH';
+
+window.setCategoricalGroup = function(g, btn) {
+  window.categoricalGroupBy = g;
+  document.querySelectorAll('#cat-group-toggles .btn').forEach(b => b.className = 'btn btn-sm btn-ghost');
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  const th = document.getElementById('th-cat-group');
+  if (th) th.innerText = g === 'THICKNESS TYPE' ? 'Thickness' : g === 'PRODUCT TYPE' ? 'Product Type' : g === 'SKU TYPE' ? 'SKU Type' : 'Finish';
+  window.loadCategoricalPerformance();
+};
+
+window.setTimeWiseGroup = function(g, btn) {
+  window.App.timeWiseGroupBy = g;
+  if (btn) {
+    const btns = document.getElementById('timewise-group-toggles').querySelectorAll('button');
+    btns.forEach(b => b.className = 'btn btn-sm btn-ghost');
+    btn.className = 'btn btn-sm btn-primary';
+  }
+  window.loadTimeWiseSales();
+};
+
+window.loadTimeWiseSales = async function() {
+  const tb = document.getElementById('tbl-product-body');
+  const thead = document.getElementById('th-product-head');
+  if (!tb || !thead) return;
+  
+  const timeGb = window.App.timeWiseGroupBy || 'quarter';
+  const rowGbSelect = document.getElementById('pivot-row-group');
+  const rowGb = rowGbSelect ? rowGbSelect.value : 'product_type';
+  
+  tb.innerHTML = window._loadingRow(6);
+  
+  try {
+    const payload = await window.api('getProductPivotSales', { options: { timeGroup: timeGb, rowGroup: rowGb } });
+    let cols = payload.columns || [];
+    let data = payload.rows || [];
+    
+    if (!data || data.length === 0) {
+      tb.innerHTML = window._emptyRow(6, 'No sales data found for this period.');
+      return;
+    }
+    
+    let displayCols = cols.slice().reverse(); // Newest first
+    
+    if (window.comparisonMode === 'pop') {
+        displayCols = displayCols.slice(0, 2);
+    } else if (window.comparisonMode === 'yoy') {
+        if (displayCols.length > 0) {
+           const current = displayCols[0];
+           const prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
+               const parts = match.split('-');
+               return (parseInt(parts[0]) - 1) + '-' + (parseInt(parts[1]) - 1);
+           });
+           if (cols.indexOf(prevYearStr) !== -1) {
+               displayCols = [current, prevYearStr];
+           } else if (cols.length >= 5 && timeGb === 'quarter') {
+               displayCols = [current, displayCols[4]]; 
+           } else if (cols.length >= 13 && timeGb === 'month') {
+               displayCols = [current, displayCols[12]];
+           } else {
+               displayCols = [current];
+           }
+        }
+    }
+    
+    if (window.comparisonMode !== 'none' && displayCols.length >= 2) {
+        data = data.filter(function(r) { 
+            return Math.abs(r[displayCols[0]] || 0) > 0.001 || Math.abs(r[displayCols[1]] || 0) > 0.001; 
+        });
+    }
+    
+    let rowLabel = 'Category';
+    if (rowGb === 'finish') rowLabel = 'Finish';
+    else if (rowGb === 'product_type') rowLabel = 'Product Type';
+    else if (rowGb === 'sku_type') rowLabel = 'SKU Type';
+    else if (rowGb === 'brand') rowLabel = 'Brand';
+    
+    const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+    const stickyCAT = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    
+    const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
+    const stickyRowCAT = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
+    
+    let trHead = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyCAT + '">' + rowLabel + '</th>';
+    displayCols.forEach((c, i) => { 
+        let sub = '';
+        if (i === 0) sub = 'latest';
+        else if (window.comparisonMode === 'pop') sub = 'prev';
+        else if (window.comparisonMode === 'yoy') sub = '1 yr ago';
+        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+        if (window._hodTh) {
+           trHead += window._hodTh(c, i === 0, sub, hasVar);
+        } else {
+           trHead += '<th style="text-align:right;">' + c + '</th>';
+        }
+    });
+    if (window.comparisonMode === 'none') {
+        trHead += '<th style="text-align:right;">Total (SQ FT)</th>';
+    }
+    trHead += '</tr>';
+    thead.innerHTML = trHead;
+    
+    let html = '';
+    data.forEach((r, i) => {
+      let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + (r.CATEGORY || 'Unknown') + '</td>';
+      displayCols.forEach((c, mi) => {
+         const val = r[c] || 0;
+         if (window._hodTd) {
+             let prevVal;
+             if (window.comparisonMode !== 'none' && (mi + 1 < displayCols.length)) {
+                 prevVal = r[displayCols[mi + 1]] || 0;
+             }
+             tr += window._hodTd(val, mi === 0, prevVal);
+         } else {
+             tr += '<td style="text-align:right; white-space:nowrap;">' + window.fmt.num(val) + '</td>';
+         }
+      });
+      if (window.comparisonMode === 'none') {
+          tr += '<td style="text-align:right; font-weight:600; white-space:nowrap; color:var(--text-color);">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
+      }
+      tr += '</tr>';
+      html += tr;
+    });
+    tb.innerHTML = html;
+  } catch (err) {
+    tb.innerHTML = window._errorRow(6, err.message || err);
+  }
+};
+
+window.setHodSkuTimeGroup = function(mode, btn) {
+  window.App.hodSkuTimeGroup = mode;
+  document.querySelectorAll('#hodsku-group-toggles .btn').forEach(b => b.className = 'btn btn-sm btn-ghost');
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  window.loadHodSkuSales();
+};
+
+window.loadHodSkuSales = async function() {
+  const tb = document.getElementById('tbl-hodsku-body');
+  const thead = document.getElementById('th-hodsku-head');
+  if (!tb || !thead) return;
+  
+  const timeGb = window.App.hodSkuTimeGroup || 'quarter';
+  tb.innerHTML = window._loadingRow(10);
+  
+  try {
+    const payload = await window.api('getHodSkuPivotSales', { options: { timeGroup: timeGb } });
+    let cols = payload.columns || [];
+    let rawData = payload.rows || [];
+    
+    if (!rawData || rawData.length === 0) {
+      tb.innerHTML = window._emptyRow(10, 'No sales data found for this period.');
+      return;
+    }
+    
+    let displayCols = cols.slice().reverse();
+    if (window.comparisonMode === 'pop') {
+        displayCols = displayCols.slice(0, 2);
+    } else if (window.comparisonMode === 'yoy') {
+        if (displayCols.length > 0) {
+           const current = displayCols[0];
+           const prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
+               const parts = match.split('-');
+               return (parseInt(parts[0]) - 1) + '-' + (parseInt(parts[1]) - 1);
+           });
+           if (cols.indexOf(prevYearStr) !== -1) {
+               displayCols = [current, prevYearStr];
+           } else if (cols.length >= 5 && timeGb === 'quarter') {
+               displayCols = [current, displayCols[4]]; 
+           } else if (cols.length >= 13 && timeGb === 'month') {
+               displayCols = [current, displayCols[12]];
+           } else {
+               displayCols = [current];
+           }
+        }
+    }
+    
+    const skuSet = new Set();
+    rawData.forEach(r => { if (r.SKU && r.SKU !== 'Unknown') skuSet.add(r.SKU); });
+    const skus = Array.from(skuSet).sort();
+    
+    const hodMap = {};
+    rawData.forEach(r => {
+        if (!r.HOD) return;
+        if (!hodMap[r.HOD]) {
+            hodMap[r.HOD] = { HOD: r.HOD, totalSqftByPeriod: {} };
+            displayCols.forEach(c => hodMap[r.HOD].totalSqftByPeriod[c] = 0);
+            skus.forEach(s => hodMap[r.HOD][s] = {});
+        }
+        if (hodMap[r.HOD][r.SKU]) {
+            displayCols.forEach(c => {
+                const val = r[c] || 0;
+                hodMap[r.HOD][r.SKU][c] = val;
+                hodMap[r.HOD].totalSqftByPeriod[c] += val;
+            });
+        }
+    });
+    
+    let hodList = Object.values(hodMap);
+    if (window.comparisonMode !== 'none' && displayCols.length >= 2) {
+        hodList = hodList.filter(h => {
+            return h.totalSqftByPeriod[displayCols[0]] > 0.001 || h.totalSqftByPeriod[displayCols[1]] > 0.001;
+        });
+    }
+    
+    hodList.sort((a, b) => {
+        const latest = displayCols[0];
+        return (b.totalSqftByPeriod[latest] || 0) - (a.totalSqftByPeriod[latest] || 0);
+    });
+    
+    const stickyN   = 'position:sticky;left:0;z-index:20;background:var(--brand-primary);width:44px;padding:8px 12px;';
+    const stickyHOD = 'position:sticky;left:44px;z-index:20;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    
+    const stickyRowN   = 'position:sticky;left:0;z-index:10;background:var(--bg-card);width:44px;padding:6px 12px;';
+    const stickyRowHOD = 'position:sticky;left:44px;z-index:10;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);color:var(--text-main);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    
+    let trHead1 = '<tr><th style="' + stickyN + ' border-bottom:none;">#</th><th style="' + stickyHOD + ' border-bottom:none;">HOD</th>';
+    let trHead2 = '<tr><th style="' + stickyN + ' border-top:none; padding:0;"></th><th style="' + stickyHOD + ' border-top:none; padding:0;"></th>';
+    
+    displayCols.forEach((c, i) => { 
+        let sub = '';
+        if (i === 0) sub = 'latest';
+        else if (window.comparisonMode === 'pop') sub = 'prev';
+        else if (window.comparisonMode === 'yoy') sub = '1 yr ago';
+        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+        
+        if (window._hodTh) {
+           const thRaw = window._hodTh(c, i === 0, sub, hasVar);
+           trHead1 += thRaw.replace('<th', '<th colspan="' + skus.length + '" style="text-align:center; border-left:1px solid var(--border);"');
+        } else {
+           trHead1 += '<th colspan="' + skus.length + '" style="text-align:center; border-left:1px solid var(--border);">' + c + '</th>';
+        }
+        
+        skus.forEach((s, si) => {
+            let borderStyle = (si === 0) ? 'border-left:1px solid var(--border);' : '';
+            trHead2 += '<th style="text-align:right; font-size:11px; padding:6px 8px; color:var(--text-muted); background:var(--bg-elevated); ' + borderStyle + '">' + s + ' %</th>';
+        });
+    });
+    trHead1 += '</tr>';
+    trHead2 += '</tr>';
+    thead.innerHTML = trHead1 + trHead2;
+    
+    let html = '';
+    hodList.forEach((h, i) => {
+      let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="' + stickyRowHOD + '" title="' + h.HOD + '">' + h.HOD + '</td>';
+      
+      displayCols.forEach((c, mi) => {
+         const total = h.totalSqftByPeriod[c] || 0;
+         
+         skus.forEach((s, si) => {
+             const val = h[s][c] || 0;
+             let pctStr = '-';
+             let pctRaw = 0;
+             if (total > 0.001) {
+                 pctRaw = (val / total) * 100;
+                 pctStr = pctRaw.toFixed(1) + '%';
+             }
+             
+             let colorStyle = '';
+             if (pctRaw > 50) colorStyle = 'color:var(--success); font-weight:600;';
+             else if (pctRaw > 20) colorStyle = 'color:var(--text-main); font-weight:500;';
+             else colorStyle = 'color:var(--text-muted);';
+             
+             let borderStyle = (si === 0) ? 'border-left:1px solid var(--border);' : '';
+             
+             tr += '<td style="text-align:right; white-space:nowrap; ' + borderStyle + colorStyle + '">' + pctStr + '</td>';
+         });
+      });
+      tr += '</tr>';
+      html += tr;
+    });
+    tb.innerHTML = html;
+  } catch (err) {
+    tb.innerHTML = window._errorRow(10, err.message || err);
+  }
 };
 
 window.loadBrandFinish = async function() {
-  const tbody = document.getElementById('tbl-brand-body'); if (!tbody) return;
-  tbody.innerHTML = window._loadingRow(9);
+  const kg = document.getElementById('prod-kpi-grid');
+  if (kg) kg.innerHTML = window._loadingRow(1);
   try {
-    const [brands, finishes] = await Promise.all([ window.api('getBrandSummary'), window.api('getFinishSummary') ]);
-    if (!brands || !brands.length) { tbody.innerHTML = window._emptyRow(9, 'No brand data found.'); return; }
+    const [finishes, thicks, prods, skus] = await Promise.all([
+      window.api('getCategoricalPerformance', { options: { groupBy: 'FINISH' } }),
+      window.api('getCategoricalPerformance', { options: { groupBy: 'THICKNESS TYPE' } }),
+      window.api('getCategoricalPerformance', { options: { groupBy: 'PRODUCT TYPE' } }),
+      window.api('getCategoricalPerformance', { options: { groupBy: 'SKU TYPE' } })
+    ]);
     
-    const sq = (window.searchQueries['brand'] || '').toLowerCase(); let rows = brands;
-    if(sq) rows = rows.filter(r => (r.BRAND||'').toLowerCase().includes(sq));
+    let totalSqft = 0, totalRev = 0, totalTxns = 0;
+    finishes.forEach(f => { totalSqft += f.TOTAL_SQFT; totalRev += f.NET_REVENUE; totalTxns += f.TXN_COUNT; });
+    
+    const topFinish = finishes.length ? finishes[0].CATEGORY : '-';
+    const topThick = thicks.length ? thicks[0].CATEGORY : '-';
+    const topProd = prods.length ? prods[0].CATEGORY : '-';
+    
+    let stdSqft = 0;
+    skus.forEach(s => { if(s.CATEGORY.indexOf('STANDARD') !== -1) stdSqft += s.TOTAL_SQFT; });
+    const stdMix = totalSqft > 0 ? ((stdSqft / totalSqft) * 100).toFixed(1) + '%' : '0%';
 
-    const totalSqft = rows.reduce(function(s, b) { return s + (b.TOTAL_SQFT || 0); }, 0); const totalTxns = rows.reduce(function(s, b) { return s + (b.TXN_COUNT  || 0); }, 0);
-    const kg = document.getElementById('prod-kpi-grid');
     if (kg) {
-      kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-package"></i></div><div class="kpi-label">Total Brands</div></div><div class="kpi-value" style="font-size:24px;">' + rows.length + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-receipt"></i></div><div class="kpi-label">Transactions</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalTxns) + '</div></div>';
+      kg.innerHTML = 
+          '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-receipt"></i></div><div class="kpi-label">Total Revenue</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.currency(totalRev) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#f59e0b"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f59e0b"><i class="ph ph-stack"></i></div><div class="kpi-label">Top Prod Type</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topProd + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#ec4899"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-paint-bucket"></i></div><div class="kpi-label">Top Finish</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topFinish + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-line-segments"></i></div><div class="kpi-label">Top Thickness</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topThick + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#4f46e5"><div class="kpi-header-row"><div class="kpi-icon" style="color:#4f46e5"><i class="ph ph-star"></i></div><div class="kpi-label">Standard Mix</div></div><div class="kpi-value" style="font-size:24px;">' + stdMix + '</div></div>';
     }
     
-    const sortField = window.prodSort === 'qty' ? 'TOTAL_QTY' : window.prodSort === 'txns' ? 'TXN_COUNT' : 'TOTAL_SQFT';
-    const sorted = rows.slice().sort(function(a, b) { return (b[sortField] || 0) - (a[sortField] || 0); });
-    window.App.lastTableData['product'] = sorted;
-
-    window.renderBrandChart(sorted); window.renderFinishChart(finishes || []);
+    window.App.catDataCache = { 'FINISH': finishes, 'THICKNESS TYPE': thicks, 'PRODUCT TYPE': prods, 'SKU TYPE': skus };
+    window.loadCategoricalPerformance();
     
-    let htmlStr = '';
-    sorted.forEach(function(r, i) {
-      const share  = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0'; const avgOrd = r.TXN_COUNT > 0 ? Math.round(r.TOTAL_SQFT / r.TXN_COUNT) : 0;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + (r.BRAND || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--brand-primary);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="padding:6px 12px;">' + window.fmt.num(avgOrd) + '</td><td style="font-size:11px;font-weight:600;padding:6px 12px;"><span style="color:var(--accent3)">' + window.fmt.num(r.STANDARD_COUNT) + '</span> / <span style="color:var(--text-muted)">' + window.fmt.num(r.REGULAR_COUNT) + '</span></td></tr>';
-    });
-    tbody.innerHTML = htmlStr;
-  } catch(e) { tbody.innerHTML = window._errorRow(9, e.message); }
+  } catch(e) { if(kg) kg.innerHTML = window._errorRow(1, e.message); }
+};
+
+window.loadCategoricalPerformance = function() {
+  const tbody = document.getElementById('tbl-cat-body'); if (!tbody) return;
+  const data = window.App.catDataCache ? window.App.catDataCache[window.categoricalGroupBy] : null;
+  if (!data || !data.length) { tbody.innerHTML = window._emptyRow(8, 'No data found.'); return; }
+  
+  const sq = (window.searchQueries['categorical'] || '').toLowerCase(); let rows = data;
+  if(sq) rows = rows.filter(r => (r.CATEGORY||'').toLowerCase().includes(sq));
+  
+  const totalSqft = rows.reduce((s, b) => s + (b.TOTAL_SQFT || 0), 0);
+  window.App.lastTableData['categorical'] = rows;
+  
+  let htmlStr = '';
+  rows.forEach(function(r, i) {
+    const share = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0';
+    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + (r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
+  });
+  tbody.innerHTML = htmlStr;
 };
 
 window._cDefaults = function(extra) {
@@ -505,13 +805,36 @@ window.renderBrandChart = function(brands) {
   if (typeof Chart === 'undefined') return;
   const ctx = document.getElementById('chart-brand'); if (!ctx) return;
   const top = brands.slice(0, 8);
+  const palette = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#38bdf8', '#8b5cf6'];
+  
+  const allFinishes = new Set();
+  top.forEach(b => { if(b.finishes) Object.keys(b.finishes).forEach(f => allFinishes.add(f)); });
+  const fList = Array.from(allFinishes);
+  
+  const datasets = fList.map((fn, i) => {
+    return {
+      label: fn,
+      data: top.map(b => (b.finishes && b.finishes[fn]) ? b.finishes[fn] : 0),
+      backgroundColor: palette[i % palette.length],
+      borderRadius: 4
+    };
+  });
+
   if (window.App.charts.brand) {
-      window.App.charts.brand.data.labels = top.map(b => b.BRAND); window.App.charts.brand.data.datasets[0].data = top.map(b => b.TOTAL_SQFT); window.App.charts.brand.update('none'); 
+      window.App.charts.brand.data.labels = top.map(b => b.BRAND);
+      window.App.charts.brand.data.datasets = datasets;
+      window.App.charts.brand.update('none'); 
   } else {
       window.App.charts.brand = new Chart(ctx, {
         type: 'bar',
-        data: { labels: top.map(b => b.BRAND), datasets: [{ label: 'SQ FT', data: top.map(b => b.TOTAL_SQFT), backgroundColor: 'rgba(79,70,229,0.8)', hoverBackgroundColor: '#4f46e5', borderRadius: 6 }] },
-        options: window._cDefaults({ scales: { x: { ticks: { color: window.tc(), font: { size: 11, weight: 600 } }, grid: { display: false } }, y: { ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } } }, plugins: { legend: { display: false } } })
+        data: { labels: top.map(b => b.BRAND), datasets: datasets },
+        options: window._cDefaults({ 
+          scales: { 
+            x: { stacked: true, ticks: { color: window.tc(), font: { size: 11, weight: 600 } }, grid: { display: false } }, 
+            y: { stacked: true, ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } } 
+          }, 
+          plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: {size: 11, weight: 600}, color: window.tc() } }, tooltip: { mode: 'index', intersect: false } } 
+        })
       });
   }
 };
@@ -532,25 +855,39 @@ window.renderFinishChart = function(finishes) {
 };
 
 window.loadProductType = async function() {
-  const tbody = document.getElementById('tbl-prodtype-body'); if (!tbody) return;
-  tbody.innerHTML = window._loadingRow(9);
+  const tbody = document.getElementById('tbl-dim-body');
+  const thead = document.getElementById('tbl-dim-head');
+  if (!tbody || !thead) return;
+  tbody.innerHTML = window._loadingRow(1);
   try {
-    const data = await window.api('getProductTypeSummary');
-    if (!data || !data.length) { tbody.innerHTML = window._emptyRow(9, 'No product type data.'); return; }
+    const dimData = await window.api('getDimensionalSummary');
+    if (!dimData || !dimData.length) { tbody.innerHTML = window._emptyRow(1, 'No dimensional data.'); return; }
+    window.App.lastTableData['dimensional'] = dimData;
     
-    const sq = (window.searchQueries['prodtype'] || '').toLowerCase(); let rows = data;
-    if(sq) rows = rows.filter(r => (r.PRODUCT_TYPE||'').toLowerCase().includes(sq) || (r.BRAND||'').toLowerCase().includes(sq));
-
-    const totalSqft = rows.reduce(function(s, r) { return s + (r.TOTAL_SQFT || 0); }, 0);
-    window.renderProdTypeChart(rows); window.App.lastTableData['producttype'] = rows;
+    const sizes = Array.from(new Set(dimData.map(d => d.SIZE))).sort();
+    const thicks = Array.from(new Set(dimData.map(d => d.THICKNESS))).sort();
     
-    let htmlStr = '';
-    rows.forEach(function(r, i) {
-      const share = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0';
-      htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + (r.PRODUCT_TYPE || '-') + '</td><td style="padding:6px 12px;">' + (r.BRAND || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.CUSTOMER_COUNT) + '</td></tr>';
+    let headHtml = '<tr><th style="background:var(--bg-elevated);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)">Thickness / Size</th>';
+    sizes.forEach(s => headHtml += '<th style="padding:8px 12px;border-bottom:1px solid var(--border)">' + s + '</th>');
+    headHtml += '<th style="padding:8px 12px;border-bottom:1px solid var(--border)">Total</th></tr>';
+    thead.innerHTML = headHtml;
+    
+    let bodyHtml = '';
+    thicks.forEach(t => {
+      let rowHtml = '<tr><td style="font-weight:700;text-align:left;background:var(--bg-elevated);padding:8px 12px;border-bottom:1px solid var(--border)">' + t + '</td>';
+      let rowTotal = 0;
+      sizes.forEach(s => {
+        const cell = dimData.find(d => d.SIZE === s && d.THICKNESS === t);
+        const val = cell ? cell.TOTAL_SQFT : 0;
+        rowTotal += val;
+        if (val > 0) rowHtml += '<td style="color:var(--brand-primary);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--border)">' + window.fmt.num(val) + '</td>';
+        else rowHtml += '<td style="color:var(--text-sub);padding:8px 12px;border-bottom:1px solid var(--border)">-</td>';
+      });
+      rowHtml += '<td style="font-weight:800;background:var(--bg-elevated);padding:8px 12px;border-bottom:1px solid var(--border)">' + window.fmt.num(rowTotal) + '</td></tr>';
+      bodyHtml += rowHtml;
     });
-    tbody.innerHTML = htmlStr;
-  } catch(e) { tbody.innerHTML = window._errorRow(9, e.message); }
+    tbody.innerHTML = bodyHtml;
+  } catch(e) { tbody.innerHTML = window._errorRow(1, e.message); }
 };
 
 window.renderProdTypeChart = function(rows) {
@@ -585,6 +922,11 @@ window.loadTopSKUs = async function(page = 1) {
   if(!pagContainer) { const wrap = document.querySelector('#page-topsku .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-topsku'; wrap.appendChild(pagContainer); }
   
   try {
+    if (page === 1) {
+        const allForChart = await window.api('getTopSKUs', { options: { brand: window.skuBrandFilter, skuType: window.skuTypeFilter, pareto80: true, pageSize: 500 } });
+        if(allForChart && allForChart.items) window.renderParetoChart(allForChart.items);
+    }
+    
     const res    = await window.api('getTopSKUs', { options: { brand: window.skuBrandFilter, skuType: window.skuTypeFilter, page: page, pageSize: 50, search: window.searchQueries['topsku'] } });
     const rows   = window._tableItems(res); const brands = (res && res.brands) ? res.brands : [];
     window._renderPagination(res, 'loadTopSKUs', 'pagination-topsku'); window.App.lastTableData['topsku'] = rows;
@@ -603,6 +945,44 @@ window.loadTopSKUs = async function(page = 1) {
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(11, e.message); }
+};
+
+window.renderParetoChart = function(rows) {
+  if (typeof Chart === 'undefined') return;
+  const ctx = document.getElementById('chart-sku-pareto'); if (!ctx) return;
+  
+  let tot = 0; rows.forEach(r => tot += r.TOTAL_SQFT);
+  let run = 0;
+  const cumData = rows.map(r => { run += r.TOTAL_SQFT; return (run/tot)*100; });
+  
+  const chartRows = rows.slice(0, 30);
+  const chartCum = cumData.slice(0, 30);
+  
+  if (window.App.charts.pareto) {
+      window.App.charts.pareto.data.labels = chartRows.map(r => r.ITEM_CODE);
+      window.App.charts.pareto.data.datasets[0].data = chartCum;
+      window.App.charts.pareto.data.datasets[1].data = chartRows.map(r => r.TOTAL_SQFT);
+      window.App.charts.pareto.update('none');
+  } else {
+      window.App.charts.pareto = new Chart(ctx, {
+        type: 'bar',
+        data: { 
+          labels: chartRows.map(r => r.ITEM_CODE), 
+          datasets: [
+            { type: 'line', label: 'Cumulative %', data: chartCum, borderColor: '#ec4899', backgroundColor: '#ec4899', borderWidth: 2, pointRadius: 3, yAxisID: 'y1' },
+            { type: 'bar', label: 'SQ FT', data: chartRows.map(r => r.TOTAL_SQFT), backgroundColor: 'rgba(79,70,229,0.8)', hoverBackgroundColor: '#4f46e5', borderRadius: 4, yAxisID: 'y' }
+          ] 
+        },
+        options: window._cDefaults({ 
+          scales: { 
+            x: { ticks: { color: window.tc(), font: { size: 10, weight: 600 }, maxRotation: 45 }, grid: { display: false } }, 
+            y: { position: 'left', ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } },
+            y1: { position: 'right', max: 100, min: 0, ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return v + '%'; } }, grid: { display: false } }
+          }, 
+          plugins: { legend: { display: true }, tooltip: { mode: 'index', intersect: false } } 
+        })
+      });
+  }
 };
 
 window._sparklineLine = function(data, color, gid) {
@@ -738,7 +1118,7 @@ window.renderKPIs = function(k, monthly) {
     {v:c31_60, c:'#38bdf8'},
     {v:c61_90, c:'#f59e0b'},
     {v:c90p,   c:'#ef4444'}
-  ], window.fmt.short(totalC), 58);
+  ], window.fmt.short(totalC), 80);
 
   function cRow(clr, lbl, cnt) {
     const pct = totalC > 0 ? ((cnt/totalC)*100).toFixed(1) : '0.0';
@@ -769,7 +1149,7 @@ window.renderKPIs = function(k, monthly) {
     {v:osB45, c:'#10b981'},
     {v:osA45, c:'#f59e0b'},
     {v:os90,  c:'#ef4444'}
-  ], '₹', 58);
+  ], '₹', 80);
 
   function osRow(clr, lbl, cnt, amt) {
     const pct = totOs > 0 ? ((amt/totOs)*100).toFixed(0) : '0';
@@ -795,29 +1175,28 @@ window.renderKPIs = function(k, monthly) {
     <div class="kpi-header-row" style="justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:9px;min-width:0;">
         <div class="kpi-icon" style="color:#10b981;"><i class="ph ph-ruler"></i></div>
-        <div class="kpi-label">YTD SQ FT</div>
+        <div class="kpi-label">YTD SQ FT (${currentFy})</div>
       </div>
       ${_dlt(yrGrowth)}
     </div>
-    <div>
-      <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currYrSqft)}</div>
-      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrSqft)} sqft &nbsp;·&nbsp; ${window.fmt.num(currYrSqm)} sqm</div>
+    <div style="height:80px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(currYrSqft)}</div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrSqft)} sqft</div>
     </div>
-    <div style="margin-top:6px;">
+    <div style="margin-top:auto;margin-bottom:6px;">
       <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-bottom:4px;">
         <span style="color:var(--text-muted);">vs ${prevFy || 'prev yr'} (${window.fmt.short(prevYrSqft)})</span>
         <span style="color:${yrGrowth>=0?'#10b981':'#ef4444'}">${window.fmt.pct(yrGrowth)}</span>
       </div>
       ${_bar(Math.min(currYrSqft, Math.max(prevYrSqft, currYrSqft, 1)), Math.max(prevYrSqft, currYrSqft, 1), '#10b981', 7)}
     </div>
-    ${_sep()}
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      ${_kv('FY Revenue', '₹' + window.fmt.short(k.totalRevenue || currYrRev), '#10b981')}
-      ${_kv('Months tracked', curFyMoCount + ' of 12', 'var(--text-sub)')}
-      ${_kv('Prev FY total', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
-    </div>
-    <div style="text-align:right;margin-top:6px;">
-      <span style="font-size:10px;color:var(--text-faint);font-weight:600;">${currentFy}</span>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${_kv('FY Revenue', '₹' + window.fmt.short(k.totalRevenue || currYrRev), '#10b981')}
+        ${_kv('Months tracked', curFyMoCount + ' of 12', 'var(--text-sub)')}
+        ${_kv('Prev FY total', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
+      </div>
     </div>
   </div>`
 
@@ -830,21 +1209,22 @@ window.renderKPIs = function(k, monthly) {
       </div>
       ${_dlt(k.momGrowth)}
     </div>
-    <div>
-      <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currMoSqft)}</div>
-      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currMoSqft)} sqft &nbsp;·&nbsp; ${window.fmt.num(currMoSqm)} sqm</div>
+    <div style="height:80px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(currMoSqft)}</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${k.currentMonth || 'N/A'}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currMoSqft)} sqft</div>
     </div>
-    <div style="margin-top:6px;">
+    <div style="margin-top:auto;margin-bottom:6px;">
       ${window._sparklineBar(k.last6MonthsTrend || [], 'var(--brand-primary)')}
     </div>
-    ${_sep()}
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      ${_kv('MTD Revenue', '₹' + window.fmt.short(k.currentMonthRev || 0), 'var(--brand-primary)')}
-      ${_kv('Prev month', window.fmt.short(prevMoSqft) + ' sqft', 'var(--text-muted)')}
-      ${_kv('Rev MoM Δ', window.fmt.pct(k.momRevGrowth || 0), (k.momRevGrowth||0) >= 0 ? '#10b981' : '#ef4444')}
-    </div>
-    <div style="text-align:right;margin-top:6px;">
-      <span style="font-size:10px;color:var(--text-faint);font-weight:600;">${k.currentMonth || 'N/A'}</span>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${_kv('MTD Revenue', '₹' + window.fmt.short(k.currentMonthRev || 0), 'var(--brand-primary)')}
+        ${_kv('Prev month', window.fmt.short(prevMoSqft) + ' sqft', 'var(--text-muted)')}
+      </div>
     </div>
   </div>`
 
@@ -857,21 +1237,22 @@ window.renderKPIs = function(k, monthly) {
       </div>
       ${_dlt(avgSqftGrowth)}
     </div>
-    <div>
-      <div class="kpi-value" style="font-size:26px;line-height:1.1;">${window.fmt.short(currYrAvgSqft)}</div>
+    <div style="height:80px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(currYrAvgSqft)}</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">vs prev yr avg</div>
+      </div>
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrAvgSqft)} sqft avg / month</div>
     </div>
-    <div style="margin-top:6px;">
+    <div style="margin-top:auto;margin-bottom:6px;">
       ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5), '#8b5cf6')}
     </div>
-    ${_sep()}
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      ${_kv('Prev yr avg/mo', window.fmt.short(prevYrAvgSqft) + ' sqft', 'var(--text-muted)')}
-      ${_kv('Months elapsed', curFyMoCount + ' this FY', 'var(--text-sub)')}
-      ${_kv('YoY SQ FT Δ', window.fmt.pct(k.yoyGrowth || 0), (k.yoyGrowth||0) >= 0 ? '#10b981' : '#ef4444')}
-    </div>
-    <div style="text-align:right;margin-top:6px;">
-      <span style="font-size:10px;color:var(--text-faint);font-weight:600;">vs prev yr avg</span>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${_kv('Prev yr avg/mo', window.fmt.short(prevYrAvgSqft) + ' sqft', 'var(--text-muted)')}
+        ${_kv('Months elapsed', curFyMoCount + ' this FY', 'var(--text-sub)')}
+      </div>
     </div>
   </div>`
 
@@ -891,7 +1272,7 @@ window.renderKPIs = function(k, monthly) {
         <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">total accounts</div>
       </div>
     </div>
-    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:1px;">
+    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:1px;margin-top:auto;">
       ${cRow('#10b981', '0–30d &nbsp;Active',  c30)}
       ${cRow('#38bdf8', '31–60d',               c31_60)}
       ${cRow('#f59e0b', '61–90d',               c61_90)}
@@ -969,11 +1350,11 @@ window.renderKPIs = function(k, monthly) {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${osDonutSvg}
       <div>
-        <div class="kpi-value" style="font-size:22px;line-height:1;white-space:nowrap;">₹${window.fmt.short(totOs)}</div>
-        <div style="font-size:10px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(totOs)} absolute</div>
+        <div class="kpi-value" style="font-size:28px;line-height:1;white-space:nowrap;">₹${window.fmt.short(totOs)}</div>
+        <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(totOs)} absolute</div>
       </div>
     </div>
-    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:2px;">
+    <div style="border-top:1px solid var(--border);padding-top:4px;display:flex;flex-direction:column;gap:1px;margin-top:auto;">
       ${osRow('#10b981', 'Below 45d', k.osBelow45Count||0, osB45)}
       ${osRow('#f59e0b', 'Above 45d', k.os45Count||0,     osA45)}
       ${osRow('#ef4444', '90+ Days',  k.os90Count||0,     os90)}
@@ -1012,10 +1393,28 @@ window.renderMonthlyChart = function(rows) {
         data: { labels: labels, datasets: [
           { label: 'SQ FT', data: sqftData, yAxisID: 'y', borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.15)', tension: 0.45, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#4f46e5', fill: true, borderWidth: 3 }
         ]},
-        options: window._cDefaults({ scales: {
-          x: { ticks: { color: window.tc(), font: { size: 9.5, weight: 600 }, maxRotation: 60, minRotation: 45, autoSkip: false, callback: function(val, idx) { return this.getLabelForValue(val); } }, grid: { display: false, drawBorder: false } },
-          y:  { position: 'left',  ticks: { color: window.tc(), font: { size: 10, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } }
-        }})
+        options: window._cDefaults({ layout: { padding: { top: 25 } }, scales: {
+          x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 }, maxRotation: 60, minRotation: 45, autoSkip: false, callback: function(val, idx) { return this.getLabelForValue(val); } }, grid: { display: false, drawBorder: false } },
+          y:  { position: 'left',  ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } }
+        }}),
+        plugins: [{
+          id: 'customLabelsMonthly',
+          afterDatasetsDraw: function(chart) {
+            var ctx = chart.ctx;
+            chart.data.datasets.forEach(function(dataset, i) {
+              var meta = chart.getDatasetMeta(i);
+              meta.data.forEach(function(bar, index) {
+                var val = dataset.data[index];
+                if (!val) return;
+                ctx.fillStyle = window.tc();
+                ctx.font = 'bold 11px "Inter", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(window.fmt.short(val), bar.x, bar.y - 8);
+              });
+            });
+          }
+        }]
       });
   }
 };
@@ -1036,14 +1435,32 @@ window.renderStateChart = function(rows) {
       window.App.charts.state.options.scales.y.ticks.color = window.tc();
       window.App.charts.state.update('none');
   } else {
-      const g = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400); g.addColorStop(0, '#4f46e5'); g.addColorStop(1, '#8b5cf6');
+      const g = ctx.getContext('2d').createLinearGradient(0, 0, 400, 0); g.addColorStop(0, '#4f46e5'); g.addColorStop(1, '#8b5cf6');
       window.App.charts.state = new Chart(ctx, {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: 'SQ FT', data: data, backgroundColor: g, hoverBackgroundColor: '#6366f1', borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 } }] },
-        options: window._cDefaults({ scales: {
-          x: { ticks: { color: window.tc(), font: { size: 10, weight: 600 }, maxRotation: 45, minRotation: 45 }, grid: { display: false, drawBorder: false } },
-          y: { ticks: { color: window.tc(), font: { size: 11.5, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } }
-        }})
+        data: { labels: labels, datasets: [{ label: 'SQ FT', data: data, backgroundColor: g, hoverBackgroundColor: '#6366f1', borderRadius: { topRight: 6, bottomRight: 6, topLeft: 0, bottomLeft: 0 } }] },
+        options: window._cDefaults({ indexAxis: 'y', layout: { padding: { right: 40 } }, scales: {
+          x: { ticks: { color: window.tc(), font: { size: 13, weight: 700 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } },
+          y: { ticks: { color: window.tc(), font: { size: 12, weight: 700 } }, grid: { display: false, drawBorder: false } }
+        }}),
+        plugins: [{
+          id: 'customLabels',
+          afterDatasetsDraw: function(chart) {
+            var ctx = chart.ctx;
+            chart.data.datasets.forEach(function(dataset, i) {
+              var meta = chart.getDatasetMeta(i);
+              meta.data.forEach(function(bar, index) {
+                var val = dataset.data[index];
+                if (!val) return;
+                ctx.fillStyle = window.tc();
+                ctx.font = 'bold 12px "Inter", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(window.fmt.short(val), bar.x + 6, bar.y);
+              });
+            });
+          }
+        }]
       });
   }
 };
@@ -1094,10 +1511,28 @@ window.renderQoQChart = function(monthly) {
         data: { labels: sortedLabels, datasets: [{
           label: 'SQ FT', data: sortedData, yAxisID: 'y', backgroundColor: '#10b981', hoverBackgroundColor: '#059669', borderRadius: 6
         }]},
-        options: window._cDefaults({ scales: {
-          x: { ticks: { color: window.tc(), font: { size: 10, weight: 600 }, maxRotation: 45, minRotation: 30, autoSkip: true, maxTicksLimit: 20 }, grid: { display: false, drawBorder: false } },
-          y: { position: 'left', ticks: { color: window.tc(), font: { size: 10, weight: 600 }, callback: function(v) { return window.fmtK(v) + ' sqft'; } }, grid: { color: window.gc(), drawBorder: false } }
-        }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ' SQ FT: ' + window.fmt.num(ctx.raw); } } } }})
+        options: window._cDefaults({ layout: { padding: { top: 25 } }, scales: {
+          x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 }, maxRotation: 45, minRotation: 30, autoSkip: true, maxTicksLimit: 20 }, grid: { display: false, drawBorder: false } },
+          y: { position: 'left', ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v) + ' sqft'; } }, grid: { color: window.gc(), drawBorder: false } }
+        }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ' SQ FT: ' + window.fmt.num(ctx.raw); } } } }}),
+        plugins: [{
+          id: 'customLabelsQoq',
+          afterDatasetsDraw: function(chart) {
+            var ctx = chart.ctx;
+            chart.data.datasets.forEach(function(dataset, i) {
+              var meta = chart.getDatasetMeta(i);
+              meta.data.forEach(function(bar, index) {
+                var val = dataset.data[index];
+                if (!val) return;
+                ctx.fillStyle = window.tc();
+                ctx.font = 'bold 11px "Inter", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(window.fmt.short(val), bar.x, bar.y - 6);
+              });
+            });
+          }
+        }]
       });
   }
 };
