@@ -180,11 +180,25 @@ window.doLogout = function() {
 };
 window._applyRoleUI = function() {
   var role = (window.App.currentUser && window.App.currentUser.role) || '';
-  var canSettings = (role === 'super_admin' || role === 'admin');
+  var isAdmin = (role === 'super_admin' || role === 'admin');
+  
   var settingsNav = document.querySelector('.nav-item[data-page="settings"]');
-  if (settingsNav) settingsNav.style.display = canSettings ? '' : 'none';
+  if (settingsNav) settingsNav.style.display = ''; // Settings visible to all users
+  
   var usersTab = document.querySelector('.settings-tab[data-tab="tab-users"]');
   if (usersTab) usersTab.style.display = (role === 'super_admin') ? '' : 'none';
+  
+  ['tab-sheets', 'tab-connections', 'tab-sync', 'tab-roles'].forEach(function(t) {
+    var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
+    if (el) el.style.display = isAdmin ? '' : 'none';
+  });
+  
+  // If not admin, default settings tab to Account Profile
+  var sheetsTab = document.querySelector('.settings-tab[data-tab="tab-sheets"]');
+  if (!isAdmin && sheetsTab && sheetsTab.classList.contains('active')) {
+    window.switchSettingsTab('tab-account');
+  }
+  
   var nameEl = document.getElementById('sidebar-user-name');
   if (nameEl && window.App.currentUser) nameEl.textContent = window.App.currentUser.full_name || window.App.currentUser.username || '';
   var roleEl = document.getElementById('sidebar-user-role');
@@ -546,7 +560,15 @@ window.switchSettingsTab = function(tabId) {
   
   // Show selected pane
   const pane = document.getElementById(tabId);
-  if (pane) pane.style.display = 'block';
+  if (pane) {
+    if (tabId === 'tab-users') {
+      pane.style.display = 'flex';
+      pane.style.flexDirection = 'column';
+      pane.style.height = '100%';
+    } else {
+      pane.style.display = 'block';
+    }
+  }
   
   // Activate tab
   const tab = document.querySelector(`.settings-tab[data-tab="${tabId}"]`);
@@ -1410,7 +1432,7 @@ window.loadUsers = async function() {
         + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
         + '<td style="padding:12px 18px;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
         + '<td style="padding:12px 18px;text-align:right;white-space:nowrap;">'
-        + '<button class="btn btn-ghost btn-sm" onclick="window.openEditUser(\'' + encodeURIComponent(JSON.stringify(u)) + '\')"><i class="ph ph-pencil"></i> Edit</button> '
+        + '<button class="btn btn-ghost btn-sm" onclick="window.openEditUser(\'' + u.id + '\')"><i class="ph ph-pencil"></i> Edit</button> '
         + '<button class="btn btn-ghost btn-sm" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button>'
         + (u.username === 'superadmin' ? '' : ' <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.deleteUser(\'' + u.id + '\',\'' + u.username + '\')"><i class="ph ph-trash"></i></button>')
         + '</td>'
@@ -1653,24 +1675,56 @@ window.deleteUser = function(profileId, username) {
     .catch(function(e) { window.toast('Delete failed: ' + e.message, 'error'); });
 };
 
-window.openEditUser = function(uStr) {
+window.openEditUser = function(uid) {
+  console.log('openEditUser called with uid:', uid);
+  console.log('window._lastLoadedUsers:', window._lastLoadedUsers);
   try {
-    var u = JSON.parse(decodeURIComponent(uStr));
+    var u = (window._lastLoadedUsers || []).find(function(x) { return String(x.id) === String(uid); });
+    if (!u) {
+      window.toast('User not found in memory.', 'error');
+      console.error('User not found for uid:', uid);
+      return;
+    }
     document.getElementById('edit-user-id').value = u.id;
     document.getElementById('edit-user-username').value = u.username || '';
     document.getElementById('edit-user-fullname').value = u.full_name || '';
     document.getElementById('edit-user-role').value = u.role || 'hod';
     document.getElementById('edit-user-password').value = '';
     
-    var scope = '';
-    if (u.role === 'hod' && u.allowed_hods) scope = u.allowed_hods.join(', ');
-    if (u.role === 'zonal_head' && u.allowed_zones) scope = u.allowed_zones.join(', ');
-    document.getElementById('edit-user-scope').value = scope;
+    var selH = document.getElementById('edit-user-hods');
+    var selZ = document.getElementById('edit-user-zones');
+    var ufH = document.getElementById('uf-hods');
+    var ufZ = document.getElementById('uf-zones');
+    if (selH && ufH) selH.innerHTML = ufH.innerHTML;
+    if (selZ && ufZ) selZ.innerHTML = ufZ.innerHTML;
     
-    document.getElementById('edit-user-modal').style.display = 'flex';
+    if (u.role === 'hod' && Array.isArray(u.allowed_hods) && selH) {
+      Array.from(selH.options).forEach(function(o){ o.selected = (u.allowed_hods.indexOf(o.value) !== -1); });
+    }
+    if (u.role === 'zonal_head' && Array.isArray(u.allowed_zones) && selZ) {
+      Array.from(selZ.options).forEach(function(o){ o.selected = (u.allowed_zones.indexOf(o.value) !== -1); });
+    }
+    if(window.onEditRoleChange) window.onEditRoleChange();
+    
+    var modal = document.getElementById('edit-user-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      console.log('Modal opened.');
+    } else {
+      console.error('Modal element not found!');
+    }
   } catch(e) {
-    window.toast('Error opening edit modal', 'error');
+    console.error('Error opening edit modal:', e);
+    window.toast('Error opening edit modal: ' + e.message, 'error');
   }
+};
+
+window.onEditRoleChange = function() {
+  var role = document.getElementById('edit-user-role').value;
+  var hw = document.getElementById('edit-hods-wrap');
+  var zw = document.getElementById('edit-zones-wrap');
+  if(hw) hw.style.display = (role === 'hod') ? 'block' : 'none';
+  if(zw) zw.style.display = (role === 'zonal_head') ? 'block' : 'none';
 };
 
 window.submitEditUser = function() {
@@ -1678,7 +1732,6 @@ window.submitEditUser = function() {
   var uname = document.getElementById('edit-user-username').value.trim();
   var fname = document.getElementById('edit-user-fullname').value.trim();
   var role = document.getElementById('edit-user-role').value;
-  var scopeStr = document.getElementById('edit-user-scope').value.trim();
   var pwd = document.getElementById('edit-user-password').value;
   
   if (!uname) return window.toast('Username is required.', 'error');
@@ -1686,9 +1739,12 @@ window.submitEditUser = function() {
   var updateData = { username: uname, full_name: fname, role: role };
   if (pwd) updateData.password = pwd;
   
-  var scopeArr = scopeStr ? scopeStr.split(',').map(function(s){return s.trim();}).filter(Boolean) : null;
-  updateData.allowed_hods = (role === 'hod') ? scopeArr : null;
-  updateData.allowed_zones = (role === 'zonal_head') ? scopeArr : null;
+  var scopeArr = [];
+  if (role === 'hod') scopeArr = window._selectedValues('edit-user-hods');
+  else if (role === 'zonal_head') scopeArr = window._selectedValues('edit-user-zones');
+  
+  updateData.allowed_hods = (role === 'hod') ? scopeArr : [];
+  updateData.allowed_zones = (role === 'zonal_head') ? scopeArr : [];
   
   var btn = document.querySelector('#edit-user-modal .btn-primary');
   var origText = btn.innerHTML;
@@ -1697,11 +1753,40 @@ window.submitEditUser = function() {
   
   window.api('updateUser', { profileId: id, userData: updateData })
     .then(function() {
+      btn.innerHTML = origText;
+      btn.disabled = false;
       window.toast('User updated successfully.', 'success');
-      document.getElementById('edit-user-modal').style.display = 'none';
+      var modal = document.getElementById('edit-user-modal');
+      if (modal) modal.style.display = 'none';
       if (window.loadUsers) window.loadUsers();
     })
-    .catch(function(e) { window.toast('Update failed: ' + e.message, 'error'); })
+    .catch(function(e) {
+      btn.innerHTML = origText;
+      btn.disabled = false;
+      window.toast('Update failed: ' + e.message, 'error');
+    });
+};
+
+window.updateMyPassword = function() {
+  var pwd = document.getElementById('profile-new-password').value;
+  var conf = document.getElementById('profile-confirm-password').value;
+  if (!pwd) return window.toast('Password cannot be empty.', 'error');
+  if (pwd !== conf) return window.toast('Passwords do not match.', 'error');
+  
+  var btn = document.querySelector('#tab-account .btn-primary');
+  var origText = btn.innerHTML;
+  btn.innerHTML = '<i class="ph ph-spinner spin"></i> Updating...';
+  btn.disabled = true;
+  
+  window.api('updateMyPassword', { newPassword: pwd })
+    .then(function() {
+      window.toast('Password updated successfully.', 'success');
+      document.getElementById('profile-new-password').value = '';
+      document.getElementById('profile-confirm-password').value = '';
+    })
+    .catch(function(e) {
+      window.toast('Failed to update password: ' + e.message, 'error');
+    })
     .finally(function() {
       btn.innerHTML = origText;
       btn.disabled = false;

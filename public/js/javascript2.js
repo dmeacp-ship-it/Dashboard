@@ -220,6 +220,14 @@ window.setOutstandingPage = function(p) {
   window._renderOutstandingTable(); 
 };
 
+window.outAgingFilter = 'all';
+window.setOutAging = function(f, btn) {
+  window.outAgingFilter = f; window.outstandingPage = 1;
+  document.querySelectorAll('#out-aging-toggle .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  window._renderOutstandingTable();
+};
+
 window.loadOutstanding = async function() {
   const kpiGrid = document.getElementById('outstanding-kpi-grid');
   const tbody   = document.getElementById('tbl-outstanding-body');
@@ -260,6 +268,15 @@ window._renderOutstandingTable = function() {
   const tbody = document.getElementById('tbl-outstanding-body'); const thead = document.getElementById('tbl-outstanding-head');
   if (!tbody || !thead) return;
   let rows = window.App.data.outstanding || [];
+
+  if (window.outAgingFilter === '90') {
+    rows = rows.filter(function(r) { return (r.DAYS_90_PLUS || 0) > 0; });
+  } else if (window.outAgingFilter === '45') {
+    rows = rows.filter(function(r) { return (r.ABOVE_45 || 0) > 0; });
+  } else if (window.outAgingFilter === 'clean') {
+    rows = rows.filter(function(r) { return (r.BELOW_45 || 0) > 0 && !(r.ABOVE_45 || 0) && !(r.DAYS_90_PLUS || 0); });
+  }
+
   const sq = (window.searchQueries['outstanding'] || '').toLowerCase();
   if (sq) { rows = rows.filter(function(r) { return (r.STATE || '').toLowerCase().indexOf(sq) !== -1 || (r.HOD || '').toLowerCase().indexOf(sq) !== -1 || (r.CUSTOMER_NAME || '').toLowerCase().indexOf(sq) !== -1; }); }
 

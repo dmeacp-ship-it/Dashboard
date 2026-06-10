@@ -825,6 +825,8 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
 .modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"], .modal-overlay.show {
   animation: iosModalOverlay 0.3s ease forwards !important;
   background: rgba(0, 0, 0, 0.4) !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 .modal-overlay[style*="display: flex"] .modal-box, .modal-overlay[style*="display: block"] .modal-box, .modal-overlay.show .modal-box {
   animation: iosModalBox 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;

@@ -409,6 +409,12 @@
         <div class="bento-card table-card stagger-2" style="flex:1">
           <div class="table-toolbar">
             <span class="table-title"><i class="ph ph-currency-inr"></i> Outstanding Summary</span>
+            <div class="btn-group" id="out-aging-toggle" style="margin-left:16px;">
+              <button class="btn btn-sm btn-primary" onclick="setOutAging('all', this)">All</button>
+              <button class="btn btn-sm btn-ghost" onclick="setOutAging('90', this)">90+ Days</button>
+              <button class="btn btn-sm btn-ghost" onclick="setOutAging('45', this)">45+ Days</button>
+              <button class="btn btn-sm btn-ghost" onclick="setOutAging('clean', this)">Clean</button>
+            </div>
             <div style="position:relative; margin-left:auto;">
               <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
               <input type="text" id="search-outstanding" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:240px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Customer or State..." onkeyup="handleSearch('outstanding')">
@@ -874,6 +880,9 @@
             <div class="settings-tab" data-tab="tab-theme" onclick="switchSettingsTab('tab-theme')">
               <i class="ph ph-palette"></i> Appearance
             </div>
+            <div class="settings-tab" data-tab="tab-account" onclick="switchSettingsTab('tab-account')">
+              <i class="ph ph-user-circle"></i> Account Profile
+            </div>
           </div>
 
           <div class="settings-content">
@@ -1009,7 +1018,7 @@
               <div style="font-size:15px;font-weight:700;margin-bottom:16px;">User Management</div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
                 <div style="font-weight:700;color:var(--text);font-size:12.5px;margin-bottom:10px;">Provision New Account</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
                   <div class="form-field">
                     <label class="form-label">Username</label>
                     <input class="form-input" id="uf-username" autocomplete="off" placeholder="e.g. rajnish"/>
@@ -1032,12 +1041,12 @@
                     </select>
                   </div>
                   <div class="form-field" id="uf-hods-wrap" style="grid-column:1/-1;">
-                    <label class="form-label">Assigned HOD Name(s) â€” hold Ctrl / Cmd to pick multiple (one login can cover split names like â€œRajnish - Nâ€ &amp; â€œRajnish - Gâ€)</label>
-                    <select class="form-select" id="uf-hods" multiple size="6" style="height:auto;min-height:140px;"></select>
+                    <label class="form-label">Assigned HOD Name(s) — hold Ctrl / Cmd to pick multiple</label>
+                    <select class="form-select" id="uf-hods" multiple size="3" style="height:auto;min-height:76px;"></select>
                   </div>
                   <div class="form-field" id="uf-zones-wrap" style="display:none;grid-column:1/-1;">
-                    <label class="form-label">Assigned Zone(s) â€” hold Ctrl / Cmd to pick multiple</label>
-                    <select class="form-select" id="uf-zones" multiple size="6" style="height:auto;min-height:140px;"></select>
+                    <label class="form-label">Assigned Zone(s) — hold Ctrl / Cmd to pick multiple</label>
+                    <select class="form-select" id="uf-zones" multiple size="3" style="height:auto;min-height:76px;"></select>
                   </div>
                 </div>
                 <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
@@ -1046,7 +1055,7 @@
                 </div>
               </div>
           
-              <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;">
+              <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;flex:1;display:flex;flex-direction:column;">
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
                   <span style="font-size:12.5px;font-weight:700;color:var(--text);">Active Directory</span>
                   <div style="display:flex;gap:8px;">
@@ -1054,7 +1063,7 @@
                     <button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
                   </div>
                 </div>
-                <div style="max-height:220px;overflow-y:auto;overflow-x:auto;">
+                <div style="flex:1;overflow-y:auto;overflow-x:auto;min-height:0;">
                   <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
                     <thead style="background:var(--surface3);position:sticky;top:0;z-index:10;">
                       <tr>
@@ -1099,6 +1108,25 @@
                   </div>
                 </div>
                 <button class="btn btn-ghost btn-sm" style="border-radius:var(--radius-sm);background:var(--surface3);" onclick="toggleTheme()">Toggle Theme</button>
+              </div>
+            </div>
+            
+            <!-- TAB: Account Profile -->
+            <div id="tab-account" class="settings-pane" style="display:none;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Account Profile</div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;max-width:400px;">
+                <div style="font-weight:700;color:var(--text);font-size:12.5px;margin-bottom:10px;">Change My Password</div>
+                <div class="form-field">
+                  <label class="form-label">New Password</label>
+                  <input class="form-input" id="profile-new-password" type="password" placeholder="Enter new password"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Confirm Password</label>
+                  <input class="form-input" id="profile-confirm-password" type="password" placeholder="Confirm new password"/>
+                </div>
+                <div style="margin-top:16px;">
+                  <button class="btn btn-primary btn-sm" onclick="window.updateMyPassword()"><i class="ph ph-check"></i> Update Password</button>
+                </div>
               </div>
             </div>
 
@@ -1259,16 +1287,20 @@
       </div>
       <div>
         <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Role</label>
-        <select id="edit-user-role" class="form-select" style="width:100%; margin-top:4px;">
+        <select id="edit-user-role" class="form-select" style="width:100%; margin-top:4px;" onchange="if(window.onEditRoleChange) window.onEditRoleChange()">
           <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="hod">HOD</option>
           <option value="zonal_head">Zonal Head</option>
         </select>
       </div>
-      <div>
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned Scope (Comma separated)</label>
-        <input type="text" id="edit-user-scope" class="form-input" placeholder="e.g. North, South (for Zone) or Rajnish, Akash (for HOD)" style="width:100%; margin-top:4px;">
+      <div id="edit-hods-wrap" style="display:none;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned HOD Name(s) — hold Ctrl / Cmd</label>
+        <select id="edit-user-hods" class="form-select" multiple size="4" style="width:100%; margin-top:4px; min-height:96px;"></select>
+      </div>
+      <div id="edit-zones-wrap" style="display:none;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned Zone(s) — hold Ctrl / Cmd</label>
+        <select id="edit-user-zones" class="form-select" multiple size="4" style="width:100%; margin-top:4px; min-height:96px;"></select>
       </div>
       <div>
         <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Reset Password (Leave blank to keep unchanged)</label>

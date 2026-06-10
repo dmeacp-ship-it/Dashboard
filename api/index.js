@@ -96,6 +96,9 @@ module.exports = async function handler(req, res) {
     if (action === 'createUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.createUser(req_.userData))); return; }
     if (action === 'updateUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.updateUser(req_.profileId, req_.userData))); return; }
     if (action === 'deleteUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.deleteUser(req_.profileId))); return; }
+    
+    // User self-serve:
+    if (action === 'updateMyPassword') { res.json(_ok(await AuthService.updateUser(userProfile.id, { password: req_.newPassword }))); return; }
 
     // Admin-only: sync actions
     if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
