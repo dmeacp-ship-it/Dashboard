@@ -75,6 +75,34 @@ async function _loadSheet(spreadsheetId, sheetName) {
   return out;
 }
 
+async function fetchSheetHeaders(spreadsheetId, sheetName) {
+  const auth = getGoogleAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!1:1`,
+      valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const values = res.data.values || [];
+    if (!values.length) return [];
+    return values[0].map(h => String(h).trim()).filter(Boolean);
+  } catch (e) {
+    throw new Error(`Could not fetch headers for ${sheetName}: ` + e.message);
+  }
+}
+
+async function fetchSheetTabs(spreadsheetId) {
+  const auth = getGoogleAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+  try {
+    const res = await sheets.spreadsheets.get({ spreadsheetId });
+    return res.data.sheets.map(s => s.properties.title);
+  } catch (e) {
+    throw new Error(`Could not fetch tabs for sheet ID ${spreadsheetId}: ` + e.message);
+  }
+}
+
 // Low-level Supabase REST call returning { code, text } (mirrors UrlFetchApp).
 async function _supaRest(pathWithQuery, method, bodyObj, prefer) {
   const url = getSupabaseUrl();
@@ -488,5 +516,8 @@ async function _loadSheetFresh(spreadsheetId, sheetName) {
 module.exports = {
   processAggregation,
   syncOutstandingData,
-  syncTargetData
+  syncTargetData,
+  fetchSheetData: _loadSheetFresh,
+  fetchSheetHeaders,
+  fetchSheetTabs
 };

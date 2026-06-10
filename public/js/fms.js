@@ -352,9 +352,7 @@
       '<th class="tr">Qty</th>' +
       '<th class="tr" style="white-space:nowrap">Disp. Qty</th>' +
       '<th style="min-width:140px">Approval Status</th>' +
-      '<th style="white-space:nowrap">Acc. Action</th>' +
       '<th style="white-space:nowrap">Branch</th>' +
-      '<th style="white-space:nowrap">HOD</th>' +
       '</tr></thead><tbody id="fms-otb"></tbody></table></div></div>');
     applyOrdView(orders);
     var w = document.getElementById('fms-ow');
@@ -386,9 +384,8 @@
       '<td class="tr fwb" style="font-size:13px">' + (o.quantityOrdered || '—') + '</td>' +
       '<td class="tr fwb" style="color:' + (disp > 0 ? 'var(--part)' : 'var(--muted)') + '">' + (disp > 0 ? disp : '—') + '</td>' +
       '<td>' + sBadge(o.status) + '</td>' +
-      '<td class="muted" style="white-space:nowrap;font-size:12px">' + _fmtDate(o.accDate, false) + '</td>' +
       '<td style="white-space:nowrap">' + (o.branchName ? '<span class="badge bdg" style="font-size:11px">' + esc(o.branchName) + '</span>' : '<span class="muted">—</span>') + '</td>' +
-      '<td style="white-space:nowrap">' + (o.hod ? '<span class="badge bdg" style="font-size:11px">' + esc(o.hod) + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
+      '</tr>';
   }
 
   function applyOrdView(list) {
@@ -495,9 +492,9 @@
     return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(it.orderNo) + '\')">' +
       '<td style="white-space:nowrap"><strong class="accent">' + esc(it.orderNo) + '</strong></td>' +
       '<td class="muted" style="white-space:nowrap;font-size:12px">' + _fmtDate(it.date, false) + '</td>' +
-      '<td style="max-width:200px"><div class="fw5" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px" title="' + esc(it.customer) + '">' + (esc(it.customer) || '—') + '</div></td>' +
+      '<td style="min-width:160px;max-width:300px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.customer) + '">' + (esc(it.customer) || '—') + '</div></td>' +
       '<td style="white-space:nowrap">' + (it.location ? '<span class="badge bdg" style="font-size:11px">' + esc(it.location) + '</span>' : '<span class="muted">—</span>') + '</td>' +
-      '<td style="max-width:200px"><div class="fw5" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px" title="' + esc(it.code) + '">' + esc(it.code) + '</div></td>' +
+      '<td style="min-width:180px;max-width:350px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.code) + '">' + esc(it.code) + '</div></td>' +
       '<td>' + (it.batch ? esc(it.batch) : '<span class="muted">—</span>') + '</td>' +
       '<td class="tr muted">' + (it.length || '—') + '</td>' +
       '<td class="tr muted">' + (it.width || '—') + '</td>' +

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <base target="_top"/>
@@ -139,21 +139,24 @@
             </div>
           </div>
         </div>
+        
+        <div id="sidebar-custom-reports"></div>
       </nav>
     </div>
 
     <div class="sidebar-footer">
-      <div style="padding:6px 14px 10px;white-space:nowrap;overflow:hidden;">
-        <div id="sidebar-user-name" style="font-size:12.5px;font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;"></div>
-        <div id="sidebar-user-role" style="font-size:10.5px;color:var(--text-muted);"></div>
-      </div>
-      <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')" style="margin-bottom: 12px;">
         <span class="nav-icon"><i class="ph ph-gear"></i></span>
         <span class="nav-label">Settings</span>
       </div>
-      <div class="nav-item" onclick="window.doLogout()">
-        <span class="nav-icon"><i class="ph ph-sign-out"></i></span>
-        <span class="nav-label">Sign Out</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: var(--radius); border: 1px solid var(--border-light);">
+        <div style="white-space:nowrap;overflow:hidden;flex:1;min-width:0;">
+          <div id="sidebar-user-name" style="font-size:12.5px;font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;"></div>
+          <div id="sidebar-user-role" style="font-size:10.5px;color:var(--text-muted);"></div>
+        </div>
+        <div onclick="window.doLogout()" title="Sign Out" style="cursor: pointer; padding: 6px; border-radius: 8px; color: var(--text-muted); transition: all var(--t-fast); flex-shrink: 0; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(239,68,68,0.1)'; this.style.color='#ef4444';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-muted)';">
+          <i class="ph ph-sign-out" style="font-size: 20px;"></i>
+        </div>
       </div>
     </div>
   </aside>
@@ -188,7 +191,7 @@
       </div>
     </header>
 
-    <div id="filter-panel" class="filter-panel hidden" style="background:var(--surface2); border:1px solid var(--border); box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+    <div id="filter-panel" class="filter-panel hidden">
       <div class="command-group">
         <div class="command-icon"><i class="ph ph-calendar-blank"></i></div>
         <div class="ms-wrap" id="wrap-fy">
@@ -640,6 +643,207 @@
         </div>
       </section>
 
+      <section id="page-custom-report" class="page">
+
+        <!-- ── KPI Summary Cards ── -->
+        <div id="pivot-kpi-cards" style="display:none; gap:12px; margin-bottom:16px; flex-wrap:wrap;"></div>
+
+        <div class="table-card stagger-1">
+          <!-- ── Toolbar Row 1 ── -->
+          <div class="table-toolbar" style="flex-wrap:wrap; gap:8px;">
+            <span class="table-title" id="custom-report-title"><i class="ph ph-table"></i> Custom Report</span>
+            
+            <!-- View Mode Tabs -->
+            <div style="display:flex; gap:2px; background:var(--bg); border-radius:100px; padding:2px; margin-left:12px;" id="pivot-view-tabs">
+              <button class="btn btn-sm pivot-view-tab active" data-view="table" onclick="window.setPivotView('table')" style="border-radius:100px; padding:4px 12px; font-size:11px; min-height:26px;">
+                <i class="ph ph-table"></i> Table
+              </button>
+              <button class="btn btn-sm pivot-view-tab" data-view="chart" onclick="window.setPivotView('chart')" style="border-radius:100px; padding:4px 12px; font-size:11px; min-height:26px;">
+                <i class="ph ph-chart-bar"></i> Chart
+              </button>
+            </div>
+            
+            <div style="display:flex; gap:5px; align-items:center; margin-left:auto; flex-wrap:wrap;">
+              <!-- Search -->
+              <div style="position:relative;">
+                <i class="ph ph-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px;"></i>
+                <input type="text" id="search-custom-report" class="form-input" style="padding:5px 12px 5px 30px; font-size:12px; width:160px; border-radius:100px; min-height:30px; background:var(--bg-elevated);" placeholder="Search..." oninput="filterCustomReport(this.value)">
+              </div>
+
+              <!-- Sort By -->
+              <select id="pivot-sort-col" class="form-select" style="padding:4px 8px; font-size:11px; min-height:30px; border-radius:100px; min-width:100px;">
+                <option value="">Sort by...</option>
+              </select>
+              <button class="btn btn-sm btn-ghost" id="pivot-sort-dir-btn" onclick="window.togglePivotSortDir()" title="Toggle sort direction" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-sort-ascending" id="pivot-sort-icon"></i>
+              </button>
+
+              <!-- Aggregation -->
+              <select id="pivot-agg-method" class="form-select" title="Aggregation method" style="padding:4px 8px; font-size:11px; min-height:30px; border-radius:100px; min-width:70px;">
+                <option value="sum">Σ Sum</option>
+                <option value="avg">μ Average</option>
+                <option value="count"># Count</option>
+                <option value="max">↑ Max</option>
+                <option value="min">↓ Min</option>
+              </select>
+
+              <div style="width:1px; height:20px; background:var(--border); margin:0 2px;"></div>
+
+              <!-- Display Mode -->
+              <select id="pivot-display-mode" class="form-select" title="Display mode" style="padding:4px 8px; font-size:11px; min-height:30px; border-radius:100px; min-width:90px;">
+                <option value="raw">Raw Values</option>
+                <option value="pct_row">% of Row</option>
+                <option value="pct_col">% of Column</option>
+                <option value="pct_grand">% of Grand</option>
+              </select>
+
+              <!-- Number Format -->
+              <select id="pivot-num-format" class="form-select" title="Number format" style="padding:4px 8px; font-size:11px; min-height:30px; border-radius:100px; min-width:70px;">
+                <option value="auto">Auto</option>
+                <option value="int">Integer</option>
+                <option value="dec1">1 Decimal</option>
+                <option value="dec2">2 Decimals</option>
+              </select>
+
+              <div style="width:1px; height:20px; background:var(--border); margin:0 2px;"></div>
+
+              <!-- Rank Toggle -->
+              <button class="btn btn-sm btn-ghost" id="pivot-rank-btn" onclick="window.togglePivotRank()" title="Show Rank Column" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-hash"></i>
+              </button>
+
+              <!-- Heatmap -->
+              <button class="btn btn-sm btn-ghost" id="pivot-heatmap-btn" onclick="window.togglePivotHeatmap()" title="Toggle Heatmap" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-gradient"></i>
+              </button>
+
+              <!-- Data Bars -->
+              <button class="btn btn-sm btn-ghost" id="pivot-databars-btn" onclick="window.togglePivotDataBars()" title="Toggle Data Bars" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-chart-bar-horizontal"></i>
+              </button>
+
+              <!-- Top/Bottom N -->
+              <button class="btn btn-sm btn-ghost" id="pivot-topn-btn" onclick="window.togglePivotTopN()" title="Highlight Top/Bottom N" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-trophy"></i>
+              </button>
+
+              <!-- Column Visibility -->
+              <button class="btn btn-sm btn-ghost" onclick="window.openPivotColFilter()" title="Show/Hide Columns" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-columns"></i>
+              </button>
+
+              <!-- Row Filter -->
+              <button class="btn btn-sm btn-ghost" onclick="window.openPivotRowFilter()" title="Filter Rows" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-funnel"></i>
+              </button>
+
+              <!-- Transpose -->
+              <button class="btn btn-sm btn-ghost" onclick="window.togglePivotTranspose()" title="Transpose" style="min-height:30px; border-radius:100px; padding:0 8px;">
+                <i class="ph ph-swap"></i>
+              </button>
+
+              <!-- Export -->
+              <button class="btn btn-sm btn-ghost" style="min-height:30px; border-radius:100px; padding:0 8px;" onclick="exportTableToCSV('th-custom-report-head', 'tbl-custom-report-body', document.getElementById('custom-report-title').textContent.trim() || 'Custom_Report')">
+                <i class="ph ph-download-simple"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── Expandable Panels ── -->
+          <!-- Column Filter Panel with Select All/None -->
+          <div id="pivot-col-filter-panel" style="display:none; padding:8px 16px; background:var(--surface); border-bottom:1px solid var(--border); gap:8px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:11px; font-weight:700; color:var(--text-muted); margin-right:4px;"><i class="ph ph-columns"></i> Columns:</span>
+            <button class="btn btn-sm btn-ghost" onclick="window.pivotSelectAllCols(true)" style="font-size:10px; padding:2px 6px; min-height:22px;">All</button>
+            <button class="btn btn-sm btn-ghost" onclick="window.pivotSelectAllCols(false)" style="font-size:10px; padding:2px 6px; min-height:22px;">None</button>
+            <div style="width:1px;height:16px;background:var(--border);margin:0 4px;"></div>
+            <div id="pivot-col-filter-pills" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+          </div>
+
+          <!-- Row Filter Panel with Search + Select All/None -->
+          <div id="pivot-row-filter-panel" style="display:none; padding:8px 16px; background:var(--surface); border-bottom:1px solid var(--border); flex-direction:column; gap:6px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:11px; font-weight:700; color:var(--text-muted);"><i class="ph ph-funnel"></i> Rows:</span>
+              <button class="btn btn-sm btn-ghost" onclick="window.pivotSelectAllRows(true)" style="font-size:10px; padding:2px 6px; min-height:22px;">All</button>
+              <button class="btn btn-sm btn-ghost" onclick="window.pivotSelectAllRows(false)" style="font-size:10px; padding:2px 6px; min-height:22px;">None</button>
+              <div style="position:relative; margin-left:auto;">
+                <i class="ph ph-magnifying-glass" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-muted);"></i>
+                <input type="text" id="pivot-row-filter-search" class="form-input" placeholder="Search rows..." oninput="window.filterRowPills(this.value)" style="padding:3px 8px 3px 26px;font-size:10px;min-height:24px;border-radius:100px;width:160px;">
+              </div>
+            </div>
+            <div id="pivot-row-filter-pills" style="display:flex; gap:5px; flex-wrap:wrap; max-height:120px; overflow-y:auto;"></div>
+          </div>
+
+          <!-- Top/Bottom N Panel -->
+          <div id="pivot-topn-panel" style="display:none; padding:8px 16px; background:var(--surface); border-bottom:1px solid var(--border); gap:8px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:11px; font-weight:700; color:var(--text-muted); margin-right:6px;"><i class="ph ph-trophy"></i> Highlight:</span>
+            <select id="pivot-topn-type" class="form-select" style="padding:3px 8px; font-size:11px; min-height:28px; border-radius:100px; width:80px;">
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+            </select>
+            <input type="number" id="pivot-topn-count" class="form-input" value="5" min="1" max="50" style="padding:3px 8px; font-size:11px; min-height:28px; border-radius:100px; width:55px; text-align:center;">
+            <span style="font-size:11px; color:var(--text-muted);">by</span>
+            <select id="pivot-topn-metric" class="form-select" style="padding:3px 8px; font-size:11px; min-height:28px; border-radius:100px; width:120px;"></select>
+            <button class="btn btn-sm btn-primary" onclick="window.renderPivotTable()" style="min-height:28px; border-radius:100px; padding:0 12px; font-size:11px;">Apply</button>
+          </div>
+
+          <!-- Summary Bar -->
+          <div id="pivot-summary-bar" style="display:none; padding:6px 16px; background:var(--surface); border-bottom:1px solid var(--border); font-size:11px; color:var(--text-muted); gap:16px; flex-wrap:wrap;"></div>
+
+          <!-- ── Chart View ── -->
+          <div id="pivot-chart-view" style="display:none; padding:24px 16px; min-height:300px;">
+            <canvas id="pivot-chart-canvas" style="width:100%; max-height:400px;"></canvas>
+            <div id="pivot-chart-fallback" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
+
+          <!-- ── Table View ── -->
+          <div id="pivot-table-view">
+            <div class="table-wrap">
+              <table style="min-width:800px;" id="pivot-main-table">
+                <thead id="th-custom-report-head"></thead>
+                <tbody id="tbl-custom-report-body"></tbody>
+                <tfoot id="tf-custom-report-foot" style="font-weight:700; background:var(--surface);"></tfoot>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Pagination -->
+          <div id="pivot-pagination" style="padding:8px 16px; display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); font-size:11px;">
+            <span style="color:var(--text-muted);">Rows per page:</span>
+            <select id="pivot-page-size" class="form-select" style="padding:2px 6px; font-size:11px; min-height:26px; border-radius:var(--radius); width:60px;" onchange="window._pivotPage=0;window.renderPivotTable();">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="all">All</option>
+            </select>
+            <div style="margin-left:auto; display:flex; gap:4px; align-items:center;">
+              <button class="btn btn-sm btn-ghost" onclick="window.pivotPrevPage()" style="min-height:26px; padding:0 8px; border-radius:var(--radius);"><i class="ph ph-caret-left"></i></button>
+              <span id="pivot-page-info" style="color:var(--text-muted); min-width:80px; text-align:center;">Page 1</span>
+              <button class="btn btn-sm btn-ghost" onclick="window.pivotNextPage()" style="min-height:26px; padding:0 8px; border-radius:var(--radius);"><i class="ph ph-caret-right"></i></button>
+            </div>
+          </div>
+
+          <!-- Status Bar -->
+          <div id="pivot-status-bar" style="padding:6px 16px; font-size:11px; color:var(--text-muted); display:flex; justify-content:space-between; border-top:1px solid var(--border);">
+            <span id="pivot-status-rows"></span>
+            <span id="pivot-status-info"></span>
+          </div>
+        </div>
+
+        <!-- Cell Drill-Down Panel -->
+        <div id="pivot-drilldown" style="display:none; margin-top:16px;" class="table-card stagger-2">
+          <div class="table-toolbar">
+            <span class="table-title" id="drilldown-title"><i class="ph ph-magnifying-glass-plus"></i> Cell Detail</span>
+            <button class="btn btn-sm btn-ghost" style="margin-left:auto;" onclick="document.getElementById('pivot-drilldown').style.display='none'"><i class="ph ph-x"></i> Close</button>
+          </div>
+          <div class="table-wrap">
+            <table style="min-width:400px;">
+              <thead id="drilldown-head"></thead>
+              <tbody id="drilldown-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section id="page-settings" class="page">
         <div class="settings-layout">
           
@@ -727,6 +931,17 @@
                   <button class="btn btn-ghost btn-sm" style="margin-bottom:4px;" onclick="addSourceSheetRow()"><i class="ph ph-plus"></i> Add Year</button>
                 </div>
                 <div id="cfg-raw-sheets-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+                  <!-- Rows injected by JS -->
+                </div>
+                
+                <div style="margin-top:24px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
+                  <div style="font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:6px;">
+                    <span>Custom Pivot Reports</span>
+                    <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">Dynamic Pivot Tables</span>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" style="margin-bottom:4px;" onclick="addCustomReportRow()"><i class="ph ph-plus"></i> Add Report</button>
+                </div>
+                <div id="cfg-custom-reports-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
                   <!-- Rows injected by JS -->
                 </div>
                 
@@ -828,7 +1043,10 @@
               <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;">
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
                   <span style="font-size:12.5px;font-weight:700;color:var(--text);">Active Directory</span>
-                  <button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn btn-ghost btn-sm" onclick="window.exportUsersCSV()"><i class="ph ph-download-simple"></i> Export CSV</button>
+                    <button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+                  </div>
                 </div>
                 <div style="max-height:220px;overflow-y:auto;overflow-x:auto;">
                   <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
@@ -1014,6 +1232,51 @@
     </div>
   </div>
 </div>
+
+<div id="edit-user-modal" class="modal-overlay" style="z-index:9999999; display:none;">
+  <div class="modal-box" style="max-width:500px; text-align:left;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="font-size:16px; font-weight:700; margin:0;">Edit User</h3>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-user-modal').style.display='none'"><i class="ph ph-x"></i></button>
+    </div>
+    
+    <input type="hidden" id="edit-user-id">
+    
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Username</label>
+        <input type="text" id="edit-user-username" class="form-input" style="width:100%; margin-top:4px;">
+      </div>
+      <div>
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Full Name</label>
+        <input type="text" id="edit-user-fullname" class="form-input" style="width:100%; margin-top:4px;">
+      </div>
+      <div>
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Role</label>
+        <select id="edit-user-role" class="form-select" style="width:100%; margin-top:4px;">
+          <option value="super_admin">Super Admin</option>
+          <option value="admin">Admin</option>
+          <option value="hod">HOD</option>
+          <option value="zonal_head">Zonal Head</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned Scope (Comma separated)</label>
+        <input type="text" id="edit-user-scope" class="form-input" placeholder="e.g. North, South (for Zone) or Rajnish, Akash (for HOD)" style="width:100%; margin-top:4px;">
+      </div>
+      <div>
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Reset Password (Leave blank to keep unchanged)</label>
+        <input type="password" id="edit-user-password" class="form-input" style="width:100%; margin-top:4px;" placeholder="New password...">
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:24px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('edit-user-modal').style.display='none'">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEditUser()"><i class="ph ph-check"></i> Save Changes</button>
+    </div>
+  </div>
+</div>
+
 
 <div id="loading-block">
   <div class="loader-panel">

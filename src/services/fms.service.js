@@ -280,11 +280,18 @@ async function _allOrders(force) {
 const _FACTORY = 'Cust. to Factory';
 const _STOCKF = 'Branch Stock order- Factory';
 
+function _applyFmsScope(items, scope) {
+  // HOD filtering removed as requested: FMS tables are now globally visible
+  // regardless of the user's allowed_hods restriction.
+  return items;
+}
+
 // All orders (optionally a named queue). Returns the full mapped list so the
 // front-end can search / infinite-scroll exactly like the GAS app.
-async function getFmsOrders(opts) {
+async function getFmsOrders(opts, scope) {
   opts = opts || {};
-  const { orders, fetchedAt } = await _allOrders(opts.force === true);
+  let { orders, fetchedAt } = await _allOrders(opts.force === true);
+  if (scope) orders = _applyFmsScope(orders, scope);
   const queue = opts.queue || 'all';
   let rows = orders;
 
@@ -308,8 +315,9 @@ async function getFmsOrders(opts) {
 // Orders_Tracking.gs (cumulative semantics: accApproved/dispatched roll up
 // downstream statuses; pendingCRR includes Pending DO Generation; OTIF uses a
 // strict day-floored dispatchDate <= deliveryDate).
-async function getFmsDashboard() {
-  const { orders, fetchedAt } = await _allOrders(false);
+async function getFmsDashboard(scope) {
+  let { orders, fetchedAt } = await _allOrders(false);
+  if (scope) orders = _applyFmsScope(orders, scope);
   const s = {
     total: 0, pendingCRR: 0, pendingAcc: 0, pendingPlant: 0, pendingDO: 0,
     onHold: 0, autoApproved: 0, accApproved: 0, dispatched: 0, rejected: 0,
@@ -398,10 +406,12 @@ function _itemWeightPerSqm(code) {
 // Item-wise plant & dispatch register: every undispatched DO line item joined
 // with its order context (customer, location, order-ref, ref-customer), plus
 // remaining qty, sqm, weight. Mirrors getPlantQueueWithItems (read-only).
-async function getFmsPlantItems() {
+async function getFmsPlantItems(scope) {
   const [ordWrap, doData] = await Promise.all([_allOrders(false), _loadTab('DO PRODUCTS', false)]);
+  let allOrds = ordWrap.orders;
+  if (scope) allOrds = _applyFmsScope(allOrds, scope);
   const byNo = {};
-  ordWrap.orders.forEach((o) => { byNo[o.orderNo.toUpperCase()] = o; });
+  allOrds.forEach((o) => { byNo[o.orderNo.toUpperCase()] = o; });
 
   const gi = _hindex(doData.headers);
   const g = (r, n) => { const i = gi(n); return i === -1 ? '' : (r[i] == null ? '' : r[i]); };
@@ -455,7 +465,7 @@ async function getFmsPlantItems() {
 }
 
 // Full detail for one order (order + DO line items + dispatch log + sub-orders).
-async function getFmsOrderDetail(opts) {
+async function getFmsOrderDetail(opts, scope) {
   opts = opts || {};
   const orderNo = _s(opts.orderNo);
   if (!orderNo) throw new Error('orderNo required');
@@ -468,7 +478,9 @@ async function getFmsOrderDetail(opts) {
     _loadTab('SUB ORDERS', false)
   ]);
 
-  const order = ordWrap.orders.find((o) => o.orderNo.toLowerCase() === key) || null;
+  let allOrds = ordWrap.orders;
+  if (scope) allOrds = _applyFmsScope(allOrds, scope);
+  const order = allOrds.find((o) => o.orderNo.toLowerCase() === key) || null;
 
   const doGi = _hindex(doData.headers);
   const doNoIdx = doGi('ORDER NUMBER');
@@ -527,10 +539,12 @@ function _psOrderType(customerName, orderRef) {
   return 'Direct Customer to Factory';
 }
 
-async function getFmsPartySummary() {
+async function getFmsPartySummary(scope) {
   const [ordWrap, doData] = await Promise.all([_allOrders(false), _loadTab('DO PRODUCTS', false)]);
+  let allOrds = ordWrap.orders;
+  if (scope) allOrds = _applyFmsScope(allOrds, scope);
   const orderMap = {};
-  ordWrap.orders.forEach((o) => { orderMap[o.orderNo] = o; });
+  allOrds.forEach((o) => { orderMap[o.orderNo] = o; });
 
   const gi = _hindex(doData.headers);
   const oNoIdx = gi('ORDER NUMBER'), qtyIdx = gi('QTY (SHEETS)'), dispIdx = gi('DISPATCH QTY'),
@@ -572,10 +586,12 @@ async function getFmsPartySummary() {
 
 // Dispatch reconciliation audit — faithful port of getDispatchReconciliation
 // (read-only: no fix actions). 3 checks across ORDER RESPONSES vs DO PRODUCTS.
-async function getFmsReconcile() {
+async function getFmsReconcile(scope) {
   const [ordWrap, doData] = await Promise.all([_allOrders(false), _loadTab('DO PRODUCTS', false)]);
+  let allOrds = ordWrap.orders;
+  if (scope) allOrds = _applyFmsScope(allOrds, scope);
   const orderMap = {};
-  ordWrap.orders.forEach((o) => { orderMap[o.orderNo] = o; });
+  allOrds.forEach((o) => { orderMap[o.orderNo] = o; });
 
   const gi = _hindex(doData.headers);
   const oNoIdx = gi('ORDER NUMBER'), prodIdx = gi('PROD STATUS'), qcIdx = gi('QC STATUS'),

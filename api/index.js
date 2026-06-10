@@ -103,7 +103,7 @@ module.exports = async function handler(req, res) {
     if (action === 'syncTargets') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncTargetData())); return; }
 
     // Settings
-    if (action === 'getSettings') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SettingsService.getSettings())); return; }
+    if (action === 'getSettings') { res.json(_ok(await SettingsService.getSettings())); return; }
     if (action === 'updateSettings') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SettingsService.updateSettings(req_.configValue))); return; }
     if (action === 'getConnections') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await ConnectionService.getAllConnections())); return; }
     if (action === 'updateConnections') { _requireRole(userProfile, ROLES.SUPER_ADMIN); await ConnectionService.saveConnections(req_.connectionData); res.json(_ok(true)); return; }
@@ -111,7 +111,6 @@ module.exports = async function handler(req, res) {
     // AI integrations
     if (action === 'askTable') { res.json(_ok(await AIService.askTable(req_.tableData, req_.question))); return; }
     if (action === 'askCopilot') { res.json(_ok(await AIService.askCopilot(req_.contextName, req_.contextData, req_.question))); return; }
-
     // Standard data endpoints
     const opts = req_.options || {};
     const routes = {
@@ -148,16 +147,19 @@ module.exports = async function handler(req, res) {
       getProductPivotSales: () => DataService.getProductPivotSales(scopedFilters, opts),
       getHodSkuPivotSales: () => DataService.getHodSkuPivotSales(scopedFilters, opts),
       getTopSKUs: () => DataService.getTopSKUs(scopedFilters, opts),
+      getCustomReport: () => DataService.getCustomReport(opts),
+      getSheetHeaders: () => DataService.getSheetHeaders(opts),
+      getSheetTabs: () => DataService.getSheetTabs(opts),
 
       // ── FMS / OMS live sheet tables ──────────────────────────────────────
-      getFmsTable: () => FmsService.getFmsTable(opts),
+      getFmsTable: () => FmsService.getFmsTable(opts, null),
       listFmsTables: () => FmsService.listFmsTables(),
-      getFmsOrders: () => FmsService.getFmsOrders(opts),
-      getFmsDashboard: () => FmsService.getFmsDashboard(),
-      getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts),
-      getFmsPartySummary: () => FmsService.getFmsPartySummary(),
-      getFmsReconcile: () => FmsService.getFmsReconcile(),
-      getFmsPlantItems: () => FmsService.getFmsPlantItems()
+      getFmsOrders: () => FmsService.getFmsOrders(opts, null),
+      getFmsDashboard: () => FmsService.getFmsDashboard(null),
+      getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts, null),
+      getFmsPartySummary: () => FmsService.getFmsPartySummary(null),
+      getFmsReconcile: () => FmsService.getFmsReconcile(null),
+      getFmsPlantItems: () => FmsService.getFmsPlantItems(null)
     };
 
     if (!routes[action]) throw new Error('Unknown action routed: ' + action);

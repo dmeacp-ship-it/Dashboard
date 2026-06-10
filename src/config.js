@@ -100,7 +100,7 @@ const GEMINI_CONFIG = Object.freeze({
 });
 
 const GROQ_CONFIG = Object.freeze({
-  MODEL:       'llama3-70b-8192',
+  MODEL:       'llama-3.1-70b-versatile',
   API_BASE:    'https://api.groq.com/openai/v1/chat/completions',
   MAX_TOKENS:  1500,
   TEMPERATURE: 0.1

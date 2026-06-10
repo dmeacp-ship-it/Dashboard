@@ -55,6 +55,7 @@ Provide a sharp, data-driven, and highly relevant answer.
   return _callAIWithFallback(prompt, history, question);
 }
 
+
 async function _callAIWithFallback(systemPrompt, history, question) {
   const geminiKey = _geminiKey();
   const groqKey = _groqKey();
@@ -143,7 +144,7 @@ async function _callGroq(systemPrompt, history, question, apiKey) {
   messages.push({ role: 'user', content: question });
 
   const payload = {
-    model: GROQ_CONFIG.MODEL || 'llama3-70b-8192',
+    model: GROQ_CONFIG.MODEL || 'llama-3.1-70b-versatile',
     messages: messages,
     temperature: GROQ_CONFIG.TEMPERATURE || 0.1,
     max_tokens: GROQ_CONFIG.MAX_TOKENS || 1500

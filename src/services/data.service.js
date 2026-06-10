@@ -13,8 +13,12 @@
  */
 
 const { fetchAll, getSalesRowCount } = require('./supabase');
+
+const STATE_TO_ZONE = {};
+
 const { cached } = require('./cache.service');
 const { DB_TABLES, ROLES } = require('../config');
+const { fetchSheetData, fetchSheetHeaders, fetchSheetTabs } = require('./sync.service');
 
 // ── numeric / string helpers ───────────────────────────────────────────────
 function _num(v) {
@@ -38,7 +42,7 @@ function _last6(r) { return _num(_s(r, 'last_6m_sqm')); }
 function _rev(r)   { return _num(_s(r, 'net_revenue')) || _num(_s(r, 'revenue')); }
 function _thick(r) { return _s(r, 'thickness') || '-'; }
 function _fy(r)    { return _s(r, 'fy_year'); }
-function _zone(r)  { return _s(r, 'zone'); }
+function _zone(r)  { return _s(r, 'zone') || STATE_TO_ZONE[_state(r)] || 'Unknown'; }
 function _state(r) { return _s(r, 'state') || 'Unknown'; }
 function _hod(r)   { return _s(r, 'hod_name') || 'Unknown'; }
 function _brand(r) { return _s(r, 'brand') || 'Unknown'; }
@@ -202,7 +206,7 @@ function _q(f, exclude) {
   if (scope.allowed_hods && scope.allowed_hods.length) {
     p.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
   }
-  if (scope.allowed_zones && scope.allowed_zones.length) {
+  if (exclude.indexOf('zone') === -1 && scope.allowed_zones && scope.allowed_zones.length) {
     p.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
   }
   if (scope.allowed_states && scope.allowed_states.length) {
@@ -327,6 +331,10 @@ async function getFilterOptions(userProfile) {
       const sep = baseQ.indexOf('?') > -1 ? '&' : '?';
       rows = await fetchAll('vw_filter_options', baseQ + sep + 'select=fy_year,quarter,month_year,zone,state,hod_name');
     }
+
+    rows.forEach(function(r) {
+      if (r.state && r.zone) STATE_TO_ZONE[r.state] = r.zone;
+    });
 
     const uniq = function (arr) {
       return ['All'].concat(
@@ -656,7 +664,7 @@ async function getHODMonthlySummary(f) {
 
 async function getCustomerQoQ(f) {
   return cached('cust_qoq_' + _stableStringify(f), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'zone']);
     const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
@@ -693,7 +701,7 @@ async function getCustomerAllFYSummary(f) {
     hod: (f && f.hod && f.hod !== 'All') ? f.hod : 'All'
   };
   return cached('cust_all_fy_' + _stableStringify(scopeF), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'zone']);
     const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
     const map = {};
     rows.forEach(function (r) {
@@ -725,7 +733,7 @@ async function getCustomerAllFYSummary(f) {
 
 async function getCustomerMonthlySummary(f) {
   return cached('cust_monthly_' + _stableStringify(f), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'zone']);
     const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
@@ -1368,6 +1376,32 @@ async function getCategoricalPerformance(f, opts) {
   });
 }
 
+async function getCustomReport(opts) {
+  if (!opts || !opts.sheetId || !opts.sheetName) throw new Error('Missing sheetId or sheetName for custom report.');
+  
+  return cached('custom_report_' + opts.sheetId + '_' + opts.sheetName, async function() {
+    const data = await fetchSheetData(opts.sheetId, opts.sheetName);
+    if (!data || !data.headers || !data.rows) return [];
+    
+    // Combine headers and rows into a single 2D array for the frontend
+    return [data.headers, ...data.rows];
+  }, 600); // Cache for 10 minutes
+}
+
+async function getSheetHeaders(opts) {
+  if (!opts || !opts.sheetId || !opts.sheetName) throw new Error('Missing sheetId or sheetName.');
+  return cached('sheet_headers_' + opts.sheetId + '_' + opts.sheetName, async function() {
+    return fetchSheetHeaders(opts.sheetId, opts.sheetName);
+  }, 3600); // Cache for 1 hour
+}
+
+async function getSheetTabs(opts) {
+  if (!opts || !opts.sheetId) throw new Error('Missing sheetId.');
+  return cached('sheet_tabs_' + opts.sheetId, async function() {
+    return fetchSheetTabs(opts.sheetId);
+  }, 3600); // Cache for 1 hour
+}
+
 module.exports = {
   getFilterOptions,
   getKPIs,
@@ -1401,5 +1435,8 @@ module.exports = {
   getCategoricalPerformance,
   getTimeWiseSales,
   getProductPivotSales,
-  getHodSkuPivotSales
+  getHodSkuPivotSales,
+  getCustomReport,
+  getSheetHeaders,
+  getSheetTabs
 };

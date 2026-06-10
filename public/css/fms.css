@@ -66,17 +66,18 @@
 .fms-scope .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .fms-scope .stat {
   flex: 1; min-width: 110px; background: var(--card); border: 1px solid var(--border);
-  border-radius: 14px; padding: 14px 8px; text-align: center; position: relative; overflow: hidden;
-  box-shadow: var(--shadow-xs); transition: transform .2s var(--spring), box-shadow .2s;
+  border-radius: var(--radius-lg); padding: 14px 8px; text-align: center; position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.3s ease;
 }
-.fms-scope .stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-sm); }
+.fms-scope .stat:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); z-index: 50; }
 .fms-scope .stat::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background: linear-gradient(90deg, var(--accent), var(--teal)); opacity:.85; }
 .fms-scope .stat-ic { font-size: 22px; margin-bottom: 8px; display: block; }
 .fms-scope .stat-n { font-size: 24px; font-weight: 800; line-height: 1; margin-bottom: 4px; font-family: 'Plus Jakarta Sans', sans-serif; }
 .fms-scope .stat-l { font-size: 10.5px; color: var(--sub); font-weight: 700; white-space: nowrap; letter-spacing: .3px; text-transform: uppercase; }
 
 /* ── cards & table ── */
-.fms-scope .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-xs); overflow: hidden; margin-bottom: 16px; }
+.fms-scope .card { background: var(--card); border: 1px solid var(--border); border-top: 2px solid var(--brand-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); overflow: hidden; margin-bottom: 16px; transition: all 0.3s var(--transition-bounce); }
+.fms-scope .card:hover { box-shadow: var(--shadow-lg); }
 .fms-scope .tbl-top { padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface); }
 .fms-scope .tbl-ttl { font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
 .fms-scope .tbl-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
@@ -178,7 +179,7 @@
 /* ── FMS modal overlay (independent of Dashboard modals) ── */
 #fms-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 100000; padding: 20px; }
 #fms-overlay.show { display: flex; }
-#fms-overlay .modal { background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 18px; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; animation: fmsModalIn .28s var(--spring); }
+#fms-overlay .modal { background: var(--bg-body); border: 1px solid var(--border-light); border-radius: var(--radius-lg); width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; animation: fmsModalIn .28s var(--spring); }
 #fms-overlay .modal.large { max-width: 1080px; }
 @keyframes fmsModalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 #fms-overlay .modal-header { padding: 16px 22px 12px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }

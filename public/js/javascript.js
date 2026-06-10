@@ -568,6 +568,17 @@ window.loadGoogleSheetsConfig = function() {
           settings.SOURCE_SHEETS.forEach(s => window.addSourceSheetRow(s.fy, s.id, s.name || 'RAW DATA'));
         }
       }
+      
+      const customReportsContainer = document.getElementById('cfg-custom-reports-container');
+      if (customReportsContainer) {
+        customReportsContainer.innerHTML = '';
+        if (settings.CUSTOM_REPORTS) {
+          settings.CUSTOM_REPORTS.forEach(r => window.addCustomReportRow(r.name, r.id, r.sheet, r.rowDim, r.colDim, r.metrics, r.rules));
+        } else {
+          // one empty row by default
+          window.addCustomReportRow('', '', '', '', '', '', '[]');
+        }
+      }
     }
     
     if (container && container.children.length === 0) {
@@ -597,6 +608,261 @@ window.addSourceSheetRow = function(fy = '', id = '', name = '') {
   container.appendChild(row);
 };
 
+window.addCustomReportRow = function(name = '', id = '', sheet = '', rowDim = '', colDim = '', metrics = '', rules = '[]') {
+  const container = document.getElementById('cfg-custom-reports-container');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.style = 'display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background:var(--bg-elevated); padding:12px; border-radius:var(--radius); border:1px solid var(--border); margin-right:32px; position:relative;';
+  row.className = 'cfg-custom-report-row';
+  
+  // Create placeholders if values exist but headers aren't fetched yet
+  const sheetOpt = sheet ? `<option value="${sheet}" selected>${sheet}</option>` : `<option value="">-- Load Tabs first --</option>`;
+  const colOpt = colDim ? `<option value="${colDim}" selected>${colDim}</option>` : `<option value="">-- Connect to select --</option>`;
+  
+  let rowHtml = `<div style="color:var(--text-muted);font-size:12px;margin:auto;">Connect to select</div>`;
+  if (rowDim) {
+    rowHtml = rowDim.split(',').map(m => `
+      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:4px 8px;border-radius:100px;font-size:11px;border:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" checked value="${m.trim()}" onchange="updatePillInput(this, '.r-row')"> ${m.trim()}
+      </label>
+    `).join('');
+  }
+
+  let metricsHtml = `<div style="color:var(--text-muted);font-size:12px;margin:auto;">Connect to select metrics</div>`;
+  if (metrics) {
+    metricsHtml = metrics.split(',').map(m => `
+      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:4px 8px;border-radius:100px;font-size:11px;border:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" checked value="${m.trim()}" onchange="updatePillInput(this, '.r-metrics')"> ${m.trim()}
+      </label>
+    `).join('');
+  }
+  
+  // Parse existing rules
+  let parsedRules = [];
+  try { parsedRules = JSON.parse(rules); } catch(e) {}
+  let rulesHtml = '';
+  parsedRules.forEach(r => {
+    rulesHtml += `
+      <div class="format-rule" style="display:flex; gap:6px; background:var(--bg); padding:6px; border:1px solid var(--border); border-radius:var(--radius); align-items:center;">
+        <span style="font-size:12px;">If</span>
+        <select class="form-select rule-metric" onchange="updateRulesInput(this)" style="flex:1" data-val="${r.metric}"><option value="${r.metric}">${r.metric}</option></select>
+        <select class="form-select rule-op" onchange="updateRulesInput(this)" style="width:60px;">
+          <option value=">" ${r.operator==='>'?'selected':''}>&gt;</option>
+          <option value="<" ${r.operator==='<'?'selected':''}>&lt;</option>
+          <option value="=" ${r.operator==='='?'selected':''}>=</option>
+        </select>
+        <input type="text" class="form-input rule-val" placeholder="Value" value="${r.target}" onchange="updateRulesInput(this)" style="flex:1"/>
+        <span style="font-size:12px;">then color</span>
+        <select class="form-select rule-color" onchange="updateRulesInput(this)" style="width:100px;">
+          <option value="var(--green)" ${r.color==='var(--green)'?'selected':''}>Green</option>
+          <option value="var(--danger)" ${r.color==='var(--danger)'?'selected':''}>Red</option>
+          <option value="var(--warning)" ${r.color==='var(--warning)'?'selected':''}>Yellow</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-ghost" style="color:var(--danger);" onclick="this.parentElement.remove(); updateRulesInput(this)"><i class="ph ph-x"></i></button>
+      </div>
+    `;
+  });
+
+  row.innerHTML = `
+    <div class="form-field"><label class="form-label">Report Name</label><input type="text" class="form-input r-name" placeholder="POP Dashboard" value="${name}" /></div>
+    <div class="form-field">
+      <label class="form-label">Sheet ID</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" class="form-input r-id" style="flex:1;" placeholder="1wpaZ..." value="${id}" />
+        <button type="button" class="btn btn-sm btn-outline" onclick="fetchTabsForBuilder(this)"><i class="ph ph-list"></i> Tabs</button>
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Sheet Tab Name</label>
+      <div style="display:flex;gap:6px;">
+        <select class="form-select r-sheet" style="flex:1;" data-val="${sheet}">${sheetOpt}</select>
+        <button type="button" class="btn btn-sm btn-primary" onclick="fetchColumnsForBuilder(this)"><i class="ph ph-plug"></i> Connect</button>
+      </div>
+    </div>
+    
+    <div class="builder-area" style="grid-column: 1 / -1; display:flex; gap:12px; background:var(--surface); padding:12px; border-radius:var(--radius); border:1px dashed var(--border);">
+      <div style="flex:2;" class="form-field">
+          <label class="form-label"><i class="ph ph-rows"></i> Row Dimensions</label>
+          <div class="r-row-container" style="display:flex; gap:6px; flex-wrap:wrap; min-height:36px; padding:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);" data-val="${rowDim}">
+             ${rowHtml}
+          </div>
+          <input type="hidden" class="r-row" value="${rowDim}" />
+      </div>
+      <div style="flex:1;" class="form-field">
+          <label class="form-label"><i class="ph ph-columns"></i> Column Dimension</label>
+          <select class="form-select r-col" data-val="${colDim}">${colOpt}</select>
+      </div>
+      <div style="flex:2;" class="form-field">
+          <label class="form-label"><i class="ph ph-calculator"></i> Metrics (Values)</label>
+          <div class="r-metrics-container" style="display:flex; gap:6px; flex-wrap:wrap; min-height:36px; padding:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);" data-val="${metrics}">
+             ${metricsHtml}
+          </div>
+          <input type="hidden" class="r-metrics" value="${metrics}" />
+      </div>
+    </div>
+    
+    <div class="formatting-area" style="grid-column: 1 / -1; margin-top:4px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <label class="form-label"><i class="ph ph-palette"></i> Conditional Formatting</label>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="addFormatRule(this)"><i class="ph ph-plus"></i> Add Rule</button>
+      </div>
+      <div class="rules-container" style="display:flex; flex-direction:column; gap:8px;">
+        ${rulesHtml}
+      </div>
+      <input type="hidden" class="r-rules" value='${rules.replace(/'/g, "&apos;")}' />
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" style="position:absolute; right:-38px; top:12px; color:var(--danger); padding:6px;" onclick="this.closest('.cfg-custom-report-row').remove()"><i class="ph ph-trash"></i></button>
+  `;
+  container.appendChild(row);
+};
+
+window.addFormatRule = function(btn) {
+  const container = btn.closest('.formatting-area').querySelector('.rules-container');
+  // Get available metrics from the hidden input
+  const metricsVal = btn.closest('.cfg-custom-report-row').querySelector('.r-metrics').value;
+  const metrics = metricsVal ? metricsVal.split(',').map(m => m.trim()) : [];
+  
+  let metricOpts = '<option value="">-- Metric --</option>';
+  metrics.forEach(m => { metricOpts += `<option value="${m}">${m}</option>`; });
+  
+  const ruleDiv = document.createElement('div');
+  ruleDiv.className = 'format-rule';
+  ruleDiv.style = 'display:flex; gap:6px; background:var(--bg); padding:6px; border:1px solid var(--border); border-radius:var(--radius); align-items:center;';
+  ruleDiv.innerHTML = `
+    <span style="font-size:12px;">If</span>
+    <select class="form-select rule-metric" onchange="updateRulesInput(this)" style="flex:1">${metricOpts}</select>
+    <select class="form-select rule-op" onchange="updateRulesInput(this)" style="width:60px;">
+      <option value=">">&gt;</option>
+      <option value="<">&lt;</option>
+      <option value="=">=</option>
+    </select>
+    <input type="text" class="form-input rule-val" placeholder="Value" onchange="updateRulesInput(this)" style="flex:1"/>
+    <span style="font-size:12px;">then color</span>
+    <select class="form-select rule-color" onchange="updateRulesInput(this)" style="width:100px;">
+      <option value="var(--green)">Green</option>
+      <option value="var(--danger)">Red</option>
+      <option value="var(--warning)">Yellow</option>
+    </select>
+    <button type="button" class="btn btn-sm btn-ghost" style="color:var(--danger);" onclick="this.parentElement.remove(); window.updateRulesInput(this)"><i class="ph ph-x"></i></button>
+  `;
+  container.appendChild(ruleDiv);
+  window.updateRulesInput(ruleDiv.querySelector('.rule-metric'));
+};
+
+window.updateRulesInput = function(el) {
+  const container = el.closest('.formatting-area');
+  const rulesList = Array.from(container.querySelectorAll('.format-rule'));
+  const rules = rulesList.map(r => {
+    return {
+      metric: r.querySelector('.rule-metric').value,
+      operator: r.querySelector('.rule-op').value,
+      target: r.querySelector('.rule-val').value,
+      color: r.querySelector('.rule-color').value
+    };
+  }).filter(r => r.metric && r.target !== '');
+  container.querySelector('.r-rules').value = JSON.stringify(rules);
+};
+
+window.updatePillInput = function(checkbox, targetClass) {
+  const container = checkbox.closest(targetClass + '-container');
+  const hiddenInput = container.parentElement.querySelector(targetClass);
+  const checked = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  hiddenInput.value = checked.join(', ');
+};
+
+window.fetchTabsForBuilder = async function(btn) {
+  const row = btn.closest('.cfg-custom-report-row');
+  const sheetId = row.querySelector('.r-id').value.trim();
+  
+  if (!sheetId) return window.toast('Please enter a Sheet ID first', 'error');
+  
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="ph ph-spinner spin"></i>';
+  btn.disabled = true;
+  
+  try {
+    const tabs = await window.api('getSheetTabs', { options: { sheetId } });
+    if (!tabs || !tabs.length) throw new Error('No tabs found in sheet');
+    
+    const sheetSel = row.querySelector('.r-sheet');
+    const curSheet = sheetSel.dataset.val || sheetSel.value;
+    
+    let optionsHtml = '<option value="">-- Select Tab --</option>';
+    tabs.forEach(t => { optionsHtml += `<option value="${t}">${t}</option>`; });
+    sheetSel.innerHTML = optionsHtml;
+    
+    if (tabs.includes(curSheet)) sheetSel.value = curSheet;
+    
+    window.toast('Tabs loaded successfully!', 'success');
+  } catch (err) {
+    window.toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = oldHtml;
+    btn.disabled = false;
+  }
+};
+
+window.fetchColumnsForBuilder = async function(btn) {
+  const row = btn.closest('.cfg-custom-report-row');
+  const sheetId = row.querySelector('.r-id').value.trim();
+  const sheetName = row.querySelector('.r-sheet').value.trim();
+  
+  if (!sheetId || !sheetName) {
+    return window.toast('Please enter Sheet ID and Tab Name first', 'error');
+  }
+  
+  const oldHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="ph ph-spinner spin"></i>';
+  btn.disabled = true;
+  
+  try {
+    const headers = await window.api('getSheetHeaders', { options: { sheetId, sheetName } });
+    if (!headers || !headers.length) throw new Error('No headers found in sheet row 1');
+    
+    const rowCont = row.querySelector('.r-row-container');
+    const rowHid = row.querySelector('.r-row');
+    const colSel = row.querySelector('.r-col');
+    const metCont = row.querySelector('.r-metrics-container');
+    const metHid = row.querySelector('.r-metrics');
+    
+    const curRow = (rowCont.dataset.val || rowHid.value || '').split(',').map(s=>s.trim());
+    const curCol = colSel.dataset.val || colSel.value;
+    const curMet = (metCont.dataset.val || metHid.value || '').split(',').map(s=>s.trim());
+    
+    // Populate Selects for Column
+    let optionsHtml = '<option value="">-- Select --</option>';
+    headers.forEach(h => { optionsHtml += `<option value="${h}">${h}</option>`; });
+    colSel.innerHTML = optionsHtml;
+    if (headers.includes(curCol)) colSel.value = curCol;
+    
+    // Populate Checkboxes
+    const buildPills = (checkedArr, updateClass) => {
+      return headers.map(h => {
+        const isChecked = checkedArr.includes(h);
+        return `
+          <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:4px 8px;border-radius:100px;font-size:11px;border:1px solid var(--border);cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+            <input type="checkbox" value="${h}" ${isChecked ? 'checked' : ''} onchange="updatePillInput(this, '${updateClass}')"> ${h}
+          </label>
+        `;
+      }).join('');
+    };
+    
+    rowCont.innerHTML = buildPills(curRow, '.r-row');
+    metCont.innerHTML = buildPills(curMet, '.r-metrics');
+    
+    window.updatePillInput(rowCont.querySelector('input') || {closest: ()=>rowCont}, '.r-row');
+    window.updatePillInput(metCont.querySelector('input') || {closest: ()=>metCont}, '.r-metrics');
+    
+    window.toast('Columns loaded successfully!', 'success');
+  } catch (err) {
+    window.toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = '<i class="ph ph-check-circle"></i> Connected';
+    btn.disabled = false;
+    setTimeout(() => { btn.innerHTML = oldHtml; }, 2000);
+  }
+};
+
 window.saveGoogleSheetsConfig = function() {
   const btn = event.currentTarget;
   const outId = document.getElementById('cfg-outstanding-id').value.trim();
@@ -614,12 +880,26 @@ window.saveGoogleSheetsConfig = function() {
     }
   });
   
+  const customReports = [];
+  document.querySelectorAll('.cfg-custom-report-row').forEach(row => {
+    const name = row.querySelector('.r-name').value.trim();
+    const id = row.querySelector('.r-id').value.trim();
+    const sheet = row.querySelector('.r-sheet').value.trim();
+    const rowDim = row.querySelector('.r-row').value.trim();
+    const colDim = row.querySelector('.r-col').value.trim();
+    const metrics = row.querySelector('.r-metrics').value.trim();
+    if (name && id && sheet && rowDim && colDim && metrics) {
+      customReports.push({ name, id, sheet, rowDim, colDim, metrics });
+    }
+  });
+  
   const configValue = {
     OUTSTANDING_SHEET_ID: outId,
     OUTSTANDING_SHEET_NAME: outName,
     TARGET_SHEET_ID: tgtId,
     TARGET_SHEET_NAME: tgtName,
-    SOURCE_SHEETS: sourceSheets
+    SOURCE_SHEETS: sourceSheets,
+    CUSTOM_REPORTS: customReports
   };
   
   const oldHtml = btn.innerHTML;
@@ -1090,6 +1370,24 @@ document.addEventListener("visibilitychange", () => {
 
 window._ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head' };
 
+window.exportUsersCSV = function() {
+  if (!window._lastLoadedUsers || !window._lastLoadedUsers.length) return window.toast('No users to export.', 'error');
+  var csv = 'Username,Full Name,Role,Status,Assigned Scope\n';
+  window._lastLoadedUsers.forEach(function(u) {
+    var scope = (u.role === 'hod') ? ((u.allowed_hods || []).join('; ') || '—')
+      : (u.role === 'zonal_head') ? ((u.allowed_zones || []).join('; ') || '—')
+      : 'All data';
+    csv += '"' + (u.username||'') + '","' + (u.full_name||'') + '","' + (u.role||'') + '","' + (u.is_active?'Active':'Inactive') + '","' + scope + '"\n';
+  });
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'user_directory_export.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
 window.loadUsers = async function() {
   const tbody = document.getElementById('tbl-users-body');
   if (!tbody) return;
@@ -1098,6 +1396,7 @@ window.loadUsers = async function() {
   tbody.innerHTML = window._loadingRow(4);
   try {
     const users = await window.api('listUsers');
+    window._lastLoadedUsers = users;
     if (!users || !users.length) { tbody.innerHTML = window._emptyRow(4, 'No users found.'); return; }
     const rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
     let htmlStr = '';
@@ -1111,6 +1410,7 @@ window.loadUsers = async function() {
         + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
         + '<td style="padding:12px 18px;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
         + '<td style="padding:12px 18px;text-align:right;white-space:nowrap;">'
+        + '<button class="btn btn-ghost btn-sm" onclick="window.openEditUser(\'' + encodeURIComponent(JSON.stringify(u)) + '\')"><i class="ph ph-pencil"></i> Edit</button> '
         + '<button class="btn btn-ghost btn-sm" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button>'
         + (u.username === 'superadmin' ? '' : ' <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.deleteUser(\'' + u.id + '\',\'' + u.username + '\')"><i class="ph ph-trash"></i></button>')
         + '</td>'
@@ -1130,10 +1430,161 @@ window._populateScopePickers = function() {
     var cur = list || [];
     sel.innerHTML = cur.filter(function(v){ return v && v !== 'All'; })
       .map(function(v){ return '<option value="' + window._escAttr(v) + '">' + v + '</option>'; }).join('');
+    
+    if (!sel._ms) sel._ms = new CustomMultiSelect(sel);
+    else sel._ms.update();
   };
   fill(hodSel, opts.hod);
   fill(zoneSel, opts.zone);
 };
+
+class CustomMultiSelect {
+  constructor(selectEl) {
+    this.select = selectEl;
+    this.select.style.display = 'none';
+    this.container = document.createElement('div');
+    this.container.style.position = 'relative';
+    this.container.style.userSelect = 'none';
+    
+    this.trigger = document.createElement('div');
+    this.trigger.className = 'form-input';
+    this.trigger.style.height = 'auto';
+    this.trigger.style.minHeight = '42px';
+    this.trigger.style.display = 'flex';
+    this.trigger.style.flexWrap = 'wrap';
+    this.trigger.style.gap = '6px';
+    this.trigger.style.alignItems = 'center';
+    this.trigger.style.cursor = 'pointer';
+    this.trigger.style.padding = '6px 12px';
+    
+    this.dropdown = document.createElement('div');
+    this.dropdown.style.position = 'absolute';
+    this.dropdown.style.top = 'calc(100% + 4px)';
+    this.dropdown.style.left = '0';
+    this.dropdown.style.right = '0';
+    this.dropdown.style.background = 'var(--bg-card)';
+    this.dropdown.style.border = '1px solid var(--border)';
+    this.dropdown.style.borderRadius = 'var(--radius)';
+    this.dropdown.style.boxShadow = 'var(--shadow-lg)';
+    this.dropdown.style.maxHeight = '240px';
+    this.dropdown.style.overflowY = 'auto';
+    this.dropdown.style.zIndex = '2000';
+    this.dropdown.style.display = 'none';
+    this.dropdown.style.flexDirection = 'column';
+    this.dropdown.style.padding = '4px';
+
+    this.container.appendChild(this.trigger);
+    this.container.appendChild(this.dropdown);
+    this.select.parentNode.insertBefore(this.container, this.select);
+
+    this.trigger.addEventListener('click', (e) => {
+      if(e.target.closest('.cm-remove')) return;
+      this.dropdown.style.display = this.dropdown.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+      if(!this.container.contains(e.target)) this.dropdown.style.display = 'none';
+    });
+
+    this.update();
+  }
+
+  update() {
+    this.dropdown.innerHTML = '';
+    this.trigger.innerHTML = '';
+    let hasSelected = false;
+
+    Array.from(this.select.options).forEach((opt) => {
+      let item = document.createElement('div');
+      item.style.padding = '8px 12px';
+      item.style.cursor = 'pointer';
+      item.style.borderRadius = '6px';
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '10px';
+      item.style.fontSize = '13px';
+      item.style.color = opt.selected ? 'var(--brand-primary)' : 'var(--text-main)';
+      item.style.background = opt.selected ? 'var(--brand-muted)' : 'transparent';
+      item.style.fontWeight = opt.selected ? '700' : '500';
+      item.style.transition = 'background 0.2s';
+      
+      let checkbox = document.createElement('div');
+      checkbox.style.width = '16px';
+      checkbox.style.height = '16px';
+      checkbox.style.border = '1px solid ' + (opt.selected ? 'var(--brand-primary)' : 'var(--border-light)');
+      checkbox.style.borderRadius = '4px';
+      checkbox.style.background = opt.selected ? 'var(--brand-primary)' : 'transparent';
+      checkbox.style.display = 'flex';
+      checkbox.style.alignItems = 'center';
+      checkbox.style.justifyContent = 'center';
+      checkbox.style.color = '#fff';
+      checkbox.style.flexShrink = '0';
+      checkbox.innerHTML = opt.selected ? '<i class="ph-bold ph-check" style="font-size:10px"></i>' : '';
+      
+      let label = document.createElement('span');
+      label.textContent = opt.text;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+
+      item.addEventListener('mouseover', () => { if(!opt.selected) item.style.background = 'var(--bg-hover)'; });
+      item.addEventListener('mouseout', () => { if(!opt.selected) item.style.background = 'transparent'; });
+
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        opt.selected = !opt.selected;
+        this.select.dispatchEvent(new Event('change'));
+        this.update();
+      });
+      
+      this.dropdown.appendChild(item);
+
+      if(opt.selected) {
+        hasSelected = true;
+        let pill = document.createElement('div');
+        pill.style.background = 'var(--brand-primary)';
+        pill.style.color = '#fff';
+        pill.style.padding = '4px 8px';
+        pill.style.borderRadius = '6px';
+        pill.style.fontSize = '11.5px';
+        pill.style.fontWeight = '600';
+        pill.style.display = 'flex';
+        pill.style.alignItems = 'center';
+        pill.style.gap = '6px';
+        pill.style.boxShadow = 'var(--shadow-sm)';
+        
+        let text = document.createElement('span');
+        text.textContent = opt.text;
+        
+        let remove = document.createElement('i');
+        remove.className = 'ph-bold ph-x cm-remove';
+        remove.style.cursor = 'pointer';
+        remove.style.opacity = '0.8';
+        remove.addEventListener('mouseover', () => remove.style.opacity = '1');
+        remove.addEventListener('mouseout', () => remove.style.opacity = '0.8');
+        remove.addEventListener('click', (e) => {
+          e.stopPropagation();
+          opt.selected = false;
+          this.select.dispatchEvent(new Event('change'));
+          this.update();
+        });
+
+        pill.appendChild(text);
+        pill.appendChild(remove);
+        this.trigger.appendChild(pill);
+      }
+    });
+
+    if(!hasSelected) {
+      let placeholder = document.createElement('span');
+      placeholder.textContent = 'Select options...';
+      placeholder.style.color = 'var(--text-muted)';
+      placeholder.style.padding = '4px 0';
+      this.trigger.appendChild(placeholder);
+    }
+  }
+}
+
 window._escAttr = function(s){ return String(s).replace(/"/g, '&quot;'); };
 
 window.onRoleChange = function() {
@@ -1202,6 +1653,61 @@ window.deleteUser = function(profileId, username) {
     .catch(function(e) { window.toast('Delete failed: ' + e.message, 'error'); });
 };
 
+window.openEditUser = function(uStr) {
+  try {
+    var u = JSON.parse(decodeURIComponent(uStr));
+    document.getElementById('edit-user-id').value = u.id;
+    document.getElementById('edit-user-username').value = u.username || '';
+    document.getElementById('edit-user-fullname').value = u.full_name || '';
+    document.getElementById('edit-user-role').value = u.role || 'hod';
+    document.getElementById('edit-user-password').value = '';
+    
+    var scope = '';
+    if (u.role === 'hod' && u.allowed_hods) scope = u.allowed_hods.join(', ');
+    if (u.role === 'zonal_head' && u.allowed_zones) scope = u.allowed_zones.join(', ');
+    document.getElementById('edit-user-scope').value = scope;
+    
+    document.getElementById('edit-user-modal').style.display = 'flex';
+  } catch(e) {
+    window.toast('Error opening edit modal', 'error');
+  }
+};
+
+window.submitEditUser = function() {
+  var id = document.getElementById('edit-user-id').value;
+  var uname = document.getElementById('edit-user-username').value.trim();
+  var fname = document.getElementById('edit-user-fullname').value.trim();
+  var role = document.getElementById('edit-user-role').value;
+  var scopeStr = document.getElementById('edit-user-scope').value.trim();
+  var pwd = document.getElementById('edit-user-password').value;
+  
+  if (!uname) return window.toast('Username is required.', 'error');
+  
+  var updateData = { username: uname, full_name: fname, role: role };
+  if (pwd) updateData.password = pwd;
+  
+  var scopeArr = scopeStr ? scopeStr.split(',').map(function(s){return s.trim();}).filter(Boolean) : null;
+  updateData.allowed_hods = (role === 'hod') ? scopeArr : null;
+  updateData.allowed_zones = (role === 'zonal_head') ? scopeArr : null;
+  
+  var btn = document.querySelector('#edit-user-modal .btn-primary');
+  var origText = btn.innerHTML;
+  btn.innerHTML = '<i class="ph ph-spinner spin"></i> Saving...';
+  btn.disabled = true;
+  
+  window.api('updateUser', { profileId: id, userData: updateData })
+    .then(function() {
+      window.toast('User updated successfully.', 'success');
+      document.getElementById('edit-user-modal').style.display = 'none';
+      if (window.loadUsers) window.loadUsers();
+    })
+    .catch(function(e) { window.toast('Update failed: ' + e.message, 'error'); })
+    .finally(function() {
+      btn.innerHTML = origText;
+      btn.disabled = false;
+    });
+};
+
 window._bootDashboard = async function() {
   if (!window.App.currentUser) { window._forceLogin(); return; }
   window.loading(true);
@@ -1223,10 +1729,27 @@ window._bootDashboard = async function() {
     const pt = document.getElementById('page-title');
     if (pt) pt.textContent = 'Dashboard';
     
-    const [kpis, overview] = await Promise.all([
+    const [kpis, overview, settings] = await Promise.all([
         window.api('getKPIs'),
-        window.api('getOverviewData')
+        window.api('getOverviewData'),
+        window.api('getSettings')
     ]);
+    
+    // Inject custom reports into sidebar
+    const customReportsContainer = document.getElementById('sidebar-custom-reports');
+    if (customReportsContainer && settings && settings.CUSTOM_REPORTS && settings.CUSTOM_REPORTS.length > 0) {
+      let html = '<div class="nav-section" style="margin-top:12px;">Custom Reports</div>';
+      settings.CUSTOM_REPORTS.forEach((rep, idx) => {
+        html += `
+          <div class="nav-item" data-page="custom-report-${idx}" onclick="navigateCustomReport(${idx}, '${rep.name}')">
+            <span class="nav-icon"><i class="ph ph-table"></i></span>
+            <span class="nav-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${rep.name}">${rep.name}</span>
+          </div>
+        `;
+      });
+      customReportsContainer.innerHTML = html;
+      window.App.customReports = settings.CUSTOM_REPORTS;
+    }
     
     window.App.data.overview = { kpis: kpis, monthly: overview.monthly, states: overview.states };
     
