@@ -293,8 +293,16 @@ window._renderOutstandingTable = function() {
 };
 
 window.setCustSort = function(s, btn) {
-  window.custSort = s; document.querySelectorAll('#page-pareto .btn-group .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
+  window.custSort = s; document.querySelectorAll('#page-pareto .btn-group:not(#pareto-time-toggle) .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
   if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadTopCustomers(1);
+};
+
+window.paretoActiveDays = 0;
+window.setParetoTime = function(days, btn) {
+  window.paretoActiveDays = days;
+  document.querySelectorAll('#pareto-time-toggle .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  window.loadTopCustomers(1);
 };
 
 window.loadTopCustomers = async function(page = 1) {
@@ -302,17 +310,15 @@ window.loadTopCustomers = async function(page = 1) {
   tbody.innerHTML = window._loadingRow(9);
   let pagContainer = document.getElementById('pagination-customers');
   if(!pagContainer) { const wrap = document.querySelector('#page-pareto .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-customers'; wrap.appendChild(pagContainer); }
-
+  
   try {
-    const res  = await window.api('getTopCustomers', { options: { pareto80: true, sortBy: window.custSort, page: page, pageSize: 50, search: window.searchQueries['customers'] } });
+    const res  = await window.api('getTopCustomers', { options: { pareto80: true, sortBy: window.custSort, activeDays: window.paretoActiveDays, page: page, pageSize: 50, search: window.searchQueries['customers'] } });
     const rows = window._tableItems(res);
     window._renderPagination(res, 'loadTopCustomers', 'pagination-customers');
-    const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0); const totalTxns = rows.reduce((s, r) => s + (r['TRANSACTION COUNT'] || 0), 0);
     const kg = document.getElementById('customers-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-users"></i></div><div class="kpi-label">Top 80% Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT (80%)</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-receipt"></i></div><div class="kpi-label">Total Transactions</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalTxns) + '</div></div>';
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-users"></i></div><div class="kpi-label">Top 80% Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.total) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT (80%)</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(res.paretoSqft || 0) + '</div></div>';
     }
     window.App.lastTableData['customers'] = rows;
     if (!rows.length) { tbody.innerHTML = window._emptyRow(9, 'No customers found.'); return; }

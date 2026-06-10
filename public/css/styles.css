@@ -783,3 +783,60 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   .toast { width: 100%; max-width: none; transform: translateY(120%) scale(0.9); animation: toastPopMobile 0.45s var(--t-spring) forwards; }
   @keyframes toastPopMobile { to { transform: translateY(0) scale(1); opacity: 1; } }
 }
+
+/* =========================================================================
+   iOS UI Touches & Animations
+   ========================================================================= */
+
+/* 1. iOS "Squish" Effect on Active */
+.btn:active, .nav-item:active, .kpi-card:active, .sidebar-footer-btn:active, .fms-card:active {
+  transform: scale(0.97) !important;
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+/* 2. Glassmorphism on toolbars and headers */
+.header, .table-toolbar {
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+[data-theme="light"] .header, [data-theme="light"] .table-toolbar {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* 3. Smooth Page Navigation Animation */
+@keyframes iosPageEnter {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.page.active {
+  animation: iosPageEnter 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 4. Fluid Modal Animations */
+@keyframes iosModalOverlay {
+  0% { opacity: 0; backdrop-filter: blur(0px); }
+  100% { opacity: 1; backdrop-filter: blur(8px); }
+}
+@keyframes iosModalBox {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"], .modal-overlay.show {
+  animation: iosModalOverlay 0.3s ease forwards !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+.modal-overlay[style*="display: flex"] .modal-box, .modal-overlay[style*="display: block"] .modal-box, .modal-overlay.show .modal-box {
+  animation: iosModalBox 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+}
+
+/* 5. Smooth Skeleton Shimmer */
+@keyframes iosShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface3) 25%, var(--surface2) 50%, var(--surface3) 75%) !important;
+  background-size: 200% 100% !important;
+  animation: iosShimmer 1.5s infinite linear !important;
+}

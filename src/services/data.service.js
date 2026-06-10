@@ -959,6 +959,11 @@ async function getTopCustomers(f, opts) {
   return cached('topCust_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
     const q = _q(f, ['month']);
     let rows = (await fetchAll('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); });
+    
+    if (opts && opts.activeDays) {
+      rows = rows.filter(function (r) { return _days(r) <= opts.activeDays; });
+    }
+
     const sm = { sqm: 'SQ FT.', quantity: 'SQ FT.', frequency: 'TRANSACTION COUNT', revenue: 'NET REVENUE' };
     rows.forEach(function (r) {
       r['SQ FT.'] = _sqft(r);
@@ -974,6 +979,8 @@ async function getTopCustomers(f, opts) {
     const sf = sm[(opts && opts.sortBy) || 'sqm'] || 'SQ FT.';
     rows.sort(function (a, b) { return (b[sf] || 0) - (a[sf] || 0); });
 
+    const totalCustomers = rows.length;
+
     if (opts && opts.pareto80) {
       const totSqm = rows.reduce(function (sum, r) { return sum + (r[sf] || 0); }, 0);
       const target80 = totSqm * 0.8;
@@ -984,8 +991,13 @@ async function getTopCustomers(f, opts) {
       }
       rows = rows.slice(0, cutIdx);
     }
+    
+    const paretoSqft = rows.reduce(function(s, r) { return s + (r['SQ FT.'] || 0); }, 0);
 
-    return _paginate(rows, opts);
+    const result = _paginate(rows, opts);
+    result.totalCustomers = totalCustomers;
+    result.paretoSqft = paretoSqft;
+    return result;
   });
 }
 
