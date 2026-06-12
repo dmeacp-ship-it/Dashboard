@@ -1145,6 +1145,8 @@ window.navigate = function(pageId) {
 };
 
 window._doNavigate = function(pageId) {
+  document.querySelectorAll('.nav-submenu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.nav-group-btn.open').forEach(b => b.classList.remove('open'));
   window.App.currentPage = pageId;
   document.querySelectorAll('.nav-item').forEach(function(el) {
     el.classList.toggle('active', el.dataset.page === pageId);

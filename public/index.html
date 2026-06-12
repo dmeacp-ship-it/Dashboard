@@ -287,6 +287,9 @@
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodqoq', 'HOD Performance')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('hodqoq', 'tbl-hodqoq-head', window.loadHODQoQ)">
+              <i class="ph ph-sort-ascending"></i> Sort
+            </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-hodqoq-head', 'tbl-hodqoq-body', 'HOD_Performance')">
               <i class="ph ph-download-simple"></i> Export
             </button>
@@ -322,6 +325,9 @@
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('custqoq', 'Customer Wise Sale')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('custqoq', 'tbl-custqoq-head', function(){ window.loadCustSale(window.custSalePage||1); })">
+              <i class="ph ph-sort-ascending"></i> Sort
+            </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-custqoq-head', 'tbl-custqoq-body', 'Customer_Wise_Sale')">
               <i class="ph ph-download-simple"></i> Export
             </button>
@@ -352,6 +358,9 @@
             </div>
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('hodtargets', 'tbl-targets-hod-head', function(){ window.loadHodTargets(window.hodTargetPage||1); })">
+              <i class="ph ph-sort-ascending"></i> Sort
             </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-hod-head', 'tbl-targets-hod-body', 'HOD_Targets_Wise')">
               <i class="ph ph-download-simple"></i> Export
@@ -387,6 +396,9 @@
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('targets', 'Executive Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('targets', 'tbl-targets-head', function(){ window.loadTargets(window.targetPage||1); })">
+              <i class="ph ph-sort-ascending"></i> Sort
+            </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-head', 'tbl-targets-body', 'Executive_Targets')">
               <i class="ph ph-download-simple"></i> Export
             </button>
@@ -421,6 +433,9 @@
             </div>
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('outstanding', 'Outstanding Summary')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('outstanding', 'tbl-outstanding-head', function(){ window.loadOutstanding(window.outPage||1); })">
+              <i class="ph ph-sort-ascending"></i> Sort
             </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-outstanding-head', 'tbl-outstanding-body', 'Outstanding_Summary')">
               <i class="ph ph-download-simple"></i> Export
@@ -463,6 +478,9 @@
               <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('customers', 'Top 80% Contributors')">
                 <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
               </button>
+              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('customers', 'tbl-customers-body', function(){ window.loadPareto(window.paretoPage||1); })">
+                <i class="ph ph-sort-ascending"></i> Sort
+              </button>
               <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-customers-body', 'Top_80_Accounts')">
                 <i class="ph ph-download-simple"></i> Export
               </button>
@@ -497,6 +515,9 @@
               <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('rfm', 'RFM Matrix')">
                 <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
               </button>
+              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('rfm', 'tbl-rfm-body', function(){ window.loadRFM(window.rfmPage||1); })">
+                <i class="ph ph-sort-ascending"></i> Sort
+              </button>
               <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-rfm-body', 'RFM_Matrix')">
                 <i class="ph ph-download-simple"></i> Export
               </button>
@@ -530,6 +551,9 @@
                  </div>
                  <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('declining', 'Declining Accounts')">
                    <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
+                 </button>
+                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('declining', 'tbl-declining-body', function(){ window.loadDeclining(window.decliningPage||1); })">
+                   <i class="ph ph-sort-ascending"></i> Sort
                  </button>
                  <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-declining-body', 'Declining_Customers')">
                    <i class="ph ph-download-simple"></i> Export
@@ -640,7 +664,10 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="exportTableToCSV(null, 'tbl-product-body', 'TimeWise_Sales')">
+            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="window.openSortModal('product', 'th-product-head', window.loadTimeWiseSales)">
+              <i class="ph ph-sort-ascending"></i> Sort
+            </button>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-product-body', 'TimeWise_Sales')">
               <i class="ph ph-download-simple"></i> Export
             </button>
           </div>
@@ -1334,13 +1361,33 @@
 
 <div id="toast-wrap"></div>
 
+  <!-- Advanced Sort Modal -->
+  <div id="advanced-sort-modal" class="modal-overlay" style="display:none; align-items:center; justify-content:center; z-index:9999;">
+    <div class="modal-content" style="background:var(--bg-card); width:460px; max-width:90%; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); overflow:hidden; animation: iosModalOverlay 0.3s ease forwards;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); background:var(--surface2);">
+        <h3 style="margin:0; font-size:15px; font-weight:700; color:var(--text-main);"><i class="ph ph-sort-ascending"></i> Advanced Sorting</h3>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('advanced-sort-modal').style.display='none'" style="padding:4px; border-radius:50%;"><i class="ph ph-x"></i></button>
+      </div>
+      <div style="padding:20px;">
+        <div id="sort-rules-container" style="display:flex; flex-direction:column; gap:10px;">
+          <!-- Rules will be dynamically inserted here -->
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="window.addSortRuleRow()" style="margin-top:12px; font-weight:600; color:var(--brand-primary);">
+          <i class="ph ph-plus"></i> Add Sort Rule
+        </button>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 20px; border-top:1px solid var(--border); background:var(--surface2);">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('advanced-sort-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="window.applySortModal()">Apply Sort</button>
+      </div>
+    </div>
+  </div>
+
 <script src="/js/javascript.js?v=7"></script>
 <script src="/js/javascript1.js?v=5"></script>
 <script src="/js/javascript2.js?v=5"></script>
 <script src="/js/fms.js?v=9"></script>
 
 </body>
-</html>
-
 
 

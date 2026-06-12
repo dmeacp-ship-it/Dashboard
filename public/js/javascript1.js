@@ -128,6 +128,10 @@ window.loadHodTargets = async function(page = 1) {
             return (b._maxA || 0) - (a._maxA || 0);
         });
 
+        if (window.tableSortRules['hodtargets'] && window.tableSortRules['hodtargets'].length > 0) {
+          hodRows = window.applyMultiSort(hodRows, 'hodtargets');
+        }
+
         const ps = 50;
         const totalPages = Math.ceil(hodRows.length / ps) || 1;
         if (page > totalPages) page = totalPages;
@@ -302,6 +306,10 @@ window.loadTargets = async function(page = 1) {
         return (b._maxA || 0) - (a._maxA || 0);
     });
 
+    if (window.tableSortRules['targets'] && window.tableSortRules['targets'].length > 0) {
+      rows = window.applyMultiSort(rows, 'targets');
+    }
+
     const ps = 50;
     const totalPages = Math.ceil(rows.length / ps) || 1;
     if (page > totalPages) page = totalPages;
@@ -405,6 +413,139 @@ window._targetTd = function(target, achv) {
    html += '<div style="height:100%; width:' + Math.min(pct, 100) + '%; background:' + c + '; border-radius:100px;"></div>';
    html += '</div></td>';
    return html;
+};
+
+// ══════════════════════════════════════════════════════════
+// ADVANCED MULTI-LEVEL SORTING LOGIC
+// ══════════════════════════════════════════════════════════
+
+window.tableSortRules = {}; // e.g., { 'hodqoq': [{ field: 'STATE', dir: 'asc' }, { field: 'Q1_SQFT', dir: 'desc' }] }
+
+window.applyMultiSort = function(data, tableId) {
+  const rules = window.tableSortRules[tableId];
+  if (!rules || !rules.length) return data; // No custom rules, return as-is
+  
+  return data.sort(function(a, b) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      let valA = a[rule.field];
+      let valB = b[rule.field];
+      
+      // Handle null/undefined
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+      
+      let cmp = 0;
+      
+      // Determine if string or numeric comparison
+      const isNumA = !isNaN(parseFloat(valA)) && isFinite(valA);
+      const isNumB = !isNaN(parseFloat(valB)) && isFinite(valB);
+      
+      if (isNumA && isNumB) {
+        cmp = parseFloat(valA) - parseFloat(valB);
+      } else {
+        cmp = String(valA).localeCompare(String(valB));
+      }
+      
+      if (cmp !== 0) {
+        return rule.dir === 'asc' ? cmp : -cmp;
+      }
+    }
+    return 0; // All rules tied
+  });
+};
+
+window.activeSortTableId = null;
+window.activeSortRefreshFn = null;
+window.activeSortFields = [];
+
+window.openSortModal = function(tableId, theadId, refreshFn) {
+  window.activeSortTableId = tableId;
+  window.activeSortRefreshFn = refreshFn;
+  
+  // Extract fields from table header dynamically
+  window.activeSortFields = [];
+  const thead = document.getElementById(theadId);
+  if (thead) {
+    const ths = thead.querySelectorAll('th');
+    ths.forEach((th, i) => {
+      // Skip the "#" column (usually index 0)
+      if (th.innerText.trim() === '#' || i === 0) return;
+      
+      let rawText = th.innerText.replace('●', '').split('\n')[0].trim(); // Get main text, ignoring suffixes
+      if (rawText) {
+        // Special case: For year/quarter columns, the key in data is usually exactly the header text or derived from it.
+        // E.g., 'FY-26-27 Q1' is keyed as 'FY 26-27_Q1'. Let's map it back.
+        let key = rawText.replace('FY-', 'FY ');
+        if (key.includes(' Q')) key = key.replace(' ', '_');
+        
+        // For generic columns like "HOD Name", the data key is "HOD".
+        if (rawText.toUpperCase() === 'HOD NAME') key = 'HOD';
+        if (rawText.toUpperCase() === 'STATE') key = 'STATE';
+        if (rawText.toUpperCase() === 'EXECUTIVE NAME') key = 'EMPLOYEE';
+        
+        window.activeSortFields.push({ label: rawText, key: key });
+      }
+    });
+  }
+
+  const container = document.getElementById('sort-rules-container');
+  container.innerHTML = '';
+  
+  const existingRules = window.tableSortRules[tableId] || [];
+  if (existingRules.length > 0) {
+    existingRules.forEach(r => window.addSortRuleRow(r.field, r.dir));
+  } else {
+    window.addSortRuleRow(); // Add one empty row by default
+  }
+
+  const modal = document.getElementById('advanced-sort-modal');
+  modal.style.display = 'flex';
+};
+
+window.addSortRuleRow = function(selectedField = '', selectedDir = 'asc') {
+  const container = document.getElementById('sort-rules-container');
+  const row = document.createElement('div');
+  row.className = 'sort-rule-row';
+  row.style.display = 'flex';
+  row.style.gap = '8px';
+  row.style.alignItems = 'center';
+  
+  let optionsHtml = '<option value="" disabled selected>Select Column...</option>';
+  window.activeSortFields.forEach(f => {
+    optionsHtml += `<option value="${f.key}" ${f.key === selectedField ? 'selected' : ''}>${f.label}</option>`;
+  });
+  
+  row.innerHTML = `
+    <select class="form-select sort-field-select" style="flex:1;">${optionsHtml}</select>
+    <select class="form-select sort-dir-select" style="width:130px;">
+      <option value="asc" ${selectedDir === 'asc' ? 'selected' : ''}>Asc (A-Z, Low-High)</option>
+      <option value="desc" ${selectedDir === 'desc' ? 'selected' : ''}>Desc (Z-A, High-Low)</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" style="padding:4px 8px; color:var(--danger);"><i class="ph ph-trash"></i></button>
+  `;
+  container.appendChild(row);
+};
+
+window.applySortModal = function() {
+  const container = document.getElementById('sort-rules-container');
+  const rows = container.querySelectorAll('.sort-rule-row');
+  
+  const rules = [];
+  rows.forEach(r => {
+    const field = r.querySelector('.sort-field-select').value;
+    const dir = r.querySelector('.sort-dir-select').value;
+    if (field) {
+      rules.push({ field: field, dir: dir });
+    }
+  });
+  
+  window.tableSortRules[window.activeSortTableId] = rules;
+  document.getElementById('advanced-sort-modal').style.display = 'none';
+  
+  if (window.activeSortRefreshFn) {
+    window.activeSortRefreshFn();
+  }
 };
 
 // ══════════════════════════════════════════════════════════
@@ -587,6 +728,11 @@ window._loadHODByMonth = async function(tbody, thead) {
       return (b[recent[0]] || 0) - (a[recent[0]] || 0);
     });
     
+    // Apply Advanced Multi-level Sorting
+    if (window.tableSortRules['hodqoq'] && window.tableSortRules['hodqoq'].length > 0) {
+      sorted = window.applyMultiSort(sorted, 'hodqoq');
+    }
+    
     window.App.lastTableData['hodqoq'] = sorted;
 
     const baseIdx = window._getCompBaseIndex('hod-comp-period', 'month', recent);
@@ -716,6 +862,11 @@ window._loadHODByQuarter = async function(tbody, thead) {
     return (b[cols[0].key] || 0) - (a[cols[0].key] || 0);
   });
   
+  // Apply Advanced Multi-level Sorting
+  if (window.tableSortRules['hodqoq'] && window.tableSortRules['hodqoq'].length > 0) {
+    sorted = window.applyMultiSort(sorted, 'hodqoq');
+  }
+  
   window.App.lastTableData['hodqoq'] = sorted;
 
   const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
@@ -835,6 +986,11 @@ window._loadHODByYear = async function(tbody, thead) {
     });
     return entry;
   }).sort(function(a, b) { return (b[curFY] || 0) - (a[curFY] || 0); });
+  
+  // Apply Advanced Multi-level Sorting
+  if (window.tableSortRules['hodqoq'] && window.tableSortRules['hodqoq'].length > 0) {
+    sorted = window.applyMultiSort(sorted, 'hodqoq');
+  }
   
   window.App.lastTableData['hodqoq'] = sorted;
 
@@ -979,6 +1135,10 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     });
 
     let sorted = Object.values(map).sort((a,b) => (b[recent[0]]||0) - (a[recent[0]]||0));
+    
+    if (window.tableSortRules['custqoq'] && window.tableSortRules['custqoq'].length > 0) {
+      sorted = window.applyMultiSort(sorted, 'custqoq');
+    }
 
     const baseIdx = window._getCompBaseIndex('cust-comp-period', 'month', recent);
     const offsetRecent = recent.slice(baseIdx);
@@ -1100,6 +1260,10 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       return entry;
     }).sort((a, b) => (b[cols[0].key] || 0) - (a[cols[0].key] || 0));
 
+    if (window.tableSortRules['custqoq'] && window.tableSortRules['custqoq'].length > 0) {
+      sorted = window.applyMultiSort(sorted, 'custqoq');
+    }
+
     const baseIdx = window._getCompBaseIndex('cust-comp-period', 'quarter', cols, c => c.key);
     const offsetCols = cols.slice(baseIdx);
 
@@ -1184,6 +1348,10 @@ window._loadCustByYear = async function(tbody, thead, page) {
     });
 
     let sorted = Object.values(map).sort((a,b) => (b[curFY]||0) - (a[curFY]||0));
+    
+    if (window.tableSortRules['custqoq'] && window.tableSortRules['custqoq'].length > 0) {
+      sorted = window.applyMultiSort(sorted, 'custqoq');
+    }
 
     const baseIdx = window._getCompBaseIndex('cust-comp-period', 'year', allFYs);
     const offsetFYs = allFYs.slice(baseIdx);

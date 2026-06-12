@@ -294,6 +294,11 @@ window._renderOutstandingTable = function() {
 
   const ps = 50; const totalPages = Math.ceil(rows.length / ps);
   if (window.outstandingPage > totalPages) window.outstandingPage = totalPages;
+  
+  if (window.tableSortRules['outstanding'] && window.tableSortRules['outstanding'].length > 0) {
+    rows = window.applyMultiSort(rows, 'outstanding');
+  }
+
   const displayRows = rows.slice((window.outstandingPage - 1) * ps, window.outstandingPage * ps);
   window.App.lastTableData['outstanding'] = displayRows;
 
@@ -336,6 +341,9 @@ window.loadTopCustomers = async function(page = 1) {
     if (kg) {
         kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-users"></i></div><div class="kpi-label">Top 80% Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.total) + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT (80%)</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(res.paretoSqft || 0) + '</div></div>';
+    }
+    if (window.tableSortRules['customers'] && window.tableSortRules['customers'].length > 0) {
+      rows = window.applyMultiSort(rows, 'customers');
     }
     window.App.lastTableData['customers'] = rows;
     if (!rows.length) { tbody.innerHTML = window._emptyRow(9, 'No customers found.'); return; }
@@ -404,6 +412,9 @@ window.loadDeclining = async function(page = 1) {
         kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-trend-down"></i></div><div class="kpi-label">Declining Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#f97316"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f97316"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT Dropped</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalDrop) + '</div></div>';
     }
+    if (window.tableSortRules['declining'] && window.tableSortRules['declining'].length > 0) {
+      rows = window.applyMultiSort(rows, 'declining');
+    }
     window.App.lastTableData['declining'] = rows;
     if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No declining customers found.'); return; }
     
@@ -469,6 +480,9 @@ window.loadRFM = async function(page = 1) {
     
     const res  = await window.api('getRFMData', { options: { segment: window.rfmSegFilter, page: page, pageSize: 50, search: window.searchQueries['rfm'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadRFM', 'pagination-rfm');
+    if (window.tableSortRules['rfm'] && window.tableSortRules['rfm'].length > 0) {
+      rows = window.applyMultiSort(rows, 'rfm');
+    }
     window.App.lastTableData['rfm'] = rows;
     if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No RFM data found.'); return; }
     
@@ -557,6 +571,10 @@ window.loadTimeWiseSales = async function() {
     else if (rowGb === 'product_type') rowLabel = 'Product Type';
     else if (rowGb === 'sku_type') rowLabel = 'SKU Type';
     else if (rowGb === 'brand') rowLabel = 'Brand';
+
+    if (window.tableSortRules['product'] && window.tableSortRules['product'].length > 0) {
+      data = window.applyMultiSort(data, 'product');
+    }
     
     const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
     const stickyCAT = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
@@ -565,6 +583,9 @@ window.loadTimeWiseSales = async function() {
     const stickyRowCAT = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
     
     let trHead = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyCAT + '">' + rowLabel + '</th>';
+    if (window.comparisonMode === 'none') {
+        trHead += '<th style="text-align:right; font-weight:800; color:var(--brand-primary); min-width:120px; padding:8px 12px; border-right:1px solid rgba(255,255,255,0.1);">TOTAL (SQ FT)</th>';
+    }
     displayCols.forEach((c, i) => { 
         let sub = '';
         if (i === 0) sub = 'latest';
@@ -577,15 +598,15 @@ window.loadTimeWiseSales = async function() {
            trHead += '<th style="text-align:right;">' + c + '</th>';
         }
     });
-    if (window.comparisonMode === 'none') {
-        trHead += '<th style="text-align:right;">Total (SQ FT)</th>';
-    }
     trHead += '</tr>';
     thead.innerHTML = trHead;
     
     let html = '';
     data.forEach((r, i) => {
       let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + (r.CATEGORY || 'Unknown') + '</td>';
+      if (window.comparisonMode === 'none') {
+          tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-primary); padding:6px 12px; border-right:1px solid var(--border);">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
+      }
       displayCols.forEach((c, mi) => {
          const val = r[c] || 0;
          if (window._hodTd) {
@@ -598,9 +619,6 @@ window.loadTimeWiseSales = async function() {
              tr += '<td style="text-align:right; white-space:nowrap;">' + window.fmt.num(val) + '</td>';
          }
       });
-      if (window.comparisonMode === 'none') {
-          tr += '<td style="text-align:right; font-weight:600; white-space:nowrap; color:var(--text-color);">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
-      }
       tr += '</tr>';
       html += tr;
     });
