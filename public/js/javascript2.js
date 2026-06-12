@@ -246,7 +246,16 @@ window.loadOutstanding = async function() {
     const riskCustCount    = rows.filter(function(r){ return (r.DAYS_90_PLUS || 0) > 0; }).length;
 
     const lbl = document.getElementById('outstanding-sync-label');
-    if (lbl) lbl.textContent = 'Live data · auto-syncs every 2h';
+    if (lbl) {
+        if (window.App && window.App.data && window.App.data.overview && window.App.data.overview.kpis && window.App.data.overview.kpis.lastUpdated) {
+             lbl.textContent = 'Last sync: ' + new Date(window.App.data.overview.kpis.lastUpdated).toLocaleString('en-IN');
+        } else {
+            lbl.textContent = 'Live data · auto-syncs every 2h';
+            window.api('getKPIs').then(kpis => {
+                if(kpis && kpis.lastUpdated) lbl.textContent = 'Last sync: ' + new Date(kpis.lastUpdated).toLocaleString('en-IN');
+            }).catch(()=>{});
+        }
+    }
 
     if (kpiGrid) {
       kpiGrid.innerHTML = `
@@ -280,10 +289,10 @@ window._renderOutstandingTable = function() {
   const sq = (window.searchQueries['outstanding'] || '').toLowerCase();
   if (sq) { rows = rows.filter(function(r) { return (r.STATE || '').toLowerCase().indexOf(sq) !== -1 || (r.HOD || '').toLowerCase().indexOf(sq) !== -1 || (r.CUSTOMER_NAME || '').toLowerCase().indexOf(sq) !== -1; }); }
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
   const stickyST  = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
   const stickyHOD = 'position:sticky;left:154px;z-index:3;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
-  const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
+  const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:110px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:154px;z-index:1;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
 
@@ -544,11 +553,17 @@ window.loadTimeWiseSales = async function() {
     } else if (window.comparisonMode === 'yoy') {
         if (displayCols.length > 0) {
            const current = displayCols[0];
-           const prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
+           let prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
                const parts = match.split('-');
                return (parseInt(parts[0]) - 1) + '-' + (parseInt(parts[1]) - 1);
            });
-           if (cols.indexOf(prevYearStr) !== -1) {
+           if (prevYearStr === current) {
+               prevYearStr = current.replace(/-(\d{2})$/, function(match, p1) {
+                   return '-' + (parseInt(p1) - 1);
+               });
+           }
+           
+           if (prevYearStr !== current && cols.indexOf(prevYearStr) !== -1) {
                displayCols = [current, prevYearStr];
            } else if (cols.length >= 5 && timeGb === 'quarter') {
                displayCols = [current, displayCols[4]]; 
@@ -576,15 +591,17 @@ window.loadTimeWiseSales = async function() {
       data = window.applyMultiSort(data, 'product');
     }
     
-    const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+    const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
     const stickyCAT = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyTOT = 'position:sticky;left:224px;z-index:3;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
     
-    const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
+    const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowCAT = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
+    const stickyRowTOT = 'position:sticky;left:224px;z-index:1;background:var(--bg-card);min-width:130px;max-width:130px;padding:6px 12px;border-right:1px solid var(--border);';
     
     let trHead = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyCAT + '">' + rowLabel + '</th>';
     if (window.comparisonMode === 'none') {
-        trHead += '<th style="text-align:right; font-weight:800; color:var(--brand-primary); min-width:120px; padding:8px 12px; border-right:1px solid rgba(255,255,255,0.1);">TOTAL (SQ FT)</th>';
+        trHead += '<th style="text-align:right; font-weight:800; color:var(--brand-primary); ' + stickyTOT + '">TOTAL (SQ FT)</th>';
     }
     displayCols.forEach((c, i) => { 
         let sub = '';
@@ -605,7 +622,7 @@ window.loadTimeWiseSales = async function() {
     data.forEach((r, i) => {
       let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + (r.CATEGORY || 'Unknown') + '</td>';
       if (window.comparisonMode === 'none') {
-          tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-primary); padding:6px 12px; border-right:1px solid var(--border);">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
+          tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-primary); ' + stickyRowTOT + '">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
       }
       displayCols.forEach((c, mi) => {
          const val = r[c] || 0;
@@ -659,11 +676,16 @@ window.loadHodSkuSales = async function() {
     } else if (window.comparisonMode === 'yoy') {
         if (displayCols.length > 0) {
            const current = displayCols[0];
-           const prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
+           let prevYearStr = current.replace(/\d{2}-\d{2}/, function(match) {
                const parts = match.split('-');
                return (parseInt(parts[0]) - 1) + '-' + (parseInt(parts[1]) - 1);
            });
-           if (cols.indexOf(prevYearStr) !== -1) {
+           if (prevYearStr === current) {
+               prevYearStr = current.replace(/-(\d{2})$/, function(match, p1) {
+                   return '-' + (parseInt(p1) - 1);
+               });
+           }
+           if (prevYearStr !== current && cols.indexOf(prevYearStr) !== -1) {
                displayCols = [current, prevYearStr];
            } else if (cols.length >= 5 && timeGb === 'quarter') {
                displayCols = [current, displayCols[4]]; 
@@ -708,10 +730,10 @@ window.loadHodSkuSales = async function() {
         return (b.totalSqftByPeriod[latest] || 0) - (a.totalSqftByPeriod[latest] || 0);
     });
     
-    const stickyN   = 'position:sticky;left:0;z-index:20;background:var(--brand-primary);width:44px;padding:8px 12px;';
+    const stickyN   = 'position:sticky;left:0;z-index:20;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
     const stickyHOD = 'position:sticky;left:44px;z-index:20;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
     
-    const stickyRowN   = 'position:sticky;left:0;z-index:10;background:var(--bg-card);width:44px;padding:6px 12px;';
+    const stickyRowN   = 'position:sticky;left:0;z-index:10;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowHOD = 'position:sticky;left:44px;z-index:10;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);color:var(--text-main);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     
     let trHead1 = '<tr><th style="' + stickyN + ' border-bottom:none;">#</th><th style="' + stickyHOD + ' border-bottom:none;">HOD</th>';
@@ -1089,7 +1111,23 @@ window.renderKPIs = function(k, monthly) {
   const yrGrowth      = prevYrSqft ? ((currYrSqft - prevYrSqft) / prevYrSqft * 100) : 0;
   const currYrSqm     = Math.round(currYrSqft / 10.76391);
 
-  const curFyMoCount  = (currentFy !== 'N/A' && fyData[currentFy] && fyData[currentFy].months.size) ? fyData[currentFy].months.size : 1;
+  let curFyMoCount = 1;
+  if (currentFy !== 'N/A') {
+    const d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
+    if (!isNaN(d.getTime())) {
+      d.setDate(d.getDate() - 1); // Data is N-1 (represents sales up to yesterday)
+      const currentYear = d.getFullYear();
+      const currentMonth = d.getMonth();
+      const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+      const monthDiff = (currentYear - fyStartYear) * 12 + currentMonth - 3;
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const fraction = d.getDate() / daysInMonth;
+      curFyMoCount = Math.round((monthDiff + fraction) * 100) / 100;
+      if (curFyMoCount <= 0.05) curFyMoCount = 1; 
+    } else if (fyData[currentFy] && fyData[currentFy].months.size) {
+      curFyMoCount = fyData[currentFy].months.size;
+    }
+  }
   const prevFyMoCount = (prevFy && fyData[prevFy] && fyData[prevFy].months.size) ? fyData[prevFy].months.size : 1;
   const currYrAvgSqft = Math.round(currYrSqft / curFyMoCount);
   const prevYrAvgSqft = prevFy ? Math.round(prevYrSqft / prevFyMoCount) : 0;

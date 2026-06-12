@@ -430,7 +430,7 @@ async function getKPIs(f) {
     try {
       custs = await fetchAll('vw_customer_kpi_counts', custQ);
     } catch (e) {
-      const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft';
+      const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft,hod_name,state,zone';
       custs = await fetchAll('vw_customer_summary', qsLight);
     }
 
@@ -1235,7 +1235,7 @@ async function getProductPivotSales(f, opts) {
     const dataByRow = {};
     const timeColsSet = new Set();
     
-    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let tKey = 'Unknown';
       let tSortKey = '';
       if (timeGroup === 'month') {
@@ -1285,7 +1285,7 @@ async function getHodSkuPivotSales(f, opts) {
     const dataByRow = {};
     const timeColsSet = new Set();
     
-    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let tKey = 'Unknown';
       let tSortKey = '';
       if (timeGroup === 'month') {
@@ -1338,7 +1338,7 @@ async function getTimeWiseSales(f, opts) {
   const groupBy = opts && opts.groupBy ? opts.groupBy : 'month';
   return cached('time_' + groupBy + '_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let key = 'Unknown';
       let sortKey = '';
       if (groupBy === 'month') {
