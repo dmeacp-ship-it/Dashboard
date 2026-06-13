@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "node tools/build-frontend.js && node tools/minify-frontend.js",
+    "build": "node tools/minify-frontend.js",
+    "build:local": "node tools/build-frontend.js && node tools/minify-frontend.js",
     "minify": "node tools/minify-frontend.js",
     "vercel-dev": "vercel dev"
   },
