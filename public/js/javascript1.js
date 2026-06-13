@@ -132,9 +132,11 @@ window.loadHodTargets = async function(page = 1) {
           hodRows = window.applyMultiSort(hodRows, 'hodtargets');
         }
 
-        const ps = 50;
+        const exportAll = window.App.exportAll === 'hodtargets';
+        const ps = exportAll ? (hodRows.length || 1) : 50;
         const totalPages = Math.ceil(hodRows.length / ps) || 1;
         if (page > totalPages) page = totalPages;
+        if (exportAll) page = 1;
         const displayRows = hodRows.slice((page - 1) * ps, page * ps);
 
         window._renderHodTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps);
@@ -310,9 +312,11 @@ window.loadTargets = async function(page = 1) {
       rows = window.applyMultiSort(rows, 'targets');
     }
 
-    const ps = 50;
+    const exportAll = window.App.exportAll === 'targets';
+    const ps = exportAll ? (rows.length || 1) : 50;
     const totalPages = Math.ceil(rows.length / ps) || 1;
     if (page > totalPages) page = totalPages;
+    if (exportAll) page = 1;
     const displayRows = rows.slice((page - 1) * ps, page * ps);
 
     window._renderTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps);
@@ -1159,7 +1163,9 @@ window._loadCustByMonth = async function(tbody, thead, page) {
         sorted = sorted.filter(r => Math.abs(parseFloat(r[displayMonths[0]]) || 0) > 0.001 || Math.abs(parseFloat(r[displayMonths[1]]) || 0) > 0.001);
     }
 
-    const ps = 50, totalPages = Math.ceil(sorted.length / ps) || 1;
+    const exportAll = window.App.exportAll === 'custqoq';
+    const ps = exportAll ? (sorted.length || 1) : 50, totalPages = Math.ceil(sorted.length / ps) || 1;
+    if (exportAll) page = 1;
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
@@ -1290,7 +1296,9 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
         sorted = sorted.filter(r => Math.abs(parseFloat(r[displayCols[0].key]) || 0) > 0.001 || Math.abs(parseFloat(r[displayCols[1].key]) || 0) > 0.001);
     }
 
-    const ps = 50, totalPages = Math.ceil(sorted.length / ps) || 1;
+    const exportAll = window.App.exportAll === 'custqoq';
+    const ps = exportAll ? (sorted.length || 1) : 50, totalPages = Math.ceil(sorted.length / ps) || 1;
+    if (exportAll) page = 1;
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 

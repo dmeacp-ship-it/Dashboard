@@ -935,7 +935,55 @@ window.saveGoogleSheetsConfig = function() {
   });
 };
 
-window.exportTableToCSV = function(theadId, tbodyId, filename) {
+/**
+ * Registry of paginated tables whose Export must include EVERY row, not just
+ * the visible page. Each entry maps the table's <tbody> id to:
+ *   key    — the value exportAll is set to while expanding the table
+ *   reload — re-renders/re-fetches the table at its current state. When
+ *            window.App.exportAll === key, the render/loader emits ALL rows.
+ * Tables not listed here render every row already, so the plain DOM scrape is
+ * complete on its own.
+ */
+window._EXPORT_TABLES = {
+  'tbl-outstanding-body': { key: 'outstanding', reload: function () { return window._renderOutstandingTable(); } },
+  'tbl-custqoq-body':     { key: 'custqoq',     reload: function () { return window.loadCustSale(window.custSalePage || 1); } },
+  'tbl-targets-body':     { key: 'targets',     reload: function () { return window.loadTargets(window.targetPage || 1); } },
+  'tbl-targets-hod-body': { key: 'hodtargets',  reload: function () { return window.loadHodTargets(window.hodTargetPage || 1); } },
+  'tbl-customers-body':   { key: 'customers',   reload: function () { return window.loadTopCustomers(1); } },
+  'tbl-rfm-body':         { key: 'rfm',         reload: function () { return window.loadRFM(1); } },
+  'tbl-declining-body':   { key: 'declining',   reload: function () { return window.loadDeclining(1); } },
+  'tbl-inactive-body':    { key: 'inactive',    reload: function () { return window.loadInactive(1); } },
+  'tbl-losthv-body':      { key: 'losthv',      reload: function () { return window.loadLostHV(1); } }
+};
+
+/**
+ * Orchestrates a full-dataset export. For registered paginated tables it flips
+ * window.App.exportAll, re-renders so every row is in the DOM, scrapes, then
+ * restores the paged view. Unregistered tables scrape directly.
+ */
+window.exportTableToCSV = async function(theadId, tbodyId, filename) {
+  const meta = window._EXPORT_TABLES[tbodyId];
+  if (!meta || !meta.reload) { window._scrapeTableToCSV(theadId, tbodyId, filename); return; }
+
+  const prev = window.App.exportAll;
+  window.App.exportAll = meta.key;
+  try {
+    await meta.reload();                 // render/fetch ALL rows
+    window._scrapeTableToCSV(theadId, tbodyId, filename);
+  } catch (e) {
+    window.toast('Export failed: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    window.App.exportAll = prev;
+    try { await meta.reload(); } catch (e) {}   // restore paged view
+  }
+};
+
+// Server-paginated loaders use these so that, while exporting, they request a
+// single huge first page covering the whole result set.
+window._expPage = function(key, page) { return window.App.exportAll === key ? 1 : page; };
+window._expSize = function(key) { return window.App.exportAll === key ? 100000 : 50; };
+
+window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
   const rows = [];
   if (theadId) {
     const thead = document.getElementById(theadId);

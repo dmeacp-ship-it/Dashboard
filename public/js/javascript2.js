@@ -301,14 +301,16 @@ window._renderOutstandingTable = function() {
 
   if (!rows.length) { tbody.innerHTML = window._emptyRow(10, 'No outstanding data matching criteria.'); window._renderPagination(null, '', 'pagination-outstanding'); return; }
 
-  const ps = 50; const totalPages = Math.ceil(rows.length / ps);
+  const exportAll = window.App.exportAll === 'outstanding';
+  const ps = exportAll ? (rows.length || 1) : 50; const totalPages = Math.ceil(rows.length / ps);
   if (window.outstandingPage > totalPages) window.outstandingPage = totalPages;
-  
+  const page = exportAll ? 1 : window.outstandingPage;
+
   if (window.tableSortRules['outstanding'] && window.tableSortRules['outstanding'].length > 0) {
     rows = window.applyMultiSort(rows, 'outstanding');
   }
 
-  const displayRows = rows.slice((window.outstandingPage - 1) * ps, window.outstandingPage * ps);
+  const displayRows = rows.slice((page - 1) * ps, page * ps);
   window.App.lastTableData['outstanding'] = displayRows;
 
   let htmlStr = '';
@@ -316,7 +318,7 @@ window._renderOutstandingTable = function() {
     const total  = r.CURRENT_OUTSTANDING || 0;
     const risk   = total > 0 ? ((r.DAYS_90_PLUS || 0) / total * 100).toFixed(1) : '0.0';
     const rColor = parseFloat(risk) >= 30 ? 'var(--danger)' : parseFloat(risk) >= 15 ? '#f97316' : 'var(--accent3)';
-    const idx    = ((window.outstandingPage - 1) * ps) + i + 1;
+    const idx    = ((page - 1) * ps) + i + 1;
     htmlStr += '<tr><td style="' + stickyRowN + '">' + idx + '</td><td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + (r.STATE || '-') + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + (r.HOD || '-') + '</td><td style="font-weight:700;color:var(--text-main);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;">' + (r.CUSTOMER_NAME || '-') + '</td><td style="text-align:right;color:var(--text-muted);padding:6px 12px;">' + window.fmt.num(r.CREDIT_LIMIT) + '</td><td style="text-align:right;font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(total) + '</td><td style="text-align:right;color:var(--accent3);padding:6px 12px;">' + window.fmt.num(r.BELOW_45) + '</td><td style="text-align:right;color:#f97316;padding:6px 12px;">' + window.fmt.num(r.ABOVE_45) + '</td><td style="text-align:right;font-weight:700;color:var(--danger);padding:6px 12px;">' + window.fmt.num(r.DAYS_90_PLUS) + '</td><td style="text-align:right;font-weight:700;color:' + rColor + ';padding:6px 12px;">' + risk + '%</td></tr>';
   });
   tbody.innerHTML = htmlStr;
@@ -343,7 +345,7 @@ window.loadTopCustomers = async function(page = 1) {
   if(!pagContainer) { const wrap = document.querySelector('#page-pareto .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-customers'; wrap.appendChild(pagContainer); }
   
   try {
-    const res  = await window.api('getTopCustomers', { options: { pareto80: true, sortBy: window.custSort, activeDays: window.paretoActiveDays, page: page, pageSize: 50, search: window.searchQueries['customers'] } });
+    const res  = await window.api('getTopCustomers', { options: { pareto80: true, sortBy: window.custSort, activeDays: window.paretoActiveDays, page: window._expPage('customers', page), pageSize: window._expSize('customers'), search: window.searchQueries['customers'] } });
     const rows = window._tableItems(res);
     window._renderPagination(res, 'loadTopCustomers', 'pagination-customers');
     const kg = document.getElementById('customers-kpi-grid');
@@ -384,7 +386,7 @@ window.loadInactive = async function(page = 1) {
   if(!pagContainer) { const wrap = document.querySelector('#pane-inactive .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-inactive'; wrap.appendChild(pagContainer); }
   
   try {
-    const res  = await window.api('getInactiveCustomers', { options: { days: window.inactiveDays, page: page, pageSize: 50, search: window.searchQueries['inactive'] } });
+    const res  = await window.api('getInactiveCustomers', { options: { days: window.inactiveDays, page: window._expPage('inactive', page), pageSize: window._expSize('inactive'), search: window.searchQueries['inactive'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadInactive', 'pagination-inactive');
     const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
     const kg = document.getElementById('inactive-kpi-grid');
@@ -413,7 +415,7 @@ window.loadDeclining = async function(page = 1) {
   if(!pagContainer) { const wrap = document.querySelector('#pane-declining .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-declining'; wrap.appendChild(pagContainer); }
   
   try {
-    const res  = await window.api('getDecliningCustomers', { options: { page: page, pageSize: 50, search: window.searchQueries['declining'] } });
+    const res  = await window.api('getDecliningCustomers', { options: { page: window._expPage('declining', page), pageSize: window._expSize('declining'), search: window.searchQueries['declining'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadDeclining', 'pagination-declining');
     const totalDrop = rows.reduce((s, r) => s + Math.abs((r['SQM CHANGE'] || 0) * 10.76391), 0);
     const kg = document.getElementById('declining-kpi-grid');
@@ -445,7 +447,7 @@ window.loadLostHV = async function(page = 1) {
   if(!pagContainer) { const wrap = document.querySelector('#pane-losthv .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-losthv'; wrap.appendChild(pagContainer); }
   
   try {
-    const res  = await window.api('getLostHVCustomers', { options: { page: page, pageSize: 50, search: window.searchQueries['losthv'] } });
+    const res  = await window.api('getLostHVCustomers', { options: { page: window._expPage('losthv', page), pageSize: window._expSize('losthv'), search: window.searchQueries['losthv'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadLostHV', 'pagination-losthv');
     const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
     const kg = document.getElementById('losthv-kpi-grid');
@@ -487,7 +489,7 @@ window.loadRFM = async function(page = 1) {
         + '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(lost) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">churned customers</div></div>';
     }
     
-    const res  = await window.api('getRFMData', { options: { segment: window.rfmSegFilter, page: page, pageSize: 50, search: window.searchQueries['rfm'] } });
+    const res  = await window.api('getRFMData', { options: { segment: window.rfmSegFilter, page: window._expPage('rfm', page), pageSize: window._expSize('rfm'), search: window.searchQueries['rfm'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadRFM', 'pagination-rfm');
     if (window.tableSortRules['rfm'] && window.tableSortRules['rfm'].length > 0) {
       rows = window.applyMultiSort(rows, 'rfm');
