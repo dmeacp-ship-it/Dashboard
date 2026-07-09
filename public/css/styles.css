@@ -275,11 +275,63 @@ nav { padding: 4px 0; flex: 1; }
 
 .header-center-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .header-right { display: flex; align-items: center; gap: 12px; position: relative; }
-#header-theme-btn, #filter-toggle-btn {
+#filter-toggle-btn {
   background: var(--bg-elevated) !important; border: 1px solid var(--border) !important; color: var(--text-muted) !important;
   border-radius: 50% !important; box-shadow: none !important;
 }
-#header-theme-btn:hover, #filter-toggle-btn:hover { background: var(--bg-hover) !important; color: var(--text-main) !important; transform: scale(1.05) !important; border-color: var(--border-light) !important;}
+#filter-toggle-btn:hover { background: var(--bg-hover) !important; color: var(--text-main) !important; transform: scale(1.05) !important; border-color: var(--border-light) !important;}
+
+/* Theme Switch Styles */
+.theme-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-switch-container i {
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: color 0.3s ease;
+}
+.theme-switch {
+  width: 38px;
+  height: 20px;
+  border-radius: 100px;
+  background: var(--bg-elevated);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+  border: 1px solid var(--border);
+}
+.theme-switch-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.theme-switch:hover {
+  transform: scale(1.03);
+}
+.theme-switch:active .theme-switch-handle {
+  width: 18px;
+}
+[data-theme="dark"] .theme-switch {
+  background: #10b981 !important; /* Green mode toggle! */
+  border-color: #10b981 !important;
+}
+[data-theme="dark"] .theme-switch-handle {
+  transform: translateX(20px);
+}
+[data-theme="dark"] .theme-switch-container .ph-moon {
+  color: #10b981 !important;
+}
+[data-theme="light"] .theme-switch-container .ph-sun {
+  color: var(--brand-primary) !important;
+}
 
 /* Loaders */
 .header-loader { width: 160px; height: 4px; background: var(--bg-elevated); border-radius: 100px; overflow: hidden; opacity: 0; transition: opacity 0.3s; }
@@ -293,8 +345,10 @@ nav { padding: 4px 0; flex: 1; }
 /* ── FLOATING FILTER PANEL ── */
 .filter-panel {
   position: absolute; top: var(--header-h); right: 24px;
-  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-elevated) 100%); 
-  border: 1px solid var(--brand-muted); border-top: none;
+  background: var(--surface-glass) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--border) !important; border-top: none !important;
   border-radius: 0 0 var(--radius) var(--radius);
   padding: 16px; box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; gap: 12px;
@@ -302,8 +356,8 @@ nav { padding: 4px 0; flex: 1; }
   transform-origin: top right;
 }
 [data-theme="light"] .filter-panel {
-  background: linear-gradient(180deg, #ffffff 0%, rgba(79,70,229,0.02) 100%);
-  border: 1px solid rgba(79,70,229,0.15); border-top: none;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(79, 70, 229, 0.15) !important; border-top: none !important;
 }
 .filter-panel.hidden { transform: scale(0.95) translateY(-10px); opacity: 0; pointer-events: none; }
 
@@ -457,26 +511,48 @@ nav { padding: 4px 0; flex: 1; }
 .kpi-grid { 
   display: flex; flex-wrap: nowrap; gap: 16px; overflow-x: auto; 
   padding: 14px 10px 14px; margin: -16px -12px 8px;
-  scrollbar-width: none; 
-  -webkit-overflow-scrolling: touch;
   transform: translateZ(0); 
   position: sticky; top: 0; z-index: 15;
   background: var(--bg-body);
+  scrollbar-width: thin; 
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
 }
-.kpi-grid::-webkit-scrollbar { display: none; }
+.kpi-grid::-webkit-scrollbar {
+  height: 4px;
+}
+.kpi-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kpi-grid::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+.kpi-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
 
 .kpi-card {
-  flex: 1; min-width: 160px;
+  flex: 1;
+  min-width: 200px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-top: 2px solid var(--kpi-color, var(--brand-primary));
-  border-radius: var(--radius-lg); padding: 16px 20px;
+  border-radius: var(--radius-lg); padding: 12px 16px;
   position: relative;
   box-shadow: var(--shadow-sm);
-  display: flex; flex-direction: column; justify-content: flex-start; gap: 0;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 4px;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.3s ease;
   z-index: 10;
   will-change: transform;
+}
+/* Dashboard Main KPI Cards Overrides */
+#kpi-grid .kpi-card {
+  aspect-ratio: 1 / 1;
+  min-width: 240px;
+  padding: 16px;
+  overflow: hidden;
+  gap: 0;
 }
 [data-theme="light"] .kpi-card { box-shadow: var(--shadow-xs); }
 .kpi-card:hover { 
@@ -485,7 +561,13 @@ nav { padding: 4px 0; flex: 1; }
   z-index: 50;
 }
 
-.kpi-header-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
+.kpi-card-split-row {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.kpi-header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; margin-bottom: 5px; }
 .kpi-icon {
   width: 28px; height: 28px; border-radius: 8px;
   background: var(--brand-muted); color: var(--kpi-color, var(--brand-primary));
@@ -512,18 +594,17 @@ nav { padding: 4px 0; flex: 1; }
 .table-wrap { 
   overflow-y: auto; overflow-x: auto; flex: 1; 
   background: transparent; min-height: 200px; 
+  max-height: calc(100vh - 280px);
   -webkit-overflow-scrolling: touch;
-  transform: translateZ(0); 
-  will-change: scroll-position;
 }
 
-table { width: 100%; border-collapse: collapse; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 thead th {
   position: sticky; top: 0; z-index: 10;
   background: var(--brand-primary) !important; color: #ffffff !important;
   text-align: left; padding: 12px 18px; font-size: 11px; font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
-  border-bottom: none !important;
+  border-bottom: 1px solid var(--brand-primary) !important;
 }
 thead th[style*="sticky"] { 
   background: var(--brand-primary) !important; color: #ffffff !important; 
@@ -775,13 +856,46 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   }
   #sidebar.mobile-open { left: 0; width: var(--sidebar-w); min-width: var(--sidebar-w); }
   #content { padding: 12px 16px; gap: 12px; }
-  .kpi-card { min-width: 140px; }
+  #header { padding: 0 12px; }
+  .kpi-grid {
+    margin: -12px -16px 8px !important;
+    padding: 24px 16px 12px !important;
+    position: sticky !important;
+    top: -12px !important;
+  }
+  
+  #close-sidebar { display: flex !important; }
+  
+  #sidebar.mobile-open .brand-name,
+  #sidebar.mobile-open .brand-sub,
+  #sidebar.mobile-open .nav-label,
+  #sidebar.mobile-open .nav-section,
+  #sidebar.mobile-open .nav-chevron,
+  #sidebar.mobile-open .nav-group-label,
+  #sidebar.mobile-open .sidebar-footer-btn span {
+    opacity: 1 !important;
+    max-width: 220px !important;
+    pointer-events: auto !important;
+    overflow: visible !important;
+  }
+  
+  #sidebar.mobile-open .brand,
+  #sidebar.mobile-open .nav-item,
+  #sidebar.mobile-open .nav-group-btn,
+  #sidebar.mobile-open .sidebar-footer-btn {
+    justify-content: flex-start !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
   
   .copilot-panel { width: 100%; right: 0; transform: translateX(105%); }
   
   #toast-wrap { bottom: 16px; right: 16px; left: 16px; align-items: center; }
   .toast { width: 100%; max-width: none; transform: translateY(120%) scale(0.9); animation: toastPopMobile 0.45s var(--t-spring) forwards; }
   @keyframes toastPopMobile { to { transform: translateY(0) scale(1); opacity: 1; } }
+}
+@media (max-width: 600px) {
+  #last-updated-val { display: none !important; }
 }
 
 /* =========================================================================
@@ -841,4 +955,129 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   background: linear-gradient(90deg, var(--surface3) 25%, var(--surface2) 50%, var(--surface3) 75%) !important;
   background-size: 200% 100% !important;
   animation: iosShimmer 1.5s infinite linear !important;
+}
+
+/* ── View Transitions Circular Reveal (Telegram/Green API Style) ── */
+::view-transition-group(root) {
+  animation-duration: 0.95s;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: circle-reveal 0.95s cubic-bezier(0.4, 0, 0.2, 1) both;
+  z-index: 9999;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+@keyframes circle-reveal {
+  from {
+    clip-path: circle(0% at var(--x) var(--y));
+  }
+  to {
+    clip-path: circle(150% at var(--x) var(--y));
+  }
+}
+
+/* ── Premium Micro-Interactions ── */
+
+/* 1. Sidebar Nav Indicator */
+.nav-indicator {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  background: var(--brand-muted);
+  border-radius: var(--radius);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: top 0.35s cubic-bezier(0.25, 1, 0.5, 1.2), height 0.35s cubic-bezier(0.25, 1, 0.5, 1.2), opacity 0.25s ease;
+}
+.nav-item {
+  position: relative;
+  z-index: 2;
+}
+.nav-section {
+  position: relative;
+  z-index: 2;
+}
+.nav-group-wrapper {
+  position: relative;
+  z-index: 2;
+}
+.nav-item.active {
+  background: transparent !important;
+}
+
+/* 2. KPI Cards 3D Parallax Tilt & Shine */
+.kpi-card {
+  transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.22s ease, border-color 0.22s ease !important;
+  transform-style: preserve-3d;
+  position: relative;
+}
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle 130px at var(--shine-x, 50%) var(--shine-y, 50%), rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 5;
+}
+[data-theme="light"] .kpi-card::after {
+  background: radial-gradient(circle 130px at var(--shine-x, 50%) var(--shine-y, 50%), rgba(79, 70, 229, 0.06) 0%, transparent 100%);
+}
+.kpi-card:hover::after {
+  opacity: 1;
+}
+
+/* 3. Staggered Table Rows Entry */
+@keyframes rowSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.stagger-row {
+  animation: rowSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--row-index, 0) * 0.03s);
+}
+
+/* 4. Elastic AI Copilot Panel */
+.copilot-panel {
+  transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.1), opacity 0.3s ease !important;
+}
+
+/* 5. Bouncy Spring Toast with Countdown Indicator */
+.toast {
+  position: relative;
+  overflow: hidden;
+  animation: toastPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+}
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: currentColor;
+  opacity: 0.3;
+  width: 100%;
+  transform-origin: left;
+  animation: toastProgress linear forwards;
+}
+@keyframes toastProgress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }

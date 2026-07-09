@@ -161,8 +161,8 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   const displayRows = sorted.slice((page-1)*ps, page*ps);
   window.App.lastTableData['skutypeqoq'] = displayRows;
 
-  const stickyST  = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:110px;padding:12px 14px;';
-  const stickyHOD = 'position:sticky;left:110px;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;border-right:1px solid rgba(255,255,255,0.2);padding:12px 14px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:110px;padding:12px 14px;';
+  const stickyHOD = 'position:sticky;left:110px;top:0;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;border-right:1px solid rgba(255,255,255,0.2);padding:12px 14px;';
   const stickyRowST  = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:110px;padding:10px 14px;';
   const stickyRowHOD = 'position:sticky;left:110px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:10px 14px;';
 
@@ -289,9 +289,9 @@ window._renderOutstandingTable = function() {
   const sq = (window.searchQueries['outstanding'] || '').toLowerCase();
   if (sq) { rows = rows.filter(function(r) { return (r.STATE || '').toLowerCase().indexOf(sq) !== -1 || (r.HOD || '').toLowerCase().indexOf(sq) !== -1 || (r.CUSTOMER_NAME || '').toLowerCase().indexOf(sq) !== -1; }); }
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:154px;z-index:3;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:3;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
   const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:110px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:154px;z-index:1;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
@@ -593,9 +593,9 @@ window.loadTimeWiseSales = async function() {
       data = window.applyMultiSort(data, 'product');
     }
     
-    const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-    const stickyCAT = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
-    const stickyTOT = 'position:sticky;left:224px;z-index:3;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
+    const stickyCAT = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyTOT = 'position:sticky;left:224px;top:0;z-index:3;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
     
     const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowCAT = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
@@ -732,8 +732,8 @@ window.loadHodSkuSales = async function() {
         return (b.totalSqftByPeriod[latest] || 0) - (a.totalSqftByPeriod[latest] || 0);
     });
     
-    const stickyN   = 'position:sticky;left:0;z-index:20;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-    const stickyHOD = 'position:sticky;left:44px;z-index:20;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:20;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
+    const stickyHOD = 'position:sticky;left:44px;top:0;z-index:20;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
     
     const stickyRowN   = 'position:sticky;left:0;z-index:10;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowHOD = 'position:sticky;left:44px;z-index:10;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);color:var(--text-main);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
@@ -1367,16 +1367,16 @@ window.renderKPIs = function(k, monthly) {
       <div class="kpi-label">80% VOLUME CONTRIBUTORS</div>
     </div>
     
-    <div style="display:flex; gap:10px; margin-top:7px; margin-bottom:8px; flex:1;">
+    <div class="kpi-card-split-row" style="flex:1;">
       
-      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
         <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-primary); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
           <i class="ph ph-calendar-check"></i> THIS MONTH
         </div>
         <div style="font-size:26px; font-weight:800; color:${c80Cur>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
           ${c80Cur > 0 ? window.fmt.num(c80Cur) : (c30 === 0 ? '—' : 'N/A')}
         </div>
-        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:12px;">
+        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
           of <strong style="color:var(--text-main)">${window.fmt.num(c30)}</strong> active
         </div>
         <div style="margin-top:auto;">
@@ -1390,14 +1390,14 @@ window.renderKPIs = function(k, monthly) {
         </div>
       </div>
 
-      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
         <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#f59e0b; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
           <i class="ph ph-chart-pie"></i> ALL TIME
         </div>
         <div style="font-size:26px; font-weight:800; color:#f59e0b; line-height:1; margin-bottom:4px;">
           ${window.fmt.num(c80All)}
         </div>
-        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:12px;">
+        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
           of <strong style="color:var(--text-main)">${window.fmt.num(totalC)}</strong> total
         </div>
         <div style="margin-top:auto;">
@@ -1442,11 +1442,24 @@ window.renderKPIs = function(k, monthly) {
   </div>`;
 };
 
+window.onMonthlyAllTimeChange = function() {
+  if (window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) {
+    window.renderMonthlyChart(window.App.data.overview.monthly);
+  }
+};
+
 window.renderMonthlyChart = function(rows) {
   if (typeof Chart === 'undefined') return;
   if (!rows || !Array.isArray(rows)) rows = [];
   const ctx = document.getElementById('chart-monthly'); if (!ctx) return;
   
+  const toggleEl = document.getElementById('toggle-monthly-all-time');
+  if (toggleEl && toggleEl.dataset.initialized !== 'true') {
+    toggleEl.checked = window.innerWidth >= 900;
+    toggleEl.dataset.initialized = 'true';
+  }
+  const showAllTime = toggleEl ? toggleEl.checked : (window.innerWidth >= 900);
+
   const filtered = rows.filter(function(r) {
     function _chk(val, fArr) { if (!fArr || fArr === 'All') return true; if (Array.isArray(fArr)) { if (fArr.length === 0 || fArr.indexOf('All') !== -1) return true; return fArr.indexOf(val) !== -1; } return val === fArr; }
     if (!_chk(window.getRowFY(r), window.App.filters.fy)) return false;
@@ -1456,7 +1469,8 @@ window.renderMonthlyChart = function(rows) {
   }).sort(function(a, b) { return window.getSortKey(a).localeCompare(window.getSortKey(b)); }); 
 
   const labels = [], sqftData = [];
-  filtered.forEach(function(r) { 
+  const displayRows = showAllTime ? filtered : filtered.slice(-12);
+  displayRows.forEach(function(r) { 
     labels.push(window.getAxisLabel(r)); 
     sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391)); 
   });
@@ -1473,10 +1487,29 @@ window.renderMonthlyChart = function(rows) {
         data: { labels: labels, datasets: [
           { label: 'SQ FT', data: sqftData, yAxisID: 'y', borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.15)', tension: 0.45, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#4f46e5', fill: true, borderWidth: 3 }
         ]},
-        options: window._cDefaults({ layout: { padding: { top: 25 } }, scales: {
-          x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 }, maxRotation: 60, minRotation: 45, autoSkip: false, callback: function(val, idx) { return this.getLabelForValue(val); } }, grid: { display: false, drawBorder: false } },
-          y:  { position: 'left',  ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } }
-        }}),
+        options: window._cDefaults({ 
+          layout: { padding: { top: 25 } }, 
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: window.ttBg(),
+              titleColor: window.ttTitle(),
+              bodyColor: window.tc(),
+              borderColor: window.ttBorder(),
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 10,
+              titleFont: { size: 13, family: 'Inter', weight: 700 },
+              bodyFont: { size: 12, family: 'Inter', weight: 600 }
+            }
+          },
+          scales: {
+            x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 }, maxRotation: 60, minRotation: 45, autoSkip: false, callback: function(val, idx) { return this.getLabelForValue(val); } }, grid: { display: false, drawBorder: false } },
+            y:  { position: 'left',  ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } }
+          }
+        }),
         plugins: [{
           id: 'customLabelsMonthly',
           afterDatasetsDraw: function(chart) {
@@ -2001,7 +2034,7 @@ window.renderPivotTable = function() {
   if(!isTransposed) {
     var th='<tr>';
     if(showRank) th+='<th rowspan="2" style="width:40px;text-align:center;background:var(--bg-elevated);border-right:1px solid var(--border);">#</th>';
-    rIdxs.forEach(function(r,ri){var sk=ri===0?'position:sticky;left:'+(showRank?'40px':'0')+';z-index:10;box-shadow:2px 0 5px rgba(0,0,0,.05);':'';th+='<th rowspan="2" class="pivot-sort-header" data-sort="row:'+r.name+'" onclick="window.pivotSortByHeader(this)" style="min-width:'+(ri===0?'180px':'100px')+';background:var(--bg-elevated);'+sk+'border-right:1px solid var(--border);cursor:pointer;user-select:none;">'+r.name+' <i class="ph ph-caret-up-down" style="font-size:9px;opacity:.4;"></i></th>';});
+    rIdxs.forEach(function(r,ri){var sk=ri===0?'position:sticky;left:'+(showRank?'40px':'0')+';top:0;z-index:10;box-shadow:2px 0 5px rgba(0,0,0,.05);':'';th+='<th rowspan="2" class="pivot-sort-header" data-sort="row:'+r.name+'" onclick="window.pivotSortByHeader(this)" style="min-width:'+(ri===0?'180px':'100px')+';background:var(--bg-elevated);'+sk+'border-right:1px solid var(--border);cursor:pointer;user-select:none;">'+r.name+' <i class="ph ph-caret-up-down" style="font-size:9px;opacity:.4;"></i></th>';});
     colsList.forEach(function(c){th+='<th colspan="'+mIdxs.length+'" style="text-align:center;border-right:1px solid var(--border);">'+c+'</th>';});
     th+='<th colspan="'+mIdxs.length+'" style="text-align:center;background:rgba(255,255,255,.02);">TOTAL</th></tr><tr>';
     colsList.forEach(function(c){mIdxs.forEach(function(m,mi){th+='<th class="pivot-sort-header" data-sort="metric:'+m.name+':'+c+'" onclick="window.pivotSortByHeader(this)" style="text-align:right;font-size:10px;cursor:pointer;user-select:none;'+(mi===0?'border-left:1px solid var(--border);':'')+'">'+m.name+' <i class="ph ph-caret-up-down" style="font-size:8px;opacity:.3;"></i></th>';});});
@@ -2035,9 +2068,9 @@ window.renderPivotTable = function() {
     tf+='</tr>';
     thead.innerHTML=th; tbody.innerHTML=tb; if(tfoot) tfoot.innerHTML=tf;
   } else {
-    var th2='<tr><th style="min-width:160px;position:sticky;left:0;z-index:10;background:var(--bg-elevated);border-right:1px solid var(--border);">'+colDim+'</th>';
+    var th2='<tr><th style="min-width:160px;position:sticky;left:0;top:0;z-index:10;background:var(--bg-elevated);border-right:1px solid var(--border);">'+colDim+'</th>';
     pagedKeys.forEach(function(rKey){th2+='<th colspan="'+mIdxs.length+'" style="text-align:center;border-right:1px solid var(--border);">'+rowsMap.get(rKey)._vals[0]+'</th>';});
-    th2+='</tr><tr><th style="position:sticky;left:0;z-index:10;background:var(--bg-elevated);border-right:1px solid var(--border);"></th>';
+    th2+='</tr><tr><th style="position:sticky;left:0;top:0;z-index:10;background:var(--bg-elevated);border-right:1px solid var(--border);"></th>';
     pagedKeys.forEach(function(){mIdxs.forEach(function(m,mi){th2+='<th style="text-align:right;font-size:10px;'+(mi===0?'border-left:1px solid var(--border);':'')+'">'+m.name+'</th>';});});
     th2+='</tr>';
     var tb2='';

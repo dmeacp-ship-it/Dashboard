@@ -18,7 +18,7 @@
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=88cba68f"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=83916fe0"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=fa29927b"/>
 </head>
 
@@ -62,16 +62,20 @@
 
 <div id="app" style="visibility:hidden;">
   <aside id="sidebar">
-    <div class="brand">
+    <div class="brand" style="position: relative;">
       <div class="brand-icon">V</div>
       <div>
         <div class="brand-name">Virgo ACP</div>
         <div class="brand-sub">Intelligence Hub</div>
       </div>
+      <button id="close-sidebar" onclick="toggleSidebar()" title="Close Sidebar" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; transition: background 0.2s;">
+        <i class="ph ph-x"></i>
+      </button>
     </div>
 
     <div class="sidebar-scrollable">
-      <nav>
+      <nav style="position: relative;">
+        <div id="nav-indicator" class="nav-indicator"></div>
         <div class="nav-section">Overview</div>
         <div class="nav-item active" data-page="overview" onclick="navigate('overview')">
           <span class="nav-icon"><i class="ph ph-squares-four"></i></span>
@@ -185,9 +189,13 @@
         <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
           <i class="ph ph-funnel"></i>
         </button>
-        <button id="header-theme-btn" onclick="toggleTheme()" title="Toggle dark/light mode" style="background:var(--surface2);border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s cubic-bezier(0.2,0.8,0.2,1);box-shadow:0 2px 8px rgba(0,0,0,0.65);">
-          <i class="ph ph-sun-dim" id="header-theme-icon"></i>
-        </button>
+        <div class="theme-switch-container">
+          <i class="ph ph-sun"></i>
+          <div class="theme-switch" onclick="toggleTheme(event)" title="Toggle dark/light mode">
+            <div class="theme-switch-handle"></div>
+          </div>
+          <i class="ph ph-moon"></i>
+        </div>
       </div>
     </header>
 
@@ -249,8 +257,18 @@
         <div id="kpi-grid" class="kpi-grid"></div>
         <div class="chart-grid">
           <div class="chart-card">
-            <div class="chart-header">
+            <div class="chart-header" style="display:flex; justify-content:space-between; align-items:center;">
               <div class="chart-title"><i class="ph ph-chart-line-up"></i> Monthly SQ FT &amp; SQM Trend</div>
+              <div style="display:flex; align-items:center; gap:16px;">
+                <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--text-main);">
+                  <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#4f46e5;"></span>
+                  <span>SQ FT</span>
+                </div>
+                <label class="chart-toggle-all-time" style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
+                  <input type="checkbox" id="toggle-monthly-all-time" style="cursor:pointer;" onchange="window.onMonthlyAllTimeChange()">
+                  <span>All Time</span>
+                </label>
+              </div>
             </div>
             <div class="chart-wrap-tall"><canvas id="chart-monthly"></canvas></div>
           </div>
@@ -1383,9 +1401,9 @@
     </div>
   </div>
 
-<script src="/js/javascript.min.js?v=6a95fc37"></script>
-<script src="/js/javascript1.min.js?v=55238694"></script>
-<script src="/js/javascript2.min.js?v=0ae89eca"></script>
+<script src="/js/javascript.min.js?v=2f2f211d"></script>
+<script src="/js/javascript1.min.js?v=bd3000c8"></script>
+<script src="/js/javascript2.min.js?v=cdeff8bd"></script>
 <script src="/js/fms.min.js?v=e9b8a378"></script>
 
 </body>

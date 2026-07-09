@@ -150,9 +150,9 @@ window.loadHodTargets = async function(page = 1) {
 window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize) {
     window.App.lastTableData['hodtargets'] = displayRows;
 
-    const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:40px;padding:8px 12px;';
-    const stickyST  = 'position:sticky;left:40px;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-    const stickyHOD = 'position:sticky;left:160px;z-index:3;background:var(--brand-primary);min-width:200px;max-width:200px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);width:40px;padding:8px 12px;';
+    const stickyST  = 'position:sticky;left:40px;top:0;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
+    const stickyHOD = 'position:sticky;left:160px;top:0;z-index:3;background:var(--brand-primary);min-width:200px;max-width:200px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
 
     const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:40px;padding:6px 12px;';
     const stickyRowST  = 'position:sticky;left:40px;z-index:1;background:var(--bg-card);min-width:120px;padding:6px 12px;';
@@ -345,10 +345,10 @@ window._targetTh = function(label, isCurrent, suffix) {
 window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize) {
   window.App.lastTableData['targets'] = displayRows;
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:40px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:40px;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:160px;z-index:3;background:var(--brand-primary);min-width:150px;max-width:150px;padding:8px 12px;';
-  const stickyEMP = 'position:sticky;left:310px;z-index:3;background:var(--brand-primary);min-width:170px;max-width:170px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);width:40px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:40px;top:0;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:160px;top:0;z-index:3;background:var(--brand-primary);min-width:150px;max-width:150px;padding:8px 12px;';
+  const stickyEMP = 'position:sticky;left:310px;top:0;z-index:3;background:var(--brand-primary);min-width:170px;max-width:170px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
 
   const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:40px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:40px;z-index:1;background:var(--bg-card);min-width:120px;padding:6px 12px;';
@@ -701,9 +701,9 @@ window._loadHODByMonth = async function(tbody, thead) {
   const recent = months.slice().reverse();
   tbody.innerHTML = window._loadingRow(recent.length + 3);
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:204px;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:204px;top:0;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
   
   const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;padding:6px 12px;';
@@ -873,9 +873,9 @@ window._loadHODByQuarter = async function(tbody, thead) {
   
   window.App.lastTableData['hodqoq'] = sorted;
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:204px;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:204px;top:0;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
   
   const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;padding:6px 12px;';
@@ -998,9 +998,9 @@ window._loadHODByYear = async function(tbody, thead) {
   
   window.App.lastTableData['hodqoq'] = sorted;
 
-  const stickyN   = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:44px;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:204px;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);width:44px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:204px;top:0;z-index:3;background:var(--brand-primary);min-width:110px;border-right:1px solid var(--border);padding:8px 12px;';
   
   const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);width:44px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;padding:6px 12px;';
@@ -1117,9 +1117,9 @@ window._loadCustByMonth = async function(tbody, thead, page) {
   if (!months.length) { tbody.innerHTML = window._emptyRow(4, 'No month data.'); return; }
   const recent = months.slice().reverse();
   
-  const stickyST  = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:100px;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-  const stickyC   = 'position:sticky;left:220px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:100px;top:0;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
+  const stickyC   = 'position:sticky;left:220px;top:0;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
   
   const stickyRowST  = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:100px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:100px;z-index:1;background:var(--bg-card);min-width:120px;padding:6px 12px;';
@@ -1208,9 +1208,9 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
   const qNums = ['Q1','Q2','Q3','Q4'];
   const qField = { Q1: 'Q1_SQFT', Q2: 'Q2_SQFT', Q3: 'Q3_SQFT', Q4: 'Q4_SQFT' };
 
-  const stickyST  = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:100px;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-  const stickyC   = 'position:sticky;left:220px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:100px;top:0;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
+  const stickyC   = 'position:sticky;left:220px;top:0;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
 
   const stickyRowST  = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:100px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:100px;z-index:1;background:var(--bg-card);min-width:120px;padding:6px 12px;';
@@ -1336,9 +1336,9 @@ window._loadCustByYear = async function(tbody, thead, page) {
   const curFY = allFYsRaw.slice().sort().reverse()[0];
   const allFYs = allFYsRaw.slice().sort().reverse().slice(0, 4);
   
-  const stickyST  = 'position:sticky;left:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:100px;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-  const stickyC   = 'position:sticky;left:220px;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:100px;top:0;z-index:3;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
+  const stickyC   = 'position:sticky;left:220px;top:0;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
 
   const stickyRowST  = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:100px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:100px;z-index:1;background:var(--bg-card);min-width:120px;padding:6px 12px;';

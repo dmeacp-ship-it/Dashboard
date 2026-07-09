@@ -63,8 +63,27 @@ window.applyTheme = function(t) {
   if (window._appReady && window.loadPage) window.loadPage(window.App.currentPage, 1, true); 
 };
 
-window.toggleTheme = function() { 
-  window.applyTheme(window.theme() === 'dark' ? 'light' : 'dark'); 
+window.toggleTheme = function(event) { 
+  const targetTheme = window.theme() === 'dark' ? 'light' : 'dark';
+  
+  if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.applyTheme(targetTheme);
+    return;
+  }
+  
+  let x = window.innerWidth - 40;
+  let y = 30;
+  if (event && event.clientX !== undefined) {
+    x = event.clientX;
+    y = event.clientY;
+  }
+  
+  document.documentElement.style.setProperty('--x', `${x}px`);
+  document.documentElement.style.setProperty('--y', `${y}px`);
+  
+  document.startViewTransition(function() {
+    window.applyTheme(targetTheme);
+  });
 };
 
 window.initTheme = function() {
@@ -222,9 +241,10 @@ window.toast = function(msg, type, dur) {
   if (!w) return;
   const t = document.createElement('div');
   t.className = 'toast ' + (type || 'info');
-  t.innerHTML = '<i class="ph ' + (icons[type || 'info']) + '"></i><span>' + msg + '</span>';
+  const duration = dur || 4000;
+  t.innerHTML = '<i class="ph ' + (icons[type || 'info']) + '"></i><span>' + msg + '</span><div class="toast-progress" style="animation-duration: ' + duration + 'ms"></div>';
   w.appendChild(t);
-  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, dur || 4000);
+  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, duration);
 };
 
 window.loading = function(show, block, isProgress) {
@@ -1227,7 +1247,8 @@ window._doNavigate = function(pageId) {
       document.getElementById('copilot-context-label').textContent = 'Context: ' + (lb ? lb.textContent : 'Dashboard');
   }
   
-  if (window.loadPage) window.loadPage(pageId, 1, true); 
+  if (window.updateNavIndicator) window.updateNavIndicator();
+  if (window.loadPage) window.loadPage(pageId, 1, true); 
 };
 
 window.loadPage = function(id, page = 1, useCache = false) {
@@ -1343,7 +1364,20 @@ window.toggleSidebar = function() {
   } else {
     sb.classList.toggle('pinned');
   }
+  if (window.updateNavIndicator) setTimeout(window.updateNavIndicator, 250);
 };
+
+// Click outside to close mobile sidebar
+document.addEventListener('click', function(e) {
+  const sb = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('toggle-sidebar');
+  const closeBtn = document.getElementById('close-sidebar');
+  if (sb && sb.classList.contains('mobile-open')) {
+    if (!sb.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target)) && (!closeBtn || !closeBtn.contains(e.target))) {
+      sb.classList.remove('mobile-open');
+    }
+  }
+});
 
 window.runPollingLoop = function(mode, onDone, onError) {
   let token = null, iter = 0;
@@ -1913,6 +1947,101 @@ window._bootDashboard = async function() {
     window._appReady = true;
   }
 };
+window.updateNavIndicator = function() {
+  const activeItem = document.querySelector('nav > .nav-item.active');
+  const indicator = document.getElementById('nav-indicator');
+  if (indicator) {
+    if (activeItem) {
+      indicator.style.opacity = '1';
+      indicator.style.top = activeItem.offsetTop + 'px';
+      indicator.style.height = activeItem.offsetHeight + 'px';
+    } else {
+      indicator.style.opacity = '0';
+    }
+  }
+};
+
+window.initMicroInteractions = function() {
+  // 1. Initial nav indicator draw
+  setTimeout(window.updateNavIndicator, 400);
+  
+  // Update indicator on window resize
+  window.addEventListener('resize', window.updateNavIndicator);
+
+  // 2. 3D Tilt and Shine effect on KPI cards
+  const initKpiTilt = () => {
+    document.querySelectorAll('.kpi-card').forEach(card => {
+      if (card.classList.contains('tilt-enabled')) return;
+      card.classList.add('tilt-enabled');
+      
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const xc = rect.width / 2;
+        const yc = rect.height / 2;
+        const dx = x - xc;
+        const dy = y - yc;
+        
+        // Tilt rotation: max 4.5 degrees
+        const rx = -(dy / yc) * 4.5;
+        const ry = (dx / xc) * 4.5;
+        
+        card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+        card.style.setProperty('--shine-x', `${(x / rect.width) * 100}%`);
+        card.style.setProperty('--shine-y', `${(y / rect.height) * 100}%`);
+      });
+      
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+        card.style.setProperty('--shine-x', '50%');
+        card.style.setProperty('--shine-y', '50%');
+      });
+    });
+  };
+  
+  initKpiTilt();
+  
+  // 3. MutationObserver to auto-inject stagger index to table rows and also re-init KPI tilts if page changes
+  const observer = new MutationObserver(mutations => {
+    let checkKpis = false;
+    mutations.forEach(mutation => {
+      if (mutation.type === 'childList') {
+        mutation.addedNodes.forEach(node => {
+          if (node.tagName === 'TR') {
+            const parent = node.parentNode;
+            if (parent) {
+              const siblings = Array.from(parent.children);
+              node.style.setProperty('--row-index', siblings.indexOf(node));
+              node.classList.add('stagger-row');
+            }
+          } else if (node.querySelectorAll) {
+            node.querySelectorAll('tbody tr').forEach(row => {
+              const parent = row.parentNode;
+              if (parent) {
+                const siblings = Array.from(parent.children);
+                row.style.setProperty('--row-index', siblings.indexOf(row));
+                row.classList.add('stagger-row');
+              }
+            });
+            if (node.querySelector('.kpi-card') || node.classList.contains('kpi-card')) {
+              checkKpis = true;
+            }
+          }
+        });
+      }
+    });
+    
+    if (checkKpis) {
+      initKpiTilt();
+    }
+  });
+  
+  const content = document.getElementById('content');
+  if (content) {
+    observer.observe(content, { childList: true, subtree: true });
+  }
+};
 
 window.addEventListener('DOMContentLoaded', function() {
   if (window.initTheme) window.initTheme();
@@ -1920,4 +2049,7 @@ window.addEventListener('DOMContentLoaded', function() {
   if (window.onRoleChange) window.onRoleChange();
   // Gate the whole app behind login (validates any stored token first).
   if (window._initAuth) window._initAuth();
+  
+  // Initialize Premium Micro-interactions
+  if (window.initMicroInteractions) window.initMicroInteractions();
 });
