@@ -161,10 +161,10 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   const displayRows = sorted.slice((page-1)*ps, page*ps);
   window.App.lastTableData['skutypeqoq'] = displayRows;
 
-  const stickyST  = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:110px;padding:12px 14px;';
-  const stickyHOD = 'position:sticky;left:110px;top:0;z-index:3;background:var(--brand-primary);min-width:160px;max-width:160px;border-right:1px solid rgba(255,255,255,0.2);padding:12px 14px;';
-  const stickyRowST  = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:110px;padding:10px 14px;';
-  const stickyRowHOD = 'position:sticky;left:110px;z-index:1;background:var(--bg-card);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:10px 14px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:110px;padding:12px 14px;';
+  const stickyHOD = 'position:sticky;left:110px;top:0;z-index:15;background:var(--brand-primary);min-width:160px;max-width:160px;border-right:1px solid rgba(255,255,255,0.2);padding:12px 14px;';
+  const stickyRowST  = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:110px;padding:10px 14px;';
+  const stickyRowHOD = 'position:sticky;left:110px;z-index:5;background:var(--bg-card);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:10px 14px;';
 
   let thHtml = `<tr>
     <th style="${stickyST}">STATE</th>
@@ -289,12 +289,12 @@ window._renderOutstandingTable = function() {
   const sq = (window.searchQueries['outstanding'] || '').toLowerCase();
   if (sq) { rows = rows.filter(function(r) { return (r.STATE || '').toLowerCase().indexOf(sq) !== -1 || (r.HOD || '').toLowerCase().indexOf(sq) !== -1 || (r.CUSTOMER_NAME || '').toLowerCase().indexOf(sq) !== -1; }); }
 
-  const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:3;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
-  const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
-  const stickyRowST  = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:110px;padding:6px 12px;';
-  const stickyRowHOD = 'position:sticky;left:154px;z-index:1;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
+  const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:110px;padding:6px 12px;';
+  const stickyRowHOD = 'position:sticky;left:154px;z-index:5;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
 
   thead.innerHTML = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="min-width:200px;padding:8px 12px;">Customer Name</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Credit Limit</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Outstanding</th><th style="min-width:110px;text-align:right;padding:8px 12px;">Below 45d</th><th style="min-width:110px;text-align:right;color:#fcd34d;padding:8px 12px;">Above 45d</th><th style="min-width:100px;text-align:right;color:#fca5a5;padding:8px 12px;">90+ Days</th><th style="min-width:80px;text-align:right;padding:8px 12px;">Risk %</th></tr>';
@@ -593,13 +593,13 @@ window.loadTimeWiseSales = async function() {
       data = window.applyMultiSort(data, 'product');
     }
     
-    const stickyN   = 'position:sticky;left:0;top:0;z-index:3;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-    const stickyCAT = 'position:sticky;left:44px;top:0;z-index:3;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
-    const stickyTOT = 'position:sticky;left:224px;top:0;z-index:3;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
+    const stickyCAT = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyTOT = 'position:sticky;left:224px;top:0;z-index:15;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
     
-    const stickyRowN   = 'position:sticky;left:0;z-index:1;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
-    const stickyRowCAT = 'position:sticky;left:44px;z-index:1;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
-    const stickyRowTOT = 'position:sticky;left:224px;z-index:1;background:var(--bg-card);min-width:130px;max-width:130px;padding:6px 12px;border-right:1px solid var(--border);';
+    const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
+    const stickyRowCAT = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
+    const stickyRowTOT = 'position:sticky;left:224px;z-index:5;background:var(--bg-card);min-width:130px;max-width:130px;padding:6px 12px;border-right:1px solid var(--border);';
     
     let trHead = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyCAT + '">' + rowLabel + '</th>';
     if (window.comparisonMode === 'none') {
