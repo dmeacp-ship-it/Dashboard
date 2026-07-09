@@ -390,32 +390,46 @@ window._targetTd = function(target, achv) {
    target = target || 0; achv = achv || 0;
    const pct = target > 0 ? ((achv / target) * 100).toFixed(1) : (achv > 0 ? 100.0 : 0.0);
    
-   let bg = 'rgba(16, 185, 129, 0.15)'; 
-   let border = 'rgba(16, 185, 129, 0.3)';
    let c = '#10b981'; 
-   if(pct < 50) {
-       bg = 'rgba(239, 68, 68, 0.15)'; 
-       border = 'rgba(239, 68, 68, 0.3)';
+   let liquid = 'linear-gradient(90deg, rgba(16,185,129,0.15), rgba(52,211,153,0.35))';
+   let borderGlow = 'rgba(52,211,153,0.5)';
+
+   if (pct < 50) {
        c = '#ef4444'; 
-   } else if(pct < 80) {
-       bg = 'rgba(245, 158, 11, 0.15)'; 
-       border = 'rgba(245, 158, 11, 0.3)';
+       liquid = 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(248,113,113,0.35))';
+       borderGlow = 'rgba(248,113,113,0.5)';
+   } else if (pct < 80) {
        c = '#f59e0b'; 
+       liquid = 'linear-gradient(90deg, rgba(245,158,11,0.15), rgba(251,191,36,0.35))';
+       borderGlow = 'rgba(251,191,36,0.5)';
    }
    
-   let html = '<td style="min-width:180px; padding:12px 16px; vertical-align:middle;">';
-   if(target === 0 && achv === 0) {
-       html += '<div style="color:var(--text-faint);text-align:center;font-size:14px;font-weight:600;">—</div></td>';
+   // Tighter padding
+   let html = '<td style="min-width:160px; padding:4px 8px; vertical-align:middle;">';
+   
+   if (target === 0 && achv === 0) {
+       html += '<div style="color:var(--text-faint);text-align:center;font-size:14px;font-weight:500;">—</div></td>';
        return html;
    }
    
-   html += '<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:8px;">';
-   html += '<div style="font-size:13.5px; font-weight:800; color:var(--text-main); white-space:nowrap;" title="' + window.fmt.num(achv) + ' Achieved / ' + window.fmt.num(target) + ' Target">' + window.fmt.short(achv) + ' <span style="color:var(--text-muted); font-size:11.5px; font-weight:600;">/ ' + window.fmt.short(target) + '</span></div>';
-   html += '<div style="font-size:12px; font-weight:800; color:' + c + ';">' + pct + '%</div>';
+   // The Full-Cell Glassmorphism Capsule - reduced height (30px)
+   html += '<div style="position:relative; width:100%; min-height:30px; border-radius:100px; background:var(--bg-hover); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(128,128,128,0.15); box-shadow:0 2px 6px rgba(0,0,0,0.04); overflow:hidden; display:flex; align-items:center;">';
+   
+   // Absolute Translucent Progress Fill
+   html += '<div style="position:absolute; top:0; left:0; height:100%; width:' + Math.min(pct, 100) + '%; background:' + liquid + '; z-index:0; border-right:1px solid ' + borderGlow + '; box-shadow:2px 0 10px ' + borderGlow + ';"></div>';
+   
+   // Foreground Text Layer
+   html += '<div style="position:relative; z-index:1; width:100%; display:flex; justify-content:space-between; align-items:center; padding:0 12px;">';
+   
+   html += '<div style="display:flex; align-items:baseline; gap:6px;" title="' + window.fmt.num(achv) + ' Achieved / ' + window.fmt.num(target) + ' Target">';
+   html += '<span style="font-size:13px; font-weight:800; color:var(--text-main); letter-spacing:-0.2px;">' + window.fmt.num(achv) + '</span>';
+   html += '<span style="font-size:10.5px; font-weight:600; color:var(--text-muted);">/ ' + window.fmt.num(target) + '</span>';
    html += '</div>';
-   html += '<div style="height:6px; background:var(--bg-hover); border-radius:100px; overflow:hidden;">';
-   html += '<div style="height:100%; width:' + Math.min(pct, 100) + '%; background:' + c + '; border-radius:100px;"></div>';
-   html += '</div></td>';
+   
+   html += '<span style="font-size:12.5px; font-weight:800; color:' + c + ';">' + pct + '%</span>';
+   
+   html += '</div>'; // End Text Layer
+   html += '</div></td>'; // End Capsule & Cell
    return html;
 };
 

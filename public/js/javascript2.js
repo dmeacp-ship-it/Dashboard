@@ -1582,10 +1582,11 @@ window.renderQoQChart = function(monthly) {
   if (typeof Chart === 'undefined') return;
   if (!monthly || !Array.isArray(monthly)) monthly = [];
   const ctx = document.getElementById('chart-fy'); if (!ctx) return;
-  const qMap = {};
+  const dataMap = { 'Q1': {}, 'Q2': {}, 'Q3': {}, 'Q4': {} };
+  const fySet = new Set();
+  
   monthly.forEach(function(r) {
     const fy = window.getRowFY(r); 
-    
     let q = '';
     let mStr = String(r['MONTH YEAR'] || '').trim().substring(0,3).toUpperCase();
     let mIdx = window.MN.indexOf(mStr);
@@ -1599,35 +1600,56 @@ window.renderQoQChart = function(monthly) {
         const match = qStr.match(/Q[- ]?(\d)/);
         q = match ? 'Q' + match[1] : 'Q1';
     }
-
     if (!fy || !q) return;
     const sqft = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391);
-    const yr2 = fy.replace('FY ', '').split('-')[0]; 
-    const lbl = q + ' \'' + yr2; 
-    const sortKey = fy + q; 
-    if (!qMap[sortKey]) qMap[sortKey] = { sqft: 0, label: lbl };
-    qMap[sortKey].sqft += sqft;
+    fySet.add(fy);
+    if (!dataMap[q][fy]) dataMap[q][fy] = 0;
+    dataMap[q][fy] += sqft;
   });
-  const sortedKeys   = Object.keys(qMap).sort();
-  const sortedLabels = sortedKeys.map(function(k) { return qMap[k].label; });
-  const sortedData   = sortedKeys.map(function(k) { return qMap[k].sqft; });
+  
+  const sortedFYs = Array.from(fySet).sort();
+  const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+  
+  const colors = ['#6ee7b7', '#34d399', '#10b981', '#059669', '#047857'];
+  const hoverColors = ['#34d399', '#10b981', '#059669', '#047857', '#064e3b'];
+  
+  const datasets = sortedFYs.map(function(fy, i) {
+    return {
+      label: fy,
+      data: quarters.map(function(q) { return dataMap[q][fy] || 0; }),
+      backgroundColor: colors[i % colors.length],
+      hoverBackgroundColor: hoverColors[i % hoverColors.length],
+      borderRadius: 4
+    };
+  });
+
+  const legendHtml = datasets.map(function(d) {
+    return '<div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + d.backgroundColor + '"></span>' + d.label + '</div>';
+  }).join('');
+  const lgDiv = document.getElementById('chart-fy-legend');
+  if(lgDiv) lgDiv.innerHTML = legendHtml;
 
   if (window.App.charts.fy) {
-      window.App.charts.fy.data.labels = sortedLabels; 
-      window.App.charts.fy.data.datasets[0].data = sortedData; 
+      window.App.charts.fy.data.labels = quarters; 
+      window.App.charts.fy.data.datasets = datasets; 
       window.App.charts.fy.options.scales.x.ticks.color = window.tc();
       window.App.charts.fy.options.scales.y.ticks.color = window.tc();
       window.App.charts.fy.update('none');
   } else {
       window.App.charts.fy = new Chart(ctx, {
         type: 'bar', 
-        data: { labels: sortedLabels, datasets: [{
-          label: 'SQ FT', data: sortedData, yAxisID: 'y', backgroundColor: '#10b981', hoverBackgroundColor: '#059669', borderRadius: 6
-        }]},
-        options: window._cDefaults({ layout: { padding: { top: 25 } }, scales: {
-          x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 }, maxRotation: 45, minRotation: 30, autoSkip: true, maxTicksLimit: 20 }, grid: { display: false, drawBorder: false } },
-          y: { position: 'left', ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v) + ' sqft'; } }, grid: { color: window.gc(), drawBorder: false } }
-        }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ' SQ FT: ' + window.fmt.num(ctx.raw); } } } }}),
+        data: { labels: quarters, datasets: datasets },
+        options: window._cDefaults({ 
+          layout: { padding: { top: 20 } }, 
+          scales: {
+            x: { ticks: { color: window.tc(), font: { size: 14, weight: 700 } }, grid: { display: false, drawBorder: false } },
+            y: { position: 'left', ticks: { color: window.tc(), font: { size: 14, weight: 700 }, callback: function(v) { return window.fmtK(v) + ' sqft'; } }, grid: { color: window.gc(), drawBorder: false } }
+          }, 
+          plugins: { 
+            legend: { display: false }, 
+            tooltip: { callbacks: { label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + window.fmt.num(ctx.raw) + ' SQ FT'; } } } 
+          }
+        }),
         plugins: [{
           id: 'customLabelsQoq',
           afterDatasetsDraw: function(chart) {
@@ -1638,10 +1660,10 @@ window.renderQoQChart = function(monthly) {
                 var val = dataset.data[index];
                 if (!val) return;
                 ctx.fillStyle = window.tc();
-                ctx.font = 'bold 11px "Inter", sans-serif';
+                ctx.font = 'bold 10px "Inter", sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(window.fmt.short(val), bar.x, bar.y - 6);
+                ctx.fillText(window.fmt.short(val), bar.x, bar.y - 4);
               });
             });
           }
