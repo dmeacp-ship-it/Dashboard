@@ -1947,6 +1947,51 @@ window._bootDashboard = async function() {
     window._appReady = true;
   }
 };
+
+window.toggleSidebarSyncPopover = function(e) {
+  e.stopPropagation();
+  const popover = document.getElementById('sidebar-sync-popover');
+  const btn = document.getElementById('sidebar-data-sync-btn');
+  if (!popover || !btn) return;
+  
+  if (popover.classList.contains('show')) {
+    popover.classList.remove('show');
+  } else {
+    // Close other popovers if needed (like filter drops)
+    document.querySelectorAll('.ms-wrap').forEach(w => w.classList.remove('open'));
+    window._activeDrop = null;
+    
+    // Position the popover dynamically
+    const rect = btn.getBoundingClientRect();
+    // Position to the right of the sidebar, aligned with the button
+    popover.style.left = (rect.right + 8) + 'px';
+    // If the button is too low, we adjust bottom so it doesn't clip screen
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const popoverHeight = 300; // estimated max height
+    
+    if (spaceBelow < popoverHeight / 2) {
+      popover.style.bottom = '20px';
+      popover.style.top = 'auto';
+    } else {
+      popover.style.top = (rect.top - 20) + 'px';
+      popover.style.bottom = 'auto';
+    }
+    
+    popover.classList.add('show');
+  }
+};
+
+// Close popover when clicking outside
+document.addEventListener('click', function(e) {
+  const popover = document.getElementById('sidebar-sync-popover');
+  const btn = document.getElementById('sidebar-data-sync-btn');
+  if (popover && popover.classList.contains('show')) {
+    if (!popover.contains(e.target) && (!btn || !btn.contains(e.target))) {
+      popover.classList.remove('show');
+    }
+  }
+});
+
 window.updateNavIndicator = function() {
   const activeItem = document.querySelector('nav > .nav-item.active');
   const indicator = document.getElementById('nav-indicator');

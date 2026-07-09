@@ -18,7 +18,7 @@
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=e64ea63c"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=8561473f"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=fa29927b"/>
 </head>
 
@@ -149,9 +149,14 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="nav-item" data-page="settings" onclick="navigate('settings')" style="margin-bottom: 12px;">
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')" style="margin-bottom: 4px;">
         <span class="nav-icon"><i class="ph ph-gear"></i></span>
         <span class="nav-label">Settings</span>
+      </div>
+      <div class="nav-item" id="sidebar-data-sync-btn" onclick="toggleSidebarSyncPopover(event)" style="margin-bottom: 12px; position: relative;">
+        <span class="nav-icon"><i class="ph ph-arrows-clockwise"></i></span>
+        <span class="nav-label" style="flex:1;">Data Sync</span>
+        <i class="ph ph-caret-right nav-chevron"></i>
       </div>
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: var(--radius); border: 1px solid var(--border-light);">
         <div style="white-space:nowrap;overflow:hidden;flex:1;min-width:0;">
@@ -1401,8 +1406,45 @@
       </div>
     </div>
   </div>
+  <div id="sidebar-sync-popover" class="sync-popover" onclick="event.stopPropagation()">
+    <div class="sync-popover-item" onclick="triggerSync('sync_sheets'); document.getElementById('sidebar-sync-popover').classList.remove('show');">
+      <i class="ph ph-arrows-clockwise" style="color:var(--brand-primary)"></i>
+      <div>
+        <div class="pop-title">Append New Data</div>
+        <div class="pop-desc">Sync new rows from Google Sheets.</div>
+      </div>
+    </div>
+    <div class="sync-popover-item" onclick="triggerSync('refresh_cache'); document.getElementById('sidebar-sync-popover').classList.remove('show');">
+      <i class="ph ph-lightning" style="color:var(--success)"></i>
+      <div>
+        <div class="pop-title">Refresh Cache</div>
+        <div class="pop-desc">Fetch latest from Supabase views.</div>
+      </div>
+    </div>
+    <div class="sync-popover-item" onclick="triggerSync('sync_outstanding'); document.getElementById('sidebar-sync-popover').classList.remove('show');">
+      <i class="ph ph-currency-inr" style="color:var(--warning)"></i>
+      <div>
+        <div class="pop-title">Sync Outstanding</div>
+        <div class="pop-desc">Update Customer Master data now.</div>
+      </div>
+    </div>
+    <div class="sync-popover-item" onclick="triggerSync('sync_targets'); document.getElementById('sidebar-sync-popover').classList.remove('show');">
+      <i class="ph ph-target" style="color:#d946ef"></i>
+      <div>
+        <div class="pop-title">Sync Targets</div>
+        <div class="pop-desc">Update Executive Targets data.</div>
+      </div>
+    </div>
+    <div class="sync-popover-item" onclick="triggerSync('hard_reset'); document.getElementById('sidebar-sync-popover').classList.remove('show');" style="border-top:1px solid var(--border); margin-top:4px; padding-top:12px;">
+      <i class="ph ph-warning-circle" style="color:var(--danger)"></i>
+      <div>
+        <div class="pop-title" style="color:var(--danger)">Hard Reset</div>
+        <div class="pop-desc">Wipe all data and rebuild from scratch.</div>
+      </div>
+    </div>
+  </div>
 
-<script src="/js/javascript.min.js?v=2f2f211d"></script>
+<script src="/js/javascript.min.js?v=36d0ab2f"></script>
 <script src="/js/javascript1.min.js?v=b190a3c4"></script>
 <script src="/js/javascript2.min.js?v=76739af2"></script>
 <script src="/js/fms.min.js?v=e9b8a378"></script>
