@@ -125,6 +125,22 @@ window.handleSearch = function(pageId) {
   }, 350);
 };
 
+/* ── Client-side API response cache ────────────────────────────────────
+   Read-only `get*` responses are cached in memory (keyed on the full
+   payload: action + filters + options + token) so switching pages and
+   re-applying the same filters renders instantly instead of refetching.
+   Identical concurrent calls share one in-flight request. Force refresh
+   bumps filters._v, which changes every key; clearApiCache() hard-drops. */
+var _apiCache = new Map();
+var _apiInflight = new Map();
+var API_CACHE_TTL_MS = 5 * 60 * 1000;
+var API_FMS_TTL_MS = 60 * 1000; // FMS reads live sheets; keep its 60s freshness window
+var API_CACHE_MAX = 150;
+var API_NO_CACHE = { getProfile: 1, getSettings: 1, getConnections: 1 };
+var API_MUTATING = { processAggregation: 1, syncOutstanding: 1, syncTargets: 1, clearServerCache: 1, updateSettings: 1, updateConnections: 1 };
+
+window.clearApiCache = function() { _apiCache.clear(); _apiInflight.clear(); };
+
 window.api = function(action, extra) {
   extra = extra || {};
   var payload = Object.assign({
@@ -132,7 +148,18 @@ window.api = function(action, extra) {
     filters: window.App.filters,
     token: localStorage.getItem('acp_token') || ''
   }, extra);
-  return fetch('/api', {
+
+  var cacheable = action.indexOf('get') === 0 && !API_NO_CACHE[action];
+  var key = cacheable ? JSON.stringify(payload) : null;
+  if (cacheable) {
+    var ttl = action.indexOf('getFms') === 0 ? API_FMS_TTL_MS : API_CACHE_TTL_MS;
+    var hit = _apiCache.get(key);
+    if (hit && (Date.now() - hit.ts) < ttl) return Promise.resolve(hit.data);
+    var inflight = _apiInflight.get(key);
+    if (inflight) return inflight;
+  }
+
+  var req = fetch('/api', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -148,10 +175,28 @@ window.api = function(action, extra) {
         if (action !== 'login' && action !== 'getProfile' && window._forceLogin) window._forceLogin();
         throw new Error(r.error || 'Session expired. Please sign in.');
       }
-      if (r.ok) return r.data;
+      if (r.ok) {
+        if (cacheable) {
+          if (_apiCache.size >= API_CACHE_MAX) {
+            _apiCache.delete(_apiCache.keys().next().value); // evict oldest entry
+          }
+          _apiCache.set(key, { ts: Date.now(), data: r.data });
+        }
+        if (API_MUTATING[action]) window.clearApiCache();
+        return r.data;
+      }
       throw new Error(r.error || ('Server error on action: ' + action));
     });
   });
+
+  if (cacheable) {
+    _apiInflight.set(key, req);
+    req.then(
+      function() { _apiInflight.delete(key); },
+      function() { _apiInflight.delete(key); }
+    );
+  }
+  return req;
 };
 
 /* ── Auth gate ─────────────────────────────────────────────── */

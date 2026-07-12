@@ -183,10 +183,49 @@ function _rowMatches(r, f) {
   return true;
 }
 
+// Normalises a filter value to an array of concrete values, or null when the
+// filter is absent / 'All' (mirrors _matches semantics).
+function _vals(val) {
+  if (!val || val === 'All') return null;
+  if (Array.isArray(val)) {
+    if (val.length === 0 || val.indexOf('All') !== -1) return null;
+    return val;
+  }
+  return [val];
+}
+
+// Client FY 'FY 24-25' -> DB fy_year 'FY-24-25'. Returns null if unparseable
+// so the caller can skip the push-down and rely on _rowMatches alone.
+function _fyToDb(v) {
+  const m = String(v || '').match(/(\d{2})[-\s_]+(\d{2})/);
+  return m ? 'FY-' + m[1] + '-' + m[2] : null;
+}
+
+// Client month 'Apr-24' -> ilike pattern 'Apr*24' (DB stores raw strings like
+// 'Apr- 24'). Both pieces are validated so no PostgREST metacharacters leak in.
+function _moToPattern(v) {
+  const p = String(v || '').trim().replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+  if (p.length < 2) return null;
+  const mon = p[0].substring(0, 3);
+  if (!/^[A-Za-z]{3}$/.test(mon)) return null;
+  let y = p[p.length - 1];
+  if (y.length === 4) y = y.slice(2);
+  if (!/^\d{2}$/.test(y)) return null;
+  return mon + '*' + y;
+}
+
+// Builds the PostgREST query string for a filter set. Time filters (fy,
+// quarter, month) are pushed down server-side — verified against live data:
+// every view's fy_year/quarter agree with the values _rowMatches derives, so
+// this only ever narrows to the same row set. _rowMatches still runs
+// client-side as the exact-semantics safety net. Callers whose views lack
+// time columns, or that deliberately fetch all periods, exclude 'fy'/'quarter'.
 function _q(f, exclude) {
   f = f || {};
   exclude = exclude || [];
+  if (process.env.DISABLE_TIME_PUSHDOWN === '1') exclude = exclude.concat(['month', 'fy', 'quarter']);
   const p = [];
+  const orGroups = [];
   function addFilter(col, val) {
     if (!val || val === 'All') return;
     if (Array.isArray(val)) {
@@ -196,7 +235,39 @@ function _q(f, exclude) {
       p.push(col + '=eq.' + encodeURIComponent(val));
     }
   }
-  if (exclude.indexOf('month') === -1) addFilter('month_year', f.month);
+  if (exclude.indexOf('month') === -1) {
+    const months = _vals(f.month);
+    if (months) {
+      const pats = months.map(_moToPattern);
+      if (pats.every(Boolean)) {
+        orGroups.push(pats.map(function (x) { return 'month_year.ilike.' + x; }));
+      }
+    }
+  }
+  if (exclude.indexOf('fy') === -1) {
+    const fys = _vals(f.fy);
+    if (fys) {
+      const dbFys = fys.map(_fyToDb);
+      if (dbFys.every(Boolean)) addFilter('fy_year', dbFys.length === 1 ? dbFys[0] : dbFys);
+    }
+  }
+  if (exclude.indexOf('quarter') === -1) {
+    const qtrs = _vals(f.quarter);
+    if (qtrs) {
+      // Plain 'Q1' matches any FY; combo 'FY 24-25|Q1' pins both columns.
+      const conds = qtrs.map(function (v) {
+        const s = String(v);
+        if (s.indexOf('|') !== -1) {
+          const fy = _fyToDb(s.split('|')[0]);
+          const qm = s.split('|')[1].match(/(\d)/);
+          return (fy && qm) ? 'and(fy_year.eq.' + fy + ',quarter.like.*Q-' + qm[1] + ')' : null;
+        }
+        const qm = s.match(/Q[^\d]*(\d)/i);
+        return qm ? 'quarter.like.*Q-' + qm[1] : null;
+      });
+      if (conds.every(Boolean)) orGroups.push(conds);
+    }
+  }
   if (exclude.indexOf('zone') === -1) addFilter('zone', f.zone);
   if (exclude.indexOf('state') === -1) addFilter('state', f.state);
   if (exclude.indexOf('hod') === -1) addFilter('hod_name', f.hod);
@@ -212,7 +283,42 @@ function _q(f, exclude) {
   if (scope.allowed_states && scope.allowed_states.length) {
     p.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
   }
+  // PostgREST allows one top-level or=; multiple groups get wrapped in and=().
+  if (orGroups.length === 1) {
+    p.push('or=(' + orGroups[0].join(',') + ')');
+  } else if (orGroups.length > 1) {
+    p.push('and=(' + orGroups.map(function (g) { return 'or(' + g.join(',') + ')'; }).join(',') + ')');
+  }
   return p.length ? '?' + p.join('&') : '';
+}
+
+// Optional relations (RPCs / views) that may not exist in a deployment.
+// Remember misses for the life of the instance so every cache miss doesn't
+// repay a failed probe round-trip before hitting the fallback.
+const _missingRelations = {};
+async function _tryFetchAll(rel, qs) {
+  if (_missingRelations[rel]) return null;
+  try {
+    return await fetchAll(rel, qs);
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    if (/PGRST20\d|42703|42P01|42883|does not exist|Supabase 404/.test(msg)) {
+      _missingRelations[rel] = true;
+    }
+    return null;
+  }
+}
+
+// Prefers the materialized snapshot (mv_*) of a dashboard view when the
+// db/perf_materialized_views.sql migration has been applied; falls back to
+// the plain view transparently otherwise.
+async function _fetchAgg(view, qs) {
+  const mv = 'mv_' + view.slice(3);
+  if (!_missingRelations[mv]) {
+    const rows = await _tryFetchAll(mv, qs);
+    if (rows) return rows;
+  }
+  return fetchAll(view, qs);
 }
 
 async function _fetchOutstanding(f) {
@@ -319,17 +425,13 @@ async function getFilterOptions(userProfile) {
   return cached(cacheKey, async function () {
     const scopeFilter = { _scope: scope };
 
-    let rows;
-    try {
-      rows = await fetchAll('rpc/get_filter_options', _q(scopeFilter).replace('?', ''));
-    } catch (e) {
-      try { rows = await fetchAll('vw_filter_options_distinct', _q(scopeFilter)); } catch (err) { /* noop */ }
-    }
+    let rows = await _tryFetchAll('rpc/get_filter_options', _q(scopeFilter).replace('?', ''));
+    if (!rows || rows.length === 0) rows = await _tryFetchAll('vw_filter_options_distinct', _q(scopeFilter));
 
     if (!rows || rows.length === 0) {
       const baseQ = _q(scopeFilter);
       const sep = baseQ.indexOf('?') > -1 ? '&' : '?';
-      rows = await fetchAll('vw_filter_options', baseQ + sep + 'select=fy_year,quarter,month_year,zone,state,hod_name');
+      rows = await _fetchAgg('vw_filter_options', baseQ + sep + 'select=fy_year,quarter,month_year,zone,state,hod_name');
     }
 
     rows.forEach(function(r) {
@@ -362,8 +464,9 @@ async function getFilterOptions(userProfile) {
 
 async function getKPIs(f) {
   return cached('kpis_v3_' + _stableStringify(f), async function () {
-    const geoQ = _q(f, ['month']);
-    const geo = await fetchAll('vw_monthly_agg', geoQ);
+    // Wide fetch on purpose: MoM/YoY trend maps need every period.
+    const geoQ = _q(f, ['month', 'fy', 'quarter']);
+    const geo = await _fetchAgg('vw_monthly_agg', geoQ);
 
     const filt = geo.filter(function (r) { return _rowMatches(r, f); });
     let totalSQM = 0, totalRev = 0;
@@ -425,11 +528,9 @@ async function getKPIs(f) {
       return Math.round(tSqft / moCount);
     });
 
-    const custQ = _q(f, ['month']);
-    let custs = [];
-    try {
-      custs = await fetchAll('vw_customer_kpi_counts', custQ);
-    } catch (e) {
+    const custQ = _q(f, ['month', 'fy', 'quarter']); // customer views have no time columns
+    let custs = await _tryFetchAll('vw_customer_kpi_counts', custQ);
+    if (!custs) {
       const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft,hod_name,state,zone';
       custs = await fetchAll('vw_customer_summary', qsLight);
     }
@@ -527,7 +628,7 @@ async function getKPIs(f) {
 async function getOverviewData(f) {
   return cached('overview_batched_' + _stableStringify(f), async function () {
     const widestQ = _q(f, ['month']);
-    const rows = await fetchAll('vw_monthly_agg', widestQ);
+    const rows = await _fetchAgg('vw_monthly_agg', widestQ);
 
     const fForMonthly = Object.assign({}, f, { month: 'All' });
     const fForState = Object.assign({}, f, { state: 'All' });
@@ -572,7 +673,7 @@ async function getStateSummary(f) { return (await getOverviewData(f)).states; }
 async function getHODQoQ(f) {
   return cached('hod_qoq_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_hod_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_hod_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const h = _hod(r); const st = _state(r); const key = h + '||' + st;
@@ -607,8 +708,9 @@ async function getHODAllFYSummary(f) {
     hod: (f && f.hod && f.hod !== 'All') ? f.hod : 'All'
   };
   return cached('hod_all_fy_' + _stableStringify(scopeF), async function () {
-    const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_hod_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
+    const q = _q(f, ['month', 'fy', 'quarter']); // all-FY view: never time-restrict
+
+    const rows = (await _fetchAgg('vw_hod_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
     const map = {};
     rows.forEach(function (r) {
       const h = _hod(r); const st = _state(r); const fy = _robustFy(r);
@@ -640,7 +742,7 @@ async function getHODAllFYSummary(f) {
 async function getHODMonthlySummary(f) {
   return cached('hod_monthly_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_monthly_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_monthly_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const h = _hod(r); const st = _state(r); const mo = _mo(r);
@@ -665,7 +767,7 @@ async function getHODMonthlySummary(f) {
 async function getCustomerQoQ(f) {
   return cached('cust_qoq_' + _stableStringify(f), async function () {
     const q = _q(f, ['month', 'zone']);
-    const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const c = _s(r, 'customer_name') || 'Unknown'; const st = _state(r); const h = _hod(r);
@@ -701,8 +803,8 @@ async function getCustomerAllFYSummary(f) {
     hod: (f && f.hod && f.hod !== 'All') ? f.hod : 'All'
   };
   return cached('cust_all_fy_' + _stableStringify(scopeF), async function () {
-    const q = _q(f, ['month', 'zone']);
-    const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
+    const q = _q(f, ['month', 'zone', 'fy', 'quarter']); // all-FY view: never time-restrict
+    const rows = (await _fetchAgg('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
     const map = {};
     rows.forEach(function (r) {
       const c = _s(r, 'customer_name') || 'Unknown'; const st = _state(r); const h = _hod(r); const fy = _robustFy(r);
@@ -734,7 +836,7 @@ async function getCustomerAllFYSummary(f) {
 async function getCustomerMonthlySummary(f) {
   return cached('cust_monthly_' + _stableStringify(f), async function () {
     const q = _q(f, ['month', 'zone']);
-    const rows = (await fetchAll('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_customer_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const c = _s(r, 'customer_name') || 'Unknown'; const st = _state(r); const h = _hod(r); const mo = _mo(r);
@@ -759,7 +861,7 @@ async function getCustomerMonthlySummary(f) {
 async function getSkuTypeQoQ(f) {
   return cached('sku_type_qoq_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const st = _state(r); const h = _hod(r); const sku = _s(r, 'sku_type') || 'Unknown';
@@ -795,8 +897,8 @@ async function getSkuTypeAllFYSummary(f) {
     hod: (f && f.hod && f.hod !== 'All') ? f.hod : 'All'
   };
   return cached('sku_type_all_fy_' + _stableStringify(scopeF), async function () {
-    const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
+    const q = _q(f, ['month', 'fy', 'quarter']); // all-FY view: never time-restrict
+    const rows = (await _fetchAgg('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
     const map = {};
     rows.forEach(function (r) {
       const st = _state(r); const h = _hod(r); const sku = _s(r, 'sku_type') || 'Unknown'; const fy = _robustFy(r);
@@ -828,7 +930,7 @@ async function getSkuTypeAllFYSummary(f) {
 async function getSkuTypeMonthlySummary(f) {
   return cached('sku_type_monthly_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']);
-    const rows = (await fetchAll('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = (await _fetchAgg('vw_sku_type_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
     const map = {};
     rows.forEach(function (r) {
       const st = _state(r); const h = _hod(r); const sku = _s(r, 'sku_type') || 'Unknown'; const mo = _mo(r);
@@ -957,7 +1059,7 @@ async function getOutstandingStateSummary(f) { return getOutstandingSummary(f); 
 
 async function getTopCustomers(f, opts) {
   return cached('topCust_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     let rows = (await fetchAll('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); });
     
     if (opts && opts.activeDays) {
@@ -1004,7 +1106,7 @@ async function getTopCustomers(f, opts) {
 async function getInactiveCustomers(f, opts) {
   const minDays = (opts && opts.days) || 90;
   return cached('inactive_' + minDays + '_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     const rows = (await fetchAll('vw_customer_summary', q))
       .filter(function (r) { return _rowMatches(r, f); })
       .filter(function (r) { return _days(r) >= minDays; });
@@ -1025,7 +1127,7 @@ async function getInactiveCustomers(f, opts) {
 
 async function getDecliningCustomers(f, opts) {
   return cached('declining_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     const rows = (await fetchAll('vw_customer_summary', q))
       .filter(function (r) { return _rowMatches(r, f); })
       .filter(function (r) {
@@ -1049,7 +1151,7 @@ async function getDecliningCustomers(f, opts) {
 
 async function getLostHVCustomers(f, opts) {
   return cached('losthv_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     const rows = (await fetchAll('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); });
     rows.forEach(function (r) {
       r['SQ FT.'] = _sqft(r);
@@ -1070,7 +1172,7 @@ async function getLostHVCustomers(f, opts) {
 
 async function getRFMData(f, opts) {
   return cached('rfmData_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     let rows = _computeRFM((await fetchAll('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); }));
     if (opts && opts.segment && opts.segment !== 'All') {
       rows = rows.filter(function (r) { return r['SEGMENT'] === opts.segment; });
@@ -1081,7 +1183,7 @@ async function getRFMData(f, opts) {
 
 async function getRFMDistribution(f) {
   return cached('rfmDist_' + _stableStringify(f), async function () {
-    const q = _q(f, ['month']);
+    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     const dist = {};
     _computeRFM((await fetchAll('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); })).forEach(function (r) {
       const s = r['SEGMENT'];
@@ -1098,7 +1200,7 @@ async function getRFMDistribution(f) {
 async function getBrandSummary(f) {
   return cached('brand_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       const b = _brand(r);
       if (!map[b]) map[b] = { BRAND: b, TOTAL_SQFT: 0, TOTAL_SQM: 0, TOTAL_QTY: 0, TXN_COUNT: 0, STANDARD_COUNT: 0, REGULAR_COUNT: 0, NET_REVENUE: 0, finishes: {} };
       map[b].TOTAL_SQFT += _sqft(r); map[b].TOTAL_SQM += _sqm(r);
@@ -1121,7 +1223,7 @@ async function getBrandSummary(f) {
 async function getFinishSummary(f) {
   return cached('finish_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       const fn = _finish(r);
       if (!map[fn]) map[fn] = { FINISH: fn, TOTAL_SQFT: 0, TOTAL_SQM: 0, TXN_COUNT: 0, NET_REVENUE: 0 };
       map[fn].TOTAL_SQFT += _sqft(r); map[fn].TOTAL_SQM += _sqm(r); map[fn].TXN_COUNT += _txns(r);
@@ -1136,7 +1238,7 @@ async function getFinishSummary(f) {
 async function getProductTypeSummary(f) {
   return cached('prodType_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       const t = _pt(r);
       if (!map[t]) map[t] = { PRODUCT_TYPE: t, TOTAL_SQFT: 0, TOTAL_SQM: 0, TOTAL_QTY: 0, TXN_COUNT: 0, brandSqm: {}, NET_REVENUE: 0 };
       map[t].TOTAL_SQFT += _sqft(r); map[t].TOTAL_SQM += _sqm(r);
@@ -1167,8 +1269,8 @@ async function getTopSKUs(f, opts) {
     let q = _q(f, ['month']);
     if (bF) q = (q ? q + '&' : '?') + 'brand=ilike.' + encodeURIComponent(bF);
     if (sF) q = (q ? q + '&' : '?') + 'sku_type=ilike.' + encodeURIComponent(sF);
-    const rows = (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); });
-    const brands = (await fetchAll('vw_brand_agg', _q(f, ['month']))).filter(function (r) { return _rowMatches(r, f); })
+    const rows = (await _fetchAgg('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const brands = (await _fetchAgg('vw_brand_agg', _q(f, ['month']))).filter(function (r) { return _rowMatches(r, f); })
       .map(function (r) { return _brand(r); })
       .filter(Boolean)
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
@@ -1211,7 +1313,7 @@ async function getTopSKUs(f, opts) {
 async function getDimensionalSummary(f) {
   return cached('dim_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       const size = _s(r, 'size') || 'Unknown';
       const thick = _thick(r) || 'Unknown';
       const key = size + '||' + thick;
@@ -1235,7 +1337,7 @@ async function getProductPivotSales(f, opts) {
     const dataByRow = {};
     const timeColsSet = new Set();
     
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let tKey = 'Unknown';
       let tSortKey = '';
       if (timeGroup === 'month') {
@@ -1285,7 +1387,7 @@ async function getHodSkuPivotSales(f, opts) {
     const dataByRow = {};
     const timeColsSet = new Set();
     
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let tKey = 'Unknown';
       let tSortKey = '';
       if (timeGroup === 'month') {
@@ -1338,7 +1440,7 @@ async function getTimeWiseSales(f, opts) {
   const groupBy = opts && opts.groupBy ? opts.groupBy : 'month';
   return cached('time_' + groupBy + '_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let key = 'Unknown';
       let sortKey = '';
       if (groupBy === 'month') {
@@ -1368,7 +1470,7 @@ async function getCategoricalPerformance(f, opts) {
   const groupBy = opts && opts.groupBy ? opts.groupBy : 'FINISH';
   return cached('cat_' + groupBy + '_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']); const map = {};
-    (await fetchAll('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+    (await _fetchAgg('vw_sku_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let key = 'Unknown';
       if (groupBy === 'FINISH') key = _finish(r);
       else if (groupBy === 'THICKNESS TYPE') key = _thick(r);
