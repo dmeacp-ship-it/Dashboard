@@ -9,7 +9,15 @@
  */
 
 const fetch = require('node-fetch');
+const https = require('https');
+const http = require('http');
 const { getSupabaseUrl, getSupabaseKey, DB_TABLES } = require('../config');
+
+// Reuse TLS connections across requests (saves a full TCP+TLS handshake per
+// call, which dominates latency when paging or fanning out to Supabase).
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50 });
+function _agent(url) { return url.startsWith('https') ? httpsAgent : httpAgent; }
 
 /**
  * Single Supabase REST request. `path` is relative to the project URL and must
@@ -22,6 +30,7 @@ async function supaFetch(path, method, payload) {
 
   const opts = {
     method: method || 'get',
+    agent: _agent(url),
     headers: {
       apikey: key,
       Authorization: 'Bearer ' + key,
@@ -62,34 +71,46 @@ async function fetchAll(endpoint, qs) {
     Authorization: 'Bearer ' + key,
     Accept: 'application/json'
   };
+  const agent = _agent(url);
 
-  // 1. Try to learn the exact row count via a HEAD request.
-  let totalRows = -1;
-  try {
-    const headRes = await fetch(base + sep + 'limit=1', {
-      method: 'HEAD',
-      headers: Object.assign({ Prefer: 'count=exact' }, headers)
-    });
-    if (headRes.status < 400) {
-      const rng = headRes.headers.get('content-range') || '';
-      const m = rng.match(/\/(\d+)/);
-      if (m) totalRows = parseInt(m[1], 10);
-    }
-  } catch (e) {
-    /* fall through to sequential paging */
+  // 1. First page doubles as the count probe: `Prefer: count=exact` makes
+  // PostgREST return Content-Range on the data response, so no separate
+  // HEAD round-trip is needed.
+  const firstRes = await fetch(base + sep + 'offset=0&limit=' + LIMIT, {
+    method: 'get',
+    agent,
+    headers: Object.assign({ Prefer: 'count=exact' }, headers)
+  });
+  if (firstRes.status >= 400) {
+    const text = await firstRes.text();
+    throw new Error('Supabase ' + firstRes.status + ': ' + text.slice(0, 200));
   }
+  let all = JSON.parse((await firstRes.text()) || '[]');
+  if (!Array.isArray(all)) return all;
+  if (all.length < LIMIT) return all;
 
-  // 2a. Count known -> fetch every page in parallel.
+  let totalRows = -1;
+  const rng = firstRes.headers.get('content-range') || '';
+  const m = rng.match(/\/(\d+)/);
+  if (m) totalRows = parseInt(m[1], 10);
+
+  // 2a. Count known -> fetch every page in parallel. Postgres has no stable
+  // row order without ORDER BY, so OFFSET pages from separate queries can
+  // overlap or skip rows (observed live: duplicated + missing rows). Impose a
+  // total order over every column and re-fetch all pages consistently.
   if (totalRows > -1) {
-    if (totalRows === 0) return [];
+    const cols = Object.keys(all[0] || {});
+    const orderQ = (cols.length && !/(?:^|[?&])order=/.test(base))
+      ? '&order=' + cols.map(encodeURIComponent).join(',')
+      : '';
     const requests = [];
     for (let offset = 0; offset < totalRows; offset += LIMIT) {
       requests.push(
-        fetch(base + sep + 'offset=' + offset + '&limit=' + LIMIT, { method: 'get', headers })
+        fetch(base + sep + 'offset=' + offset + '&limit=' + LIMIT + orderQ, { method: 'get', agent, headers })
       );
     }
     const responses = await Promise.all(requests);
-    let all = [];
+    all = [];
     for (const res of responses) {
       if (res.status === 200) {
         const text = await res.text();
@@ -100,10 +121,9 @@ async function fetchAll(endpoint, qs) {
   }
 
   // 2b. Count unknown (e.g. RPC) -> page sequentially until a short page.
-  let all = [];
-  let offset = 0;
+  let offset = LIMIT;
   while (true) {
-    const res = await fetch(base + sep + 'offset=' + offset + '&limit=' + LIMIT, { method: 'get', headers });
+    const res = await fetch(base + sep + 'offset=' + offset + '&limit=' + LIMIT, { method: 'get', agent, headers });
     if (res.status !== 200) {
       const text = await res.text();
       throw new Error('Supabase ' + res.status + ': ' + text.slice(0, 200));
@@ -127,6 +147,7 @@ async function getSalesRowCount() {
     const key = getSupabaseKey();
     const res = await fetch(url + '/rest/v1/' + DB_TABLES.SALES + '?select=id&limit=1', {
       method: 'HEAD',
+      agent: _agent(url),
       headers: { apikey: key, Authorization: 'Bearer ' + key, Prefer: 'count=exact' }
     });
     const rng = res.headers.get('content-range') || '';
@@ -137,4 +158,4 @@ async function getSalesRowCount() {
   }
 }
 
-module.exports = { supaFetch, fetchAll, getSalesRowCount };
+module.exports = { supaFetch, fetchAll, getSalesRowCount, keepAliveAgent: _agent };

@@ -19,6 +19,7 @@
 const crypto = require('crypto');
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
+const { keepAliveAgent } = require('./supabase');
 const { invalidateAll } = require('./cache.service');
 const {
   CONFIG, DB_TABLES, COLUMN_MAP, SYNC_CONFIG,
@@ -113,7 +114,7 @@ async function _supaRest(pathWithQuery, method, bodyObj, prefer) {
     'Content-Type': 'application/json'
   };
   if (prefer) headers.Prefer = prefer;
-  const opts = { method, headers };
+  const opts = { method, headers, agent: keepAliveAgent(url) };
   if (bodyObj !== undefined && bodyObj !== null) opts.body = JSON.stringify(bodyObj);
   const res = await fetch(url + pathWithQuery, opts);
   return { code: res.status, text: await res.text() };
@@ -188,6 +189,7 @@ async function _finishSync() {
     const key = getSupabaseKey();
     const res = await fetch(url + '/rest/v1/' + SYNC_CONFIG.TABLE_NAME + '?select=id&limit=1', {
       method: 'HEAD',
+      agent: keepAliveAgent(url),
       headers: { apikey: key, Authorization: 'Bearer ' + key, Prefer: 'count=exact' }
     });
     const rng = res.headers.get('content-range') || '';
