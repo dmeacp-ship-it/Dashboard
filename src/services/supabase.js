@@ -23,8 +23,15 @@ function _agent(url) { return url.startsWith('https') ? httpsAgent : httpAgent; 
  * Single Supabase REST request. `path` is relative to the project URL and must
  * include the `/rest/v1/...` prefix (mirrors the original _supaFetch usage).
  * Returns parsed JSON, or null for empty bodies. Throws on HTTP >= 400.
+ *
+ * `timeoutMs` bounds the request client-side. This matters for RPC "fast
+ * path" calls with a JS fallback: Postgres's own statement_timeout can be
+ * much longer than is reasonable to wait on (observed live: an unindexed
+ * aggregate query ran ~87s before Postgres cancelled it) — long enough to
+ * blow past Vercel's 60s function limit before the fallback ever runs. A
+ * short client timeout lets the caller give up and fall back quickly instead.
  */
-async function supaFetch(path, method, payload) {
+async function supaFetch(path, method, payload, timeoutMs) {
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
 
@@ -39,6 +46,7 @@ async function supaFetch(path, method, payload) {
     }
   };
   if (payload) opts.body = JSON.stringify(payload);
+  if (timeoutMs) opts.timeout = timeoutMs; // node-fetch: aborts + rejects past this
 
   const res = await fetch(url + path, opts);
   const code = res.status;
