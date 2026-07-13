@@ -2026,6 +2026,20 @@ window.toggleSidebarSyncPopover = function(e) {
   }
 };
 
+window.triggerSync = function(type, e) {
+  if (type === 'sync_sheets') {
+    window.actionAppend(e);
+  } else if (type === 'refresh_cache') {
+    window.actionCache(e);
+  } else if (type === 'sync_outstanding') {
+    window.actionSyncOutstanding(e);
+  } else if (type === 'sync_targets') {
+    window.actionSyncTargets(e);
+  } else if (type === 'hard_reset') {
+    window.actionReset(e);
+  }
+};
+
 // Close popover when clicking outside
 document.addEventListener('click', function(e) {
   const popover = document.getElementById('sidebar-sync-popover');
