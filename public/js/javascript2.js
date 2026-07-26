@@ -1610,15 +1610,31 @@ window.renderQoQChart = function(monthly) {
   const sortedFYs = Array.from(fySet).sort();
   const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
   
-  const colors = ['#6ee7b7', '#34d399', '#10b981', '#059669', '#047857'];
-  const hoverColors = ['#34d399', '#10b981', '#059669', '#047857', '#064e3b'];
+  const fyColorPalette = {
+    'FY 24-25': { bg: '#38bdf8', hover: '#0284c7' }, // Cyan / Sky Blue
+    'FY 25-26': { bg: '#10b981', hover: '#059669' }, // Emerald Green
+    'FY 26-27': { bg: '#8b5cf6', hover: '#7c3aed' }, // Violet / Purple
+    'FY 27-28': { bg: '#f59e0b', hover: '#d97706' }, // Amber / Gold
+    'FY 28-29': { bg: '#f43f5e', hover: '#e11d48' }  // Rose / Pink
+  };
+
+  const distinctColors = [
+    { bg: '#38bdf8', hover: '#0284c7' },
+    { bg: '#10b981', hover: '#059669' },
+    { bg: '#8b5cf6', hover: '#7c3aed' },
+    { bg: '#f59e0b', hover: '#d97706' },
+    { bg: '#f43f5e', hover: '#e11d48' },
+    { bg: '#06b6d4', hover: '#0891b2' },
+    { bg: '#ec4899', hover: '#db2777' }
+  ];
   
   const datasets = sortedFYs.map(function(fy, i) {
+    const c = fyColorPalette[fy] || distinctColors[i % distinctColors.length];
     return {
       label: fy,
       data: quarters.map(function(q) { return dataMap[q][fy] || 0; }),
-      backgroundColor: colors[i % colors.length],
-      hoverBackgroundColor: hoverColors[i % hoverColors.length],
+      backgroundColor: c.bg,
+      hoverBackgroundColor: c.hover,
       borderRadius: 4
     };
   });
