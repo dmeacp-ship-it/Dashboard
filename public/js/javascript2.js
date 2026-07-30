@@ -284,6 +284,8 @@ window._renderOutstandingTable = function() {
     rows = rows.filter(function(r) { return (r.DAYS_90_PLUS || 0) > 0; });
   } else if (window.outAgingFilter === '45') {
     rows = rows.filter(function(r) { return (r.ABOVE_45 || 0) > 0; });
+  } else if (window.outAgingFilter === 'below45') {
+    rows = rows.filter(function(r) { return (r.BELOW_45 || 0) > 0; });
   } else if (window.outAgingFilter === 'clean') {
     rows = rows.filter(function(r) { return (r.BELOW_45 || 0) > 0 && !(r.ABOVE_45 || 0) && !(r.DAYS_90_PLUS || 0); });
   }
