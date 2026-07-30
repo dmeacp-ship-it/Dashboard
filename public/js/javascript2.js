@@ -64,7 +64,7 @@ window._loadSkuTypeByMonth = async function(tbody, thead, page) {
   let periods = Array.from(monthSet).sort((a, b) => {
     const parse = m => { const p = m.trim().replace(/-/g,' ').split(/\s+/); const mi = window.MN.indexOf((p[0]||'').toUpperCase()); let yr = p[1]||'0'; if(yr.length===2) yr='20'+yr; return parseInt(yr)*100+(mi+1); };
     return parse(b) - parse(a);
-  }).slice(0, 4);
+  });
   periods = periods.reverse(); 
 
   const skuTypeSet = new Set();
@@ -128,7 +128,7 @@ window._loadSkuTypeByYear = async function(tbody, thead, page) {
 
   const fySet = new Set();
   dataList.forEach(r => { if (r.FY) fySet.add(r.FY); });
-  let periods = Array.from(fySet).sort().reverse().slice(0, 3); 
+  let periods = Array.from(fySet).sort().reverse(); 
   periods = periods.reverse(); 
 
   const skuTypeSet = new Set();

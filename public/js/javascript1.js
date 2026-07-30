@@ -61,7 +61,7 @@ window.loadHodTargets = async function(page = 1) {
         let allKeys = new Set();
         hodRows.forEach(r => {
             Object.keys(r[dataKey] || {}).forEach(k => { 
-                if(r[dataKey][k].a > 0) allKeys.add(k); 
+                if(r[dataKey][k] && (r[dataKey][k].a > 0 || r[dataKey][k].t > 0)) allKeys.add(k); 
             });
         });
 
@@ -79,8 +79,13 @@ window.loadHodTargets = async function(page = 1) {
                 return vB - vA;
             });
         }
-        const displayCols = sortedKeys.slice(0, 4);
-        const latestPeriod = displayCols[0] || 'N/A';
+        let displayCols = sortedKeys;
+        const fyFilter = window.App && window.App.filters && window.App.filters.fy;
+        if (fyFilter && fyFilter !== 'All') {
+          const normFy = window._normFyStr(fyFilter);
+          displayCols = sortedKeys.filter(k => window._normFyStr(k.split('_')[0]) === normFy);
+        }
+        const latestPeriod = displayCols[0] || sortedKeys[0] || 'N/A';
 
         let totalTarget = 0, totalAchv = 0;
         hodRows.forEach(r => {
@@ -233,7 +238,7 @@ window.loadTargets = async function(page = 1) {
     let allKeys = new Set();
     rows.forEach(function(r) {
       Object.keys(r[dataKey] || {}).forEach(function(k) { 
-         if(r[dataKey][k].a > 0) allKeys.add(k); 
+         if(r[dataKey][k] && (r[dataKey][k].a > 0 || r[dataKey][k].t > 0)) allKeys.add(k); 
       });
     });
     
@@ -253,8 +258,13 @@ window.loadTargets = async function(page = 1) {
        });
     }
     
-    const displayCols = sortedKeys.slice(0, 4);
-    const latestPeriod = displayCols[0] || 'N/A';
+    let displayCols = sortedKeys;
+    const fyFilter2 = window.App && window.App.filters && window.App.filters.fy;
+    if (fyFilter2 && fyFilter2 !== 'All') {
+      const normFy = window._normFyStr(fyFilter2);
+      displayCols = sortedKeys.filter(k => window._normFyStr(k.split('_')[0]) === normFy);
+    }
+    const latestPeriod = displayCols[0] || sortedKeys[0] || 'N/A';
 
     let totalTarget = 0, totalAchv = 0;
     rows.forEach(r => {
@@ -1348,7 +1358,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
 window._loadCustByYear = async function(tbody, thead, page) {
   const allFYsRaw = (window.App.filterOptions.fy || []).filter(f => f !== 'All');
   const curFY = allFYsRaw.slice().sort().reverse()[0];
-  const allFYs = allFYsRaw.slice().sort().reverse().slice(0, 4);
+  const allFYs = allFYsRaw.slice().sort().reverse();
   
   const stickyST  = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:100px;padding:8px 12px;';
   const stickyHOD = 'position:sticky;left:100px;top:0;z-index:15;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
