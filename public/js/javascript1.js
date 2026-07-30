@@ -80,7 +80,11 @@ window.loadHodTargets = async function(page = 1) {
             });
         }
         let displayCols = sortedKeys;
-        const latestPeriod = displayCols[0] || 'N/A';
+        const latestPeriod = displayCols.find(k => {
+            let hasA = false;
+            hodRows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
+            return hasA;
+        }) || displayCols[0] || 'N/A';
 
         let totalTarget = 0, totalAchv = 0;
         hodRows.forEach(r => {
@@ -254,7 +258,11 @@ window.loadTargets = async function(page = 1) {
     }
     
     let displayCols = sortedKeys;
-    const latestPeriod = displayCols[0] || 'N/A';
+    const latestPeriod = displayCols.find(k => {
+        let hasA = false;
+        rows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
+        return hasA;
+    }) || displayCols[0] || 'N/A';
 
     let totalTarget = 0, totalAchv = 0;
     rows.forEach(r => {

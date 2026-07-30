@@ -1020,7 +1020,7 @@ async function getSkuTypeMonthlySummary(f) {
 }
 
 async function getExecutiveTargets(f) {
-  return cached('exec_targets_v2_' + _stableStringify(f), async function () {
+  return cached('exec_targets_v4_' + _stableStringify(f), async function () {
     let qs = '';
     const scope = (f && f._scope) || {};
     const parts = [];
