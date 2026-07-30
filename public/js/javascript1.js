@@ -80,12 +80,7 @@ window.loadHodTargets = async function(page = 1) {
             });
         }
         let displayCols = sortedKeys;
-        const fyFilter = window.App && window.App.filters && window.App.filters.fy;
-        if (fyFilter && fyFilter !== 'All') {
-          const normFy = window._normFyStr(fyFilter);
-          displayCols = sortedKeys.filter(k => window._normFyStr(k.split('_')[0]) === normFy);
-        }
-        const latestPeriod = displayCols[0] || sortedKeys[0] || 'N/A';
+        const latestPeriod = displayCols[0] || 'N/A';
 
         let totalTarget = 0, totalAchv = 0;
         hodRows.forEach(r => {
@@ -259,12 +254,7 @@ window.loadTargets = async function(page = 1) {
     }
     
     let displayCols = sortedKeys;
-    const fyFilter2 = window.App && window.App.filters && window.App.filters.fy;
-    if (fyFilter2 && fyFilter2 !== 'All') {
-      const normFy = window._normFyStr(fyFilter2);
-      displayCols = sortedKeys.filter(k => window._normFyStr(k.split('_')[0]) === normFy);
-    }
-    const latestPeriod = displayCols[0] || sortedKeys[0] || 'N/A';
+    const latestPeriod = displayCols[0] || 'N/A';
 
     let totalTarget = 0, totalAchv = 0;
     rows.forEach(r => {
