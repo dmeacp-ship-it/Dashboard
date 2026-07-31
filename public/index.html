@@ -382,7 +382,16 @@
               <button class="btn btn-sm btn-ghost" id="hodtarget-btn-quarter" onclick="setHodTargetView('quarter',this)">Quarter</button>
               <button class="btn btn-sm btn-ghost" id="hodtarget-btn-year" onclick="setHodTargetView('year',this)">Year</button>
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
+            <select id="hodtarget-fy-select" class="form-select" style="padding:4px 10px; font-size:12px; min-height:30px; border-radius:100px; margin-left:6px; background:var(--bg-elevated);" onchange="window.setHodTargetFY(this.value)">
+              <option value="All">All FYs (24 Months)</option>
+              <option value="FY 26-27">FY 26-27</option>
+              <option value="FY 25-26">FY 25-26</option>
+            </select>
+            <div class="btn-group" style="margin-left:4px;">
+              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-hodtargets', -350)"><i class="ph ph-caret-left"></i></button>
+              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-hodtargets', 350)"><i class="ph ph-caret-right"></i></button>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('hodtargets', 'tbl-targets-hod-head', function(){ window.loadHodTargets(window.hodTargetPage||1); })">
@@ -418,6 +427,15 @@
               <button class="btn btn-sm btn-primary" id="target-btn-month" onclick="setTargetView('month',this)">Month</button>
               <button class="btn btn-sm btn-ghost" id="target-btn-quarter" onclick="setTargetView('quarter',this)">Quarter</button>
               <button class="btn btn-sm btn-ghost" id="target-btn-year" onclick="setTargetView('year',this)">Year</button>
+            </div>
+            <select id="target-fy-select" class="form-select" style="padding:4px 10px; font-size:12px; min-height:30px; border-radius:100px; margin-left:6px; background:var(--bg-elevated);" onchange="window.setTargetFY(this.value)">
+              <option value="All">All FYs (24 Months)</option>
+              <option value="FY 26-27">FY 26-27</option>
+              <option value="FY 25-26">FY 25-26</option>
+            </select>
+            <div class="btn-group" style="margin-left:4px;">
+              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-targets', -350)"><i class="ph ph-caret-left"></i></button>
+              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-targets', 350)"><i class="ph ph-caret-right"></i></button>
             </div>
             <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('targets', 'Executive Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
@@ -1447,8 +1465,8 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=6314b323"></script>
-<script defer src="/js/javascript1.min.js?v=0057a78e"></script>
+<script defer src="/js/javascript.min.js?v=ed5a5527"></script>
+<script defer src="/js/javascript1.min.js?v=14e12616"></script>
 <script defer src="/js/javascript2.min.js?v=cfc55f99"></script>
 <script defer src="/js/fms.min.js?v=e9b8a378"></script>
 

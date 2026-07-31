@@ -32,8 +32,15 @@ window.skuTypeSalePage = 1;
 
 window.targetView = 'month';
 window.targetPage = 1;
+window.targetFY   = 'All';
 window.hodTargetView = 'month';
 window.hodTargetPage = 1;
+window.hodTargetFY   = 'All';
+
+window.scrollTableHoriz = function(pageId, offset) {
+  const wrap = document.querySelector('#' + pageId + ' .table-wrap');
+  if (wrap) wrap.scrollBy({ left: offset, behavior: 'smooth' });
+};
 
 window.searchQueries   = { hodqoq: '', custqoq: '', skutypeqoq: '', outstanding: '', targets: '', hodtargets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
 window.outstandingPage = 1;

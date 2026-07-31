@@ -20,6 +20,16 @@ window._getMonthSortVal = function(k) {
   return calYear * 100 + calMonth;
 };
 
+window.setHodTargetFY = function(fy) {
+  window.hodTargetFY = fy;
+  window.loadHodTargets(1);
+};
+
+window.setTargetFY = function(fy) {
+  window.targetFY = fy;
+  window.loadTargets(1);
+};
+
 window.setHodTargetView = function(v, btn) {
   window.hodTargetView = v;
   document.querySelectorAll('#hodtarget-toggles .btn').forEach(function(b) {
@@ -105,9 +115,9 @@ window.loadHodTargets = async function(page = 1) {
             displayCols = activeAndPastCols.concat(futureCols);
         }
 
-        const fyFilter = window.App.filters && window.App.filters.fy;
-        if (fyFilter && fyFilter !== 'All') {
-            const allowedFYs = Array.isArray(fyFilter) ? fyFilter : [fyFilter];
+        const selFY = (window.hodTargetFY && window.hodTargetFY !== 'All') ? window.hodTargetFY : (window.App.filters && window.App.filters.fy);
+        if (selFY && selFY !== 'All') {
+            const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
             if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
                 displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
             }
@@ -301,9 +311,9 @@ window.loadTargets = async function(page = 1) {
         displayCols = activeAndPastCols.concat(futureCols);
     }
 
-    const fyFilter = window.App.filters && window.App.filters.fy;
-    if (fyFilter && fyFilter !== 'All') {
-        const allowedFYs = Array.isArray(fyFilter) ? fyFilter : [fyFilter];
+    const selFY = (window.targetFY && window.targetFY !== 'All') ? window.targetFY : (window.App.filters && window.App.filters.fy);
+    if (selFY && selFY !== 'All') {
+        const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
         if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
             displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
         }
@@ -397,7 +407,7 @@ window.loadTargets = async function(page = 1) {
 
 window._targetTh = function(label, isCurrent, suffix) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:210px;padding:8px 12px;';
+    + 'white-space:nowrap;min-width:155px;padding:6px 10px;';
   return '<th style="' + s + '">'
     + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
     + label
@@ -468,7 +478,7 @@ window._targetTd = function(target, achv) {
    }
    
    // Tighter padding
-   let html = '<td style="min-width:160px; padding:4px 8px; vertical-align:middle;">';
+   let html = '<td style="min-width:145px; padding:4px 6px; vertical-align:middle;">';
    
    if (target === 0 && achv === 0) {
        html += '<div style="color:var(--text-faint);text-align:center;font-size:14px;font-weight:500;">—</div></td>';
