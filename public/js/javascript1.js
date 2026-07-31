@@ -1,7 +1,25 @@
-// ===========================================================
-// JAVASCRIPT — Front-end Logic (Part 2/3)
-// Targets, HOD, and Customer Table Loaders
-// ===========================================================
+window._normalizeState = function(st) {
+  if (!st) return 'Unknown';
+  var s = String(st).trim();
+  if (/AP.*TEL/i.test(s)) return 'AP & TELANGANA';
+  if (/GUA?JARAT/i.test(s)) return 'GUJARAT';
+  if (s === 'WB' || s === 'WEST BENGAL') return 'WEST BENGAL';
+  if (s === 'J&K' || /JAMMU/i.test(s)) return 'J&K';
+  if (s === 'ORISSA' || s === 'ODISHA') return 'ODISHA';
+  if (/TRI\s*CITY/i.test(s)) return 'TRICITY';
+  return s;
+};
+
+window._normalizeHOD = function(h) {
+  if (!h) return 'Unknown';
+  var str = String(h).trim();
+  if (/DINESH.*GOTHI/i.test(str)) return 'DINESH PRABHUBHAI GOTHI';
+  if (/BHARAT LAL GURJAR/i.test(str) && !/CG/i.test(str)) return 'BHARAT LAL GURJAR';
+  if (/SAHIL MEHRA/i.test(str)) return 'SAHIL MEHRA';
+  if (/MUNIR AHMAD SHAH/i.test(str)) return 'MUNIR AHMAD SHAH';
+  if (/PRADIPTA BANERJEE.*NE/i.test(str)) return 'PRADIPTA BANERJEE - NE';
+  return str;
+};
 
 window._getMonthSortVal = function(k) {
   if (!k) return 0;
@@ -66,8 +84,10 @@ window.loadHodTargets = async function(page = 1) {
 
         let hodMap = {};
         rows.forEach(r => {
-            let key = r.HOD + '||' + r.STATE;
-            if (!hodMap[key]) hodMap[key] = { STATE: r.STATE, HOD: r.HOD, YEARLY: {}, QUARTERLY: {}, MONTHLY: {} };
+            let normH = window._normalizeHOD(r.HOD);
+            let normS = window._normalizeState(r.STATE);
+            let key = normH + '||' + normS;
+            if (!hodMap[key]) hodMap[key] = { STATE: normS, HOD: normH, YEARLY: {}, QUARTERLY: {}, MONTHLY: {} };
             ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(dk => {
                 if (r[dk]) {
                     Object.keys(r[dk]).forEach(pk => {
@@ -161,11 +181,12 @@ window.loadHodTargets = async function(page = 1) {
             let maxA = 0;
             if(r[dataKey]) Object.values(r[dataKey]).forEach(v => { if(v.a > maxA) maxA = v.a; });
             r._maxA = maxA;
+            r._latestA = (r[dataKey] && r[dataKey][latestPeriod]) ? (r[dataKey][latestPeriod].a || 0) : 0;
         });
         hodRows.sort((a,b) => {
-            let sCmp = (a.STATE||'').localeCompare(b.STATE||'');
-            if (sCmp !== 0) return sCmp;
-            return (b._maxA || 0) - (a._maxA || 0);
+            if ((b._latestA || 0) !== (a._latestA || 0)) return (b._latestA || 0) - (a._latestA || 0);
+            if ((b._maxA || 0) !== (a._maxA || 0)) return (b._maxA || 0) - (a._maxA || 0);
+            return (a.STATE||'').localeCompare(b.STATE||'');
         });
 
         if (window.tableSortRules['hodtargets'] && window.tableSortRules['hodtargets'].length > 0) {
@@ -343,20 +364,26 @@ window.loadTargets = async function(page = 1) {
         + '</div>';
     }
 
+    rows.forEach(function(r) {
+      r.STATE = window._normalizeState(r.STATE);
+      r.HOD = window._normalizeHOD(r.HOD);
+    });
+
     rows.forEach(r => {
         let maxA = 0;
         if(r[dataKey]) {
             Object.values(r[dataKey]).forEach(v => { if(v.a > maxA) maxA = v.a; });
         }
         r._maxA = maxA;
+        r._latestA = (r[dataKey] && r[dataKey][latestPeriod]) ? (r[dataKey][latestPeriod].a || 0) : 0;
     });
 
     rows.sort(function(a,b) {
+        if ((b._latestA || 0) !== (a._latestA || 0)) return (b._latestA || 0) - (a._latestA || 0);
+        if ((b._maxA || 0) !== (a._maxA || 0)) return (b._maxA || 0) - (a._maxA || 0);
         let sCmp = (a.STATE||'').localeCompare(b.STATE||'');
         if (sCmp !== 0) return sCmp;
-        let hCmp = (a.HOD||'').localeCompare(b.HOD||'');
-        if (hCmp !== 0) return hCmp;
-        return (b._maxA || 0) - (a._maxA || 0);
+        return (a.HOD||'').localeCompare(b.HOD||'');
     });
 
     if (window.tableSortRules['targets'] && window.tableSortRules['targets'].length > 0) {
