@@ -3,6 +3,23 @@
 // Targets, HOD, and Customer Table Loaders
 // ===========================================================
 
+window._getMonthSortVal = function(k) {
+  if (!k) return 0;
+  var parts = String(k).split('_');
+  if (!parts[0] || !parts[1]) return 0;
+  var fyMatch = parts[0].match(/(\d{2})[-_](\d{2})/);
+  if (!fyMatch) return 0;
+  var startYr = parseInt(fyMatch[1], 10);
+  var endYr = parseInt(fyMatch[2], 10);
+  var moStr = parts[1].substring(0, 3).toUpperCase();
+  var mn = window.MN || ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  var moIdx = mn.indexOf(moStr);
+  if (moIdx === -1) return 0;
+  var calYear = moIdx >= 3 ? (2000 + startYr) : (2000 + endYr);
+  var calMonth = moIdx + 1;
+  return calYear * 100 + calMonth;
+};
+
 window.setHodTargetView = function(v, btn) {
   window.hodTargetView = v;
   document.querySelectorAll('#hodtarget-toggles .btn').forEach(function(b) {
@@ -69,22 +86,42 @@ window.loadHodTargets = async function(page = 1) {
         if(window.hodTargetView === 'year' || window.hodTargetView === 'quarter') {
             sortedKeys.sort().reverse();
         } else {
-            sortedKeys.sort(function(a,b) {
-                let pA = a.split('_'), pB = b.split('_');
-                if(pA[0] !== pB[0]) return pB[0].localeCompare(pA[0]);
-                let m1 = pA[1] ? pA[1].substring(0,3).toUpperCase() : '';
-                let m2 = pB[1] ? pB[1].substring(0,3).toUpperCase() : '';
-                let vA = window.MN.indexOf(m1), vB = window.MN.indexOf(m2);
-                vA = vA < 3 ? vA + 12 : vA; vB = vB < 3 ? vB + 12 : vB;
-                return vB - vA;
+            sortedKeys.sort(function(a, b) {
+                return window._getMonthSortVal(b) - window._getMonthSortVal(a);
             });
         }
-        let displayCols = sortedKeys;
-        const latestPeriod = displayCols.find(k => {
+
+        const latestPeriod = sortedKeys.find(k => {
             let hasA = false;
             hodRows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
             return hasA;
-        }) || displayCols[0] || 'N/A';
+        }) || sortedKeys[0] || 'N/A';
+
+        let displayCols = sortedKeys;
+        if (window.hodTargetView === 'month') {
+            const latestVal = window._getMonthSortVal(latestPeriod);
+            const activeAndPastCols = sortedKeys.filter(k => window._getMonthSortVal(k) <= latestVal);
+            const futureCols = sortedKeys.filter(k => window._getMonthSortVal(k) > latestVal);
+            displayCols = activeAndPastCols.concat(futureCols);
+        }
+
+        const fyFilter = window.App.filters && window.App.filters.fy;
+        if (fyFilter && fyFilter !== 'All') {
+            const allowedFYs = Array.isArray(fyFilter) ? fyFilter : [fyFilter];
+            if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
+                displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+            }
+        }
+        const monthFilter = window.App.filters && window.App.filters.month;
+        if (monthFilter && monthFilter !== 'All') {
+            const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
+            if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
+                displayCols = displayCols.filter(k => {
+                    const mStr = k.split('_')[1];
+                    return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
+                });
+            }
+        }
 
         let totalTarget = 0, totalAchv = 0;
         hodRows.forEach(r => {
@@ -143,7 +180,7 @@ window.loadHodTargets = async function(page = 1) {
         if (exportAll) page = 1;
         const displayRows = hodRows.slice((page - 1) * ps, page * ps);
 
-        window._renderHodTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps);
+        window._renderHodTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps, latestPeriod);
 
         window._renderPagination({ page: page, totalPages: totalPages, total: hodRows.length }, 'setHodTargetPage', 'pagination-hodtargets');
     } catch(e) {
@@ -151,7 +188,7 @@ window.loadHodTargets = async function(page = 1) {
     }
 };
 
-window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize) {
+window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
     window.App.lastTableData['hodtargets'] = displayRows;
 
     const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:40px;padding:8px 12px;';
@@ -166,7 +203,7 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
         + '<th style="' + stickyN + '">#</th>'
         + '<th style="' + stickyST + '">State</th>'
         + '<th style="' + stickyHOD + '">HOD Name</th>'
-        + displayCols.map(c => window._targetTh(c.replace('_', ' '), c === displayCols[0], c === displayCols[0] ? 'LATEST' : '')).join('')
+        + displayCols.map(c => window._targetTh(c.replace('_', ' '), c === latestPeriod, c === latestPeriod ? 'LATEST' : '')).join('')
         + '</tr>';
 
     if (!displayRows.length) { tbody.innerHTML = window._emptyRow(displayCols.length + 3, 'No target data found.'); return; }
@@ -245,24 +282,42 @@ window.loadTargets = async function(page = 1) {
     if(window.targetView === 'year' || window.targetView === 'quarter') {
        sortedKeys.sort().reverse();
     } else {
-       sortedKeys.sort(function(a,b) {
-         let pA = a.split('_'), pB = b.split('_');
-         if(pA[0] !== pB[0]) return pB[0].localeCompare(pA[0]);
-         let m1 = pA[1] ? pA[1].substring(0,3).toUpperCase() : '';
-         let m2 = pB[1] ? pB[1].substring(0,3).toUpperCase() : '';
-         let vA = window.MN.indexOf(m1), vB = window.MN.indexOf(m2);
-         vA = vA < 3 ? vA + 12 : vA;
-         vB = vB < 3 ? vB + 12 : vB;
-         return vB - vA;
+       sortedKeys.sort(function(a, b) {
+         return window._getMonthSortVal(b) - window._getMonthSortVal(a);
        });
     }
     
-    let displayCols = sortedKeys;
-    const latestPeriod = displayCols.find(k => {
+    const latestPeriod = sortedKeys.find(k => {
         let hasA = false;
         rows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
         return hasA;
-    }) || displayCols[0] || 'N/A';
+    }) || sortedKeys[0] || 'N/A';
+
+    let displayCols = sortedKeys;
+    if (window.targetView === 'month') {
+        const latestVal = window._getMonthSortVal(latestPeriod);
+        const activeAndPastCols = sortedKeys.filter(k => window._getMonthSortVal(k) <= latestVal);
+        const futureCols = sortedKeys.filter(k => window._getMonthSortVal(k) > latestVal);
+        displayCols = activeAndPastCols.concat(futureCols);
+    }
+
+    const fyFilter = window.App.filters && window.App.filters.fy;
+    if (fyFilter && fyFilter !== 'All') {
+        const allowedFYs = Array.isArray(fyFilter) ? fyFilter : [fyFilter];
+        if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
+            displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+        }
+    }
+    const monthFilter = window.App.filters && window.App.filters.month;
+    if (monthFilter && monthFilter !== 'All') {
+        const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
+        if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
+            displayCols = displayCols.filter(k => {
+                const mStr = k.split('_')[1];
+                return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
+            });
+        }
+    }
 
     let totalTarget = 0, totalAchv = 0;
     rows.forEach(r => {
@@ -327,7 +382,7 @@ window.loadTargets = async function(page = 1) {
     if (exportAll) page = 1;
     const displayRows = rows.slice((page - 1) * ps, page * ps);
 
-    window._renderTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps);
+    window._renderTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps, latestPeriod);
     
     window._renderPagination({
       page: page,
@@ -350,7 +405,7 @@ window._targetTh = function(label, isCurrent, suffix) {
     + '</th>';
 };
 
-window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize) {
+window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
   window.App.lastTableData['targets'] = displayRows;
 
   const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:40px;padding:8px 12px;';
@@ -368,7 +423,7 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
     + '<th style="' + stickyST + '">State</th>'
     + '<th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="' + stickyEMP + '">Executive Name</th>'
-    + displayCols.map(function(c, i) { return window._targetTh(c.replace('_', ' '), i === 0, i === 0 ? 'LATEST' : ''); }).join('')
+    + displayCols.map(function(c) { return window._targetTh(c.replace('_', ' '), c === latestPeriod, c === latestPeriod ? 'LATEST' : ''); }).join('')
     + '</tr>';
 
   if (!displayRows.length) {

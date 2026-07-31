@@ -292,7 +292,12 @@ async function processAggregation(options) {
       '/rest/v1/' + SYNC_CONFIG.TABLE_NAME + '?on_conflict=row_hash',
       'post', payload, 'resolution=ignore-duplicates,return=minimal'
     );
-    if (res.code >= 300) throw new Error('Supabase upload error: ' + res.text);
+    if (res.code >= 300) {
+      if (res.text && res.text.includes('42P10')) {
+        throw new Error('Supabase Constraint Error (42P10): Missing UNIQUE constraint on "row_hash" in table "' + SYNC_CONFIG.TABLE_NAME + '". Please run db/setup_sync_constraints.sql in your Supabase SQL Editor.');
+      }
+      throw new Error('Supabase upload error: ' + res.text);
+    }
   }
 
   const nextStartRow = startRow + rowsToFetch;
@@ -406,7 +411,13 @@ async function syncOutstandingData() {
     );
     if (res.code >= 300) {
       errors++;
-      if (!firstError) firstError = 'HTTP ' + res.code + ': ' + res.text.slice(0, 300);
+      if (!firstError) {
+        if (res.text && res.text.includes('42P10')) {
+          firstError = 'Missing UNIQUE constraint on "customer_code" in table "' + OUTSTANDING_CONFIG.TABLE_NAME + '". Run db/setup_sync_constraints.sql in Supabase SQL Editor.';
+        } else {
+          firstError = 'HTTP ' + res.code + ': ' + res.text.slice(0, 300);
+        }
+      }
     }
   }
 
@@ -496,7 +507,13 @@ async function syncTargetData() {
     );
     if (res.code >= 300) {
       errors++;
-      if (!firstError) firstError = 'HTTP ' + res.code + ': ' + res.text.slice(0, 300);
+      if (!firstError) {
+        if (res.text && res.text.includes('42P10')) {
+          firstError = 'Missing UNIQUE constraint on "row_hash" in table "' + TARGET_CONFIG.TABLE_NAME + '". Run db/setup_sync_constraints.sql in Supabase SQL Editor.';
+        } else {
+          firstError = 'HTTP ' + res.code + ': ' + res.text.slice(0, 300);
+        }
+      }
     }
   }
 
