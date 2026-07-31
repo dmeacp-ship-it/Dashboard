@@ -88,7 +88,7 @@ window.loadHodTargets = async function(page = 1) {
         let allKeys = new Set();
         hodRows.forEach(r => {
             Object.keys(r[dataKey] || {}).forEach(k => { 
-                if(r[dataKey][k] && (r[dataKey][k].a > 0 || r[dataKey][k].t > 0)) allKeys.add(k); 
+                if (r[dataKey][k] && r[dataKey][k].a > 0) allKeys.add(k); 
             });
         });
 
@@ -101,19 +101,8 @@ window.loadHodTargets = async function(page = 1) {
             });
         }
 
-        const latestPeriod = sortedKeys.find(k => {
-            let hasA = false;
-            hodRows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
-            return hasA;
-        }) || sortedKeys[0] || 'N/A';
-
+        const latestPeriod = sortedKeys[0] || 'N/A';
         let displayCols = sortedKeys;
-        if (window.hodTargetView === 'month') {
-            const latestVal = window._getMonthSortVal(latestPeriod);
-            const activeAndPastCols = sortedKeys.filter(k => window._getMonthSortVal(k) <= latestVal);
-            const futureCols = sortedKeys.filter(k => window._getMonthSortVal(k) > latestVal);
-            displayCols = activeAndPastCols.concat(futureCols);
-        }
 
         const selFY = (window.hodTargetFY && window.hodTargetFY !== 'All') ? window.hodTargetFY : (window.App.filters && window.App.filters.fy);
         if (selFY && selFY !== 'All') {
@@ -284,7 +273,7 @@ window.loadTargets = async function(page = 1) {
     let allKeys = new Set();
     rows.forEach(function(r) {
       Object.keys(r[dataKey] || {}).forEach(function(k) { 
-         if(r[dataKey][k] && (r[dataKey][k].a > 0 || r[dataKey][k].t > 0)) allKeys.add(k); 
+         if (r[dataKey][k] && r[dataKey][k].a > 0) allKeys.add(k); 
       });
     });
     
@@ -297,19 +286,8 @@ window.loadTargets = async function(page = 1) {
        });
     }
     
-    const latestPeriod = sortedKeys.find(k => {
-        let hasA = false;
-        rows.forEach(r => { if (r[dataKey] && r[dataKey][k] && r[dataKey][k].a > 0) hasA = true; });
-        return hasA;
-    }) || sortedKeys[0] || 'N/A';
-
+    const latestPeriod = sortedKeys[0] || 'N/A';
     let displayCols = sortedKeys;
-    if (window.targetView === 'month') {
-        const latestVal = window._getMonthSortVal(latestPeriod);
-        const activeAndPastCols = sortedKeys.filter(k => window._getMonthSortVal(k) <= latestVal);
-        const futureCols = sortedKeys.filter(k => window._getMonthSortVal(k) > latestVal);
-        displayCols = activeAndPastCols.concat(futureCols);
-    }
 
     const selFY = (window.targetFY && window.targetFY !== 'All') ? window.targetFY : (window.App.filters && window.App.filters.fy);
     if (selFY && selFY !== 'All') {
