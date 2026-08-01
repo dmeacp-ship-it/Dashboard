@@ -66,6 +66,14 @@ window.loadHodTargets = async function(page = 1) {
     const tbody = document.getElementById('tbl-targets-hod-body');
     const thead = document.getElementById('tbl-targets-hod-head');
     if (!tbody || !thead) return;
+
+    const compBtns = document.querySelectorAll('#page-hodtargets .comp-toggles .btn');
+    if (compBtns.length === 3) {
+        compBtns[0].className = 'btn btn-sm ' + (window.comparisonMode === 'none' ? 'btn-primary' : 'btn-ghost');
+        compBtns[1].className = 'btn btn-sm ' + (window.comparisonMode === 'pop' ? 'btn-primary' : 'btn-ghost');
+        compBtns[2].className = 'btn btn-sm ' + (window.comparisonMode === 'yoy' ? 'btn-primary' : 'btn-ghost');
+    }
+
     tbody.innerHTML = window._loadingRow(5);
 
     let pagContainer = document.getElementById('pagination-hodtargets');
@@ -124,21 +132,40 @@ window.loadHodTargets = async function(page = 1) {
         const latestPeriod = sortedKeys[0] || 'N/A';
         let displayCols = sortedKeys;
 
-        const selFY = (window.hodTargetFY && window.hodTargetFY !== 'All') ? window.hodTargetFY : (window.App.filters && window.App.filters.fy);
-        if (selFY && selFY !== 'All') {
-            const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
-            if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
-                displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+        if (window.comparisonMode !== 'none') {
+            const baseIdx = window._getCompBaseIndex('hodtarget-comp-period', window.hodTargetView, sortedKeys);
+            const offsetCols = sortedKeys.slice(baseIdx);
+            if (window.comparisonMode === 'pop') {
+                if (offsetCols.length >= 2) displayCols = [offsetCols[0], offsetCols[1]];
+                else displayCols = offsetCols;
+            } else if (window.comparisonMode === 'yoy') {
+                displayCols = [];
+                let cur = offsetCols[0];
+                while (cur && sortedKeys.includes(cur)) {
+                    displayCols.push(cur);
+                    const prevYear = cur.replace(/FY (\d+)-(\d+)/, (_, y1, y2) => `FY ${parseInt(y1)-1}-${parseInt(y2)-1}`);
+                    if (prevYear === cur || !sortedKeys.includes(prevYear)) break;
+                    cur = prevYear;
+                }
             }
-        }
-        const monthFilter = window.App.filters && window.App.filters.month;
-        if (monthFilter && monthFilter !== 'All') {
-            const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
-            if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
-                displayCols = displayCols.filter(k => {
-                    const mStr = k.split('_')[1];
-                    return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
-                });
+        } else {
+            window._getCompBaseIndex('hodtarget-comp-period', window.hodTargetView, []);
+            const selFY = (window.hodTargetFY && window.hodTargetFY !== 'All') ? window.hodTargetFY : (window.App.filters && window.App.filters.fy);
+            if (selFY && selFY !== 'All') {
+                const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
+                if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
+                    displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+                }
+            }
+            const monthFilter = window.App.filters && window.App.filters.month;
+            if (monthFilter && monthFilter !== 'All') {
+                const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
+                if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
+                    displayCols = displayCols.filter(k => {
+                        const mStr = k.split('_')[1];
+                        return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
+                    });
+                }
             }
         }
 
@@ -208,22 +235,183 @@ window.loadHodTargets = async function(page = 1) {
     }
 };
 
+window.selectedHodCompareRows = new Set();
+window.hodCompareActive = false;
+window.selectedTargetCompareRows = new Set();
+window.targetCompareActive = false;
+
+window.toggleHodTargetCompare = function() {
+    window.hodCompareActive = !window.hodCompareActive;
+    const btn = document.getElementById('btn-compare-hodtargets');
+    if (btn) {
+        btn.className = window.hodCompareActive ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-ghost';
+    }
+    if (!window.hodCompareActive) {
+        window.selectedHodCompareRows.clear();
+    }
+    window._updateHodCompareBadge();
+    window.loadHodTargets(window.hodTargetPage || 1);
+};
+
+window.toggleTargetCompare = function() {
+    window.targetCompareActive = !window.targetCompareActive;
+    const btn = document.getElementById('btn-compare-targets');
+    if (btn) {
+        btn.className = window.targetCompareActive ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-ghost';
+    }
+    if (!window.targetCompareActive) {
+        window.selectedTargetCompareRows.clear();
+    }
+    window._updateTargetCompareBadge();
+    window.loadTargets(window.targetPage || 1);
+};
+
+window.toggleHodSelection = function(key, checked) {
+    if (checked) {
+        window.selectedHodCompareRows.add(key);
+    } else {
+        window.selectedHodCompareRows.delete(key);
+    }
+    window._updateHodCompareBadge();
+    const rowEl = document.querySelector(`tr[data-hod-key="${encodeURIComponent(key)}"]`);
+    if (rowEl) {
+        if (checked) rowEl.classList.add('row-selected-compare');
+        else rowEl.classList.remove('row-selected-compare');
+    }
+};
+
+window.toggleAllHodSelection = function(checked) {
+    const tableData = window.App.lastTableData['hodtargets'] || [];
+    tableData.forEach(r => {
+        const key = (r.HOD || '') + '||' + (r.STATE || '');
+        if (checked) window.selectedHodCompareRows.add(key);
+        else window.selectedHodCompareRows.delete(key);
+    });
+    window._updateHodCompareBadge();
+    window.loadHodTargets(window.hodTargetPage || 1);
+};
+
+window._updateHodCompareBadge = function() {
+    const badge = document.getElementById('badge-compare-hodtargets');
+    const count = window.selectedHodCompareRows.size;
+    if (badge) {
+        badge.textContent = count;
+        badge.style.display = (window.hodCompareActive && count > 0) ? 'inline-flex' : 'none';
+    }
+    window._renderCompareFloatingBar('hodtargets', count);
+};
+
+window.toggleTargetSelection = function(key, checked) {
+    if (checked) {
+        window.selectedTargetCompareRows.add(key);
+    } else {
+        window.selectedTargetCompareRows.delete(key);
+    }
+    window._updateTargetCompareBadge();
+    const rowEl = document.querySelector(`tr[data-target-key="${encodeURIComponent(key)}"]`);
+    if (rowEl) {
+        if (checked) rowEl.classList.add('row-selected-compare');
+        else rowEl.classList.remove('row-selected-compare');
+    }
+};
+
+window.toggleAllTargetSelection = function(checked) {
+    const tableData = window.App.lastTableData['targets'] || [];
+    tableData.forEach(r => {
+        const key = (r.EMPLOYEE || '') + '||' + (r.HOD || '') + '||' + (r.STATE || '');
+        if (checked) window.selectedTargetCompareRows.add(key);
+        else window.selectedTargetCompareRows.delete(key);
+    });
+    window._updateTargetCompareBadge();
+    window.loadTargets(window.targetPage || 1);
+};
+
+window._updateTargetCompareBadge = function() {
+    const badge = document.getElementById('badge-compare-targets');
+    const count = window.selectedTargetCompareRows.size;
+    if (badge) {
+        badge.textContent = count;
+        badge.style.display = (window.targetCompareActive && count > 0) ? 'inline-flex' : 'none';
+    }
+    window._renderCompareFloatingBar('targets', count);
+};
+
+window._renderCompareFloatingBar = function(type, count) {
+    let barId = 'compare-float-bar-' + type;
+    let bar = document.getElementById(barId);
+    const containerId = type === 'hodtargets' ? 'page-hodtargets' : 'page-targets';
+    const container = document.querySelector(`#${containerId} .table-card`);
+    if (!container) return;
+
+    if (count < 2) {
+        if (bar) bar.remove();
+        return;
+    }
+
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = barId;
+        bar.className = 'compare-float-bar';
+        container.appendChild(bar);
+    }
+
+    const titleText = type === 'hodtargets' ? 'HODs' : 'Executives';
+    bar.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+            <i class="ph ph-scales" style="font-size:18px; color:var(--brand-primary);"></i>
+            <span style="font-weight:700; font-size:13px; color:var(--text-main);">${count} ${titleText} Selected</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="window.openCompareModal('${type}')">
+                <i class="ph ph-chart-bar-horizontal"></i> Compare Side-by-Side
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="window.clearCompareSelection('${type}')">Clear</button>
+        </div>
+    `;
+};
+
+window.clearCompareSelection = function(type) {
+    if (type === 'hodtargets') {
+        window.selectedHodCompareRows.clear();
+        window._updateHodCompareBadge();
+        window.loadHodTargets(window.hodTargetPage || 1);
+    } else {
+        window.selectedTargetCompareRows.clear();
+        window._updateTargetCompareBadge();
+        window.loadTargets(window.targetPage || 1);
+    }
+};
+
 window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
     window.App.lastTableData['hodtargets'] = displayRows;
 
-    const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:40px;padding:8px 12px;';
-    const stickyST  = 'position:sticky;left:40px;top:0;z-index:15;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-    const stickyHOD = 'position:sticky;left:160px;top:0;z-index:15;background:var(--brand-primary);min-width:200px;max-width:200px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:44px;min-width:44px;max-width:44px;padding:6px 8px;box-sizing:border-box;';
+    const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:120px;max-width:120px;padding:6px 8px;box-sizing:border-box;';
+    const stickyHOD = 'position:sticky;left:164px;top:0;z-index:15;background:var(--brand-primary);min-width:170px;max-width:170px;padding:6px 8px;box-sizing:border-box;';
 
-    const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:40px;padding:6px 12px;';
-    const stickyRowST  = 'position:sticky;left:40px;z-index:5;background:var(--bg-card);min-width:120px;padding:6px 12px;';
-    const stickyRowHOD = 'position:sticky;left:160px;z-index:5;background:var(--bg-card);min-width:200px;max-width:200px;border-right:1px solid var(--border);padding:6px 12px;';
+    const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:44px;min-width:44px;max-width:44px;padding:4px 8px;box-sizing:border-box;';
+    const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:120px;max-width:120px;padding:4px 8px;box-sizing:border-box;';
+    const stickyRowHOD = 'position:sticky;left:164px;z-index:5;background:var(--bg-card);min-width:170px;max-width:170px;padding:4px 8px;box-sizing:border-box;';
+
+    const isCompare = window.hodCompareActive;
+    const allSelected = displayRows.length > 0 && displayRows.every(r => window.selectedHodCompareRows.has((r.HOD || '') + '||' + (r.STATE || '')));
 
     thead.innerHTML = '<tr>'
-        + '<th style="' + stickyN + '">#</th>'
+        + '<th style="' + stickyN + '">' + (isCompare ? '<input type="checkbox" class="ms-checkbox" ' + (allSelected ? 'checked' : '') + ' onchange="window.toggleAllHodSelection(this.checked)">' : '#') + '</th>'
         + '<th style="' + stickyST + '">State</th>'
         + '<th style="' + stickyHOD + '">HOD Name</th>'
-        + displayCols.map(c => window._targetTh(c.replace('_', ' '), c === latestPeriod, c === latestPeriod ? 'LATEST' : '')).join('')
+        + displayCols.map((c, i) => {
+            let sub = '';
+            if (window.comparisonMode !== 'none') {
+                if (i === 0) sub = (c === latestPeriod ? 'CURRENT' : 'BASE');
+                else if (window.comparisonMode === 'pop') sub = 'PREV';
+                else if (window.comparisonMode === 'yoy') sub = i + ' YR AGO';
+            } else {
+                if (c === latestPeriod) sub = 'LATEST';
+            }
+            const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+            return window._targetTh(c.replace('_', ' '), i === 0, sub, hasVar);
+        }).join('')
         + '</tr>';
 
     if (!displayRows.length) { tbody.innerHTML = window._emptyRow(displayCols.length + 3, 'No target data found.'); return; }
@@ -231,17 +419,32 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
     let htmlStr = '';
     displayRows.forEach((r, i) => {
         const idx = ((page - 1) * pageSize) + i + 1;
-        let html = '<td style="' + stickyRowN + '">' + idx + '</td>'
+        const key = (r.HOD || '') + '||' + (r.STATE || '');
+        const isSelected = window.selectedHodCompareRows.has(key);
+        const rowClass = isSelected ? 'row-selected-compare' : '';
+
+        let firstColContent = idx;
+        if (isCompare) {
+            firstColContent = `<input type="checkbox" class="ms-checkbox" ${isSelected ? 'checked' : ''} onchange="window.toggleHodSelection('${encodeURIComponent(key)}', this.checked)">`;
+        }
+
+        let html = '<td style="' + stickyRowN + '">' + firstColContent + '</td>'
         + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + (r.STATE || '-') + '</td>'
         + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+(r.HOD||'-')+'">' + (r.HOD || '-') + '</td>';
         
-        displayCols.forEach(c => {
+        displayCols.forEach((c, colIdx) => {
             const obj = (r[dataKey] || {})[c] || {t:0, a:0};
-            html += window._targetTd(obj.t, obj.a);
+            let prevObj;
+            if (window.comparisonMode !== 'none' && colIdx + 1 < displayCols.length) {
+                const prevC = displayCols[colIdx + 1];
+                prevObj = (r[dataKey] || {})[prevC] || {t:0, a:0};
+            }
+            html += window._targetTd(obj.t, obj.a, prevObj ? prevObj.t : undefined, prevObj ? prevObj.a : undefined);
         });
-        htmlStr += '<tr>' + html + '</tr>';
+        htmlStr += `<tr class="${rowClass}" data-hod-key="${encodeURIComponent(key)}">${html}</tr>`;
     });
     tbody.innerHTML = htmlStr;
+    window._updateHodCompareBadge();
 };
 
 // -- EXECUTIVE TARGETS --
@@ -264,6 +467,13 @@ window.loadTargets = async function(page = 1) {
   const thead = document.getElementById('tbl-targets-head');
   if (!tbody || !thead) return;
   
+  const compBtns = document.querySelectorAll('#page-targets .comp-toggles .btn');
+  if (compBtns.length === 3) {
+      compBtns[0].className = 'btn btn-sm ' + (window.comparisonMode === 'none' ? 'btn-primary' : 'btn-ghost');
+      compBtns[1].className = 'btn btn-sm ' + (window.comparisonMode === 'pop' ? 'btn-primary' : 'btn-ghost');
+      compBtns[2].className = 'btn btn-sm ' + (window.comparisonMode === 'yoy' ? 'btn-primary' : 'btn-ghost');
+  }
+
   tbody.innerHTML = window._loadingRow(8);
   
   let pagContainer = document.getElementById('pagination-targets');
@@ -310,21 +520,40 @@ window.loadTargets = async function(page = 1) {
     const latestPeriod = sortedKeys[0] || 'N/A';
     let displayCols = sortedKeys;
 
-    const selFY = (window.targetFY && window.targetFY !== 'All') ? window.targetFY : (window.App.filters && window.App.filters.fy);
-    if (selFY && selFY !== 'All') {
-        const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
-        if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
-            displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+    if (window.comparisonMode !== 'none') {
+        const baseIdx = window._getCompBaseIndex('target-comp-period', window.targetView, sortedKeys);
+        const offsetCols = sortedKeys.slice(baseIdx);
+        if (window.comparisonMode === 'pop') {
+            if (offsetCols.length >= 2) displayCols = [offsetCols[0], offsetCols[1]];
+            else displayCols = offsetCols;
+        } else if (window.comparisonMode === 'yoy') {
+            displayCols = [];
+            let cur = offsetCols[0];
+            while (cur && sortedKeys.includes(cur)) {
+                displayCols.push(cur);
+                const prevYear = cur.replace(/FY (\d+)-(\d+)/, (_, y1, y2) => `FY ${parseInt(y1)-1}-${parseInt(y2)-1}`);
+                if (prevYear === cur || !sortedKeys.includes(prevYear)) break;
+                cur = prevYear;
+            }
         }
-    }
-    const monthFilter = window.App.filters && window.App.filters.month;
-    if (monthFilter && monthFilter !== 'All') {
-        const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
-        if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
-            displayCols = displayCols.filter(k => {
-                const mStr = k.split('_')[1];
-                return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
-            });
+    } else {
+        window._getCompBaseIndex('target-comp-period', window.targetView, []);
+        const selFY = (window.targetFY && window.targetFY !== 'All') ? window.targetFY : (window.App.filters && window.App.filters.fy);
+        if (selFY && selFY !== 'All') {
+            const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
+            if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
+                displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
+            }
+        }
+        const monthFilter = window.App.filters && window.App.filters.month;
+        if (monthFilter && monthFilter !== 'All') {
+            const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
+            if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
+                displayCols = displayCols.filter(k => {
+                    const mStr = k.split('_')[1];
+                    return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
+                });
+            }
         }
     }
 
@@ -358,7 +587,7 @@ window.loadTargets = async function(page = 1) {
         + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">conversion rate</div>'
         + '</div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#ec4899">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-users"></i></div><div class="kpi-label">TOTAL EXECUTIVES</div></div>'
+        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-user-circle-gear"></i></div><div class="kpi-label">TOTAL EXECUTIVES</div></div>'
         + '<div class="kpi-value" style="font-size:24px;">' + rows.length + '</div>'
         + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">matching current filters</div>'
         + '</div>';
@@ -410,35 +639,45 @@ window.loadTargets = async function(page = 1) {
   }
 };
 
-window._targetTh = function(label, isCurrent, suffix) {
+window._targetTh = function(label, isCurrent, suffix, hasVar) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:155px;padding:6px 10px;';
+    + 'white-space:nowrap;min-width:105px;padding:5px 8px;font-size:11px;';
   return '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:3px">●</span>' : '')
     + label
-    + (isCurrent && suffix ? '<br><span style="font-size:9px;opacity:0.7;font-weight:700;letter-spacing:0.04em;">(' + suffix + ')</span>' : '')
+    + (suffix ? '<br><span style="font-size:8.5px;opacity:0.75;font-weight:700;letter-spacing:0.04em;">(' + suffix + ')</span>' : '')
     + '</th>';
 };
 
 window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
   window.App.lastTableData['targets'] = displayRows;
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:44px;min-width:44px;max-width:44px;padding:6px 8px;box-sizing:border-box;';
+  const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:110px;max-width:110px;padding:6px 8px;box-sizing:border-box;';
+  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:15;background:var(--brand-primary);min-width:140px;max-width:140px;padding:6px 8px;box-sizing:border-box;';
+  const stickyEMP = 'position:sticky;left:294px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;max-width:150px;padding:6px 8px;box-sizing:border-box;';
 
-  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:40px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:40px;top:0;z-index:15;background:var(--brand-primary);min-width:120px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:160px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;max-width:150px;padding:8px 12px;';
-  const stickyEMP = 'position:sticky;left:310px;top:0;z-index:15;background:var(--brand-primary);min-width:170px;max-width:170px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
-
-  const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:40px;padding:6px 12px;';
-  const stickyRowST  = 'position:sticky;left:40px;z-index:5;background:var(--bg-card);min-width:120px;padding:6px 12px;';
-  const stickyRowHOD = 'position:sticky;left:160px;z-index:5;background:var(--bg-card);min-width:150px;max-width:150px;padding:6px 12px;';
-  const stickyRowEMP = 'position:sticky;left:310px;z-index:5;background:var(--bg-card);min-width:170px;max-width:170px;border-right:1px solid var(--border);padding:6px 12px;';
+  const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:44px;min-width:44px;max-width:44px;padding:4px 8px;box-sizing:border-box;';
+  const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:110px;max-width:110px;padding:4px 8px;box-sizing:border-box;';
+  const stickyRowHOD = 'position:sticky;left:154px;z-index:5;background:var(--bg-card);min-width:140px;max-width:140px;padding:4px 8px;box-sizing:border-box;';
+  const stickyRowEMP = 'position:sticky;left:294px;z-index:5;background:var(--bg-card);min-width:150px;max-width:150px;padding:4px 8px;box-sizing:border-box;';
 
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
     + '<th style="' + stickyST + '">State</th>'
     + '<th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="' + stickyEMP + '">Executive Name</th>'
-    + displayCols.map(function(c) { return window._targetTh(c.replace('_', ' '), c === latestPeriod, c === latestPeriod ? 'LATEST' : ''); }).join('')
+    + displayCols.map(function(c, i) {
+        let sub = '';
+        if (window.comparisonMode !== 'none') {
+            if (i === 0) sub = (c === latestPeriod ? 'CURRENT' : 'BASE');
+            else if (window.comparisonMode === 'pop') sub = 'PREV';
+            else if (window.comparisonMode === 'yoy') sub = i + ' YR AGO';
+        } else {
+            if (c === latestPeriod) sub = 'LATEST';
+        }
+        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
+        return window._targetTh(c.replace('_', ' '), (c === latestPeriod || i === 0), sub, hasVar);
+    }).join('')
     + '</tr>';
 
   if (!displayRows.length) {
@@ -454,9 +693,14 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
       + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+(r.HOD||'-')+'">' + (r.HOD || '-') + '</td>'
       + '<td style="color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowEMP + '" title="'+(r.EMPLOYEE||'-')+'">' + (r.EMPLOYEE || '-') + '</td>';
       
-    displayCols.forEach(function(c) {
+    displayCols.forEach(function(c, colIdx) {
        const obj = (r[dataKey] || {})[c] || {t:0, a:0};
-       html += window._targetTd(obj.t, obj.a);
+       let prevObj;
+       if (window.comparisonMode !== 'none' && colIdx + 1 < displayCols.length) {
+           const prevC = displayCols[colIdx + 1];
+           prevObj = (r[dataKey] || {})[prevC] || {t:0, a:0};
+       }
+       html += window._targetTd(obj.t, obj.a, prevObj ? prevObj.t : undefined, prevObj ? prevObj.a : undefined);
     });
     
     htmlStr += '<tr>' + html + '</tr>';
@@ -464,50 +708,251 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
   tbody.innerHTML = htmlStr;
 };
 
-window._targetTd = function(target, achv) {
+window.openCompareModal = function(type) {
+    const modal = document.getElementById('compare-modal');
+    const body = document.getElementById('compare-modal-body');
+    const titleEl = document.getElementById('compare-modal-title');
+    const subEl = document.getElementById('compare-modal-sub');
+    if (!modal || !body) return;
+
+    const isHod = (type === 'hodtargets');
+    const selectedKeys = isHod ? window.selectedHodCompareRows : window.selectedTargetCompareRows;
+    const allData = window.App.lastTableData[type] || [];
+
+    const selectedRows = allData.filter(r => {
+        const key = isHod ? ((r.HOD || '') + '||' + (r.STATE || '')) : ((r.EMPLOYEE || '') + '||' + (r.HOD || '') + '||' + (r.STATE || ''));
+        return selectedKeys.has(key);
+    });
+
+    if (selectedRows.length < 2) {
+        window.toast('Please select at least 2 items to compare.', 'info');
+        return;
+    }
+
+    const titleText = isHod ? 'HOD Performance Comparison' : 'Executive Targets Comparison';
+    if (titleEl) titleEl.textContent = titleText;
+    if (subEl) subEl.textContent = `Comparing ${selectedRows.length} selected ${isHod ? 'HODs' : 'Executives'} side-by-side`;
+
+    const dataKey = isHod 
+        ? (window.hodTargetView === 'year' ? 'YEARLY' : window.hodTargetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY')
+        : (window.targetView === 'year' ? 'YEARLY' : window.targetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY');
+
+    // Collect all unique period keys across selected rows
+    let periodKeys = new Set();
+    selectedRows.forEach(r => {
+        Object.keys(r[dataKey] || {}).forEach(k => {
+            if (r[dataKey][k] && (r[dataKey][k].t > 0 || r[dataKey][k].a > 0)) periodKeys.add(k);
+        });
+    });
+    let sortedPeriods = Array.from(periodKeys);
+    sortedPeriods.sort(function(a, b) {
+        return window._getMonthSortVal ? (window._getMonthSortVal(b) - window._getMonthSortVal(a)) : b.localeCompare(a);
+    });
+
+    const latestPeriod = sortedPeriods[0] || 'N/A';
+
+    // Summary calculations
+    let totalTargetSum = 0, totalAchvSum = 0;
+    selectedRows.forEach(r => {
+        const itemLatest = (r[dataKey] || {})[latestPeriod] || {t:0, a:0};
+        totalTargetSum += itemLatest.t || 0;
+        totalAchvSum += itemLatest.a || 0;
+    });
+    const avgConversion = totalTargetSum > 0 ? ((totalAchvSum / totalTargetSum) * 100).toFixed(1) : 0;
+
+    // Render HTML
+    let html = '';
+
+    // 1. KPI Cards Row
+    html += `
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+            <div class="kpi-card" style="--kpi-color:var(--brand-primary); padding:14px;">
+                <div class="kpi-label">COMPARING</div>
+                <div class="kpi-value" style="font-size:22px;">${selectedRows.length} ${isHod ? 'HODs' : 'Executives'}</div>
+                <div class="kpi-sub">Period: ${latestPeriod.replace('_', ' ')}</div>
+            </div>
+            <div class="kpi-card" style="--kpi-color:var(--accent); padding:14px;">
+                <div class="kpi-label">TOTAL TARGET</div>
+                <div class="kpi-value" style="font-size:22px;">₹${window.fmt.num(totalTargetSum)}</div>
+                <div class="kpi-sub">Across selected</div>
+            </div>
+            <div class="kpi-card" style="--kpi-color:var(--accent3); padding:14px;">
+                <div class="kpi-label">TOTAL ACHIEVED</div>
+                <div class="kpi-value" style="font-size:22px; color:var(--accent3);">₹${window.fmt.num(totalAchvSum)}</div>
+                <div class="kpi-sub">Actual generated</div>
+            </div>
+            <div class="kpi-card" style="--kpi-color:${avgConversion < 50 ? 'var(--danger)' : avgConversion < 80 ? 'var(--accent4)' : 'var(--accent3)'}; padding:14px;">
+                <div class="kpi-label">GROUP CONVERSION</div>
+                <div class="kpi-value" style="font-size:22px;">${avgConversion}%</div>
+                <div class="kpi-sub">Average completion</div>
+            </div>
+        </div>
+    `;
+
+    // 2. Side-by-Side Cards
+    html += `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">`;
+    selectedRows.forEach(r => {
+        const name = isHod ? (r.HOD || 'Unknown') : (r.EMPLOYEE || 'Unknown');
+        const subInfo = isHod ? (r.STATE || '-') : (`HOD: ${r.HOD || '-'} (${r.STATE || '-'})`);
+        const latest = (r[dataKey] || {})[latestPeriod] || {t:0, a:0};
+        const target = latest.t || 0;
+        const achv = latest.a || 0;
+        const pct = target > 0 ? ((achv / target) * 100).toFixed(1) : (achv > 0 ? 100 : 0);
+        let color = '#10b981';
+        if (pct < 50) color = '#ef4444';
+        else if (pct < 80) color = '#f59e0b';
+
+        html += `
+            <div class="table-card" style="padding:16px; border-top:3px solid ${color}; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <div style="font-size:15px; font-weight:800; color:var(--text-main);">${name}</div>
+                        <div style="font-size:11.5px; color:var(--text-muted); font-weight:500; margin-top:2px;">${subInfo}</div>
+                    </div>
+                    <span class="badge" style="background:${color}22; color:${color}; border-color:${color}44; font-size:12px;">${pct}%</span>
+                </div>
+
+                <div style="background:var(--bg-elevated); padding:10px 12px; border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Achievement</div>
+                        <div style="font-size:16px; font-weight:800; color:var(--text-main);">₹${window.fmt.num(achv)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Target</div>
+                        <div style="font-size:14px; font-weight:700; color:var(--text-sub);">₹${window.fmt.num(target)}</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">
+                        <span>Progress</span>
+                        <span>${pct}%</span>
+                    </div>
+                    <div style="width:100%; height:6px; background:var(--bg-hover); border-radius:100px; overflow:hidden;">
+                        <div style="width:${Math.min(pct, 100)}%; height:100%; background:${color}; border-radius:100px;"></div>
+                    </div>
+                </div>
+
+                <!-- Recent Periods Table -->
+                <div style="margin-top:4px;">
+                    <div style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">History (${sortedPeriods.slice(0, 5).length} Periods)</div>
+                    <table style="width:100%; font-size:11px;">
+                        <tbody>
+                            ${sortedPeriods.slice(0, 5).map(p => {
+                                const pObj = (r[dataKey] || {})[p] || {t:0, a:0};
+                                const pPct = pObj.t > 0 ? ((pObj.a / pObj.t) * 100).toFixed(1) : (pObj.a > 0 ? 100 : 0);
+                                let pCol = '#10b981';
+                                if (pPct < 50) pCol = '#ef4444';
+                                else if (pPct < 80) pCol = '#f59e0b';
+                                return `
+                                    <tr style="border-bottom:1px solid var(--border);">
+                                        <td style="padding:4px 0; color:var(--text-muted); font-weight:600;">${p.replace('_', ' ')}</td>
+                                        <td style="padding:4px 0; text-align:right; font-weight:700; color:var(--text-main);">₹${window.fmt.short(pObj.a)}</td>
+                                        <td style="padding:4px 0; text-align:right; color:var(--text-muted);">/ ₹${window.fmt.short(pObj.t)}</td>
+                                        <td style="padding:4px 0; text-align:right; font-weight:700; color:${pCol}; width:45px;">${pPct}%</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    // 3. Matrix Table Comparison
+    html += `
+        <div class="table-card" style="padding:16px;">
+            <div style="font-size:12px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                <i class="ph ph-table"></i> Detailed Period Breakdown
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; font-size:12px; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:var(--brand-primary); color:#fff;">
+                            <th style="padding:8px 12px; text-align:left;">Entity</th>
+                            ${sortedPeriods.map(p => `<th style="padding:8px 12px; text-align:right;">${p.replace('_', ' ')}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${selectedRows.map(r => {
+                            const name = isHod ? (r.HOD || 'Unknown') : (r.EMPLOYEE || 'Unknown');
+                            return `
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:8px 12px; font-weight:700; color:var(--text-main); white-space:nowrap;">${name}</td>
+                                    ${sortedPeriods.map(p => {
+                                        const pObj = (r[dataKey] || {})[p] || {t:0, a:0};
+                                        const pPct = pObj.t > 0 ? ((pObj.a / pObj.t) * 100).toFixed(1) : (pObj.a > 0 ? 100 : 0);
+                                        let pCol = '#10b981';
+                                        if (pPct < 50) pCol = '#ef4444';
+                                        else if (pPct < 80) pCol = '#f59e0b';
+                                        if (pObj.t === 0 && pObj.a === 0) return `<td style="padding:8px 12px; text-align:right; color:var(--text-faint);">—</td>`;
+                                        return `
+                                            <td style="padding:8px 12px; text-align:right;">
+                                                <div style="font-weight:700; color:var(--text-main);">₹${window.fmt.short(pObj.a)}</div>
+                                                <div style="font-size:10px; color:var(--text-muted);">/ ₹${window.fmt.short(pObj.t)} <span style="color:${pCol}; font-weight:700;">${pPct}%</span></div>
+                                            </td>
+                                        `;
+                                    }).join('')}
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    body.innerHTML = html;
+    modal.classList.add('show');
+};
+
+window.closeCompareModal = function() {
+    const modal = document.getElementById('compare-modal');
+    if (modal) modal.classList.remove('show');
+};
+
+window._targetTd = function(target, achv, prevTarget, prevAchv) {
    target = target || 0; achv = achv || 0;
    const pct = target > 0 ? ((achv / target) * 100).toFixed(1) : (achv > 0 ? 100.0 : 0.0);
    
-   let c = '#10b981'; 
-   let liquid = 'linear-gradient(90deg, rgba(16,185,129,0.15), rgba(52,211,153,0.35))';
-   let borderGlow = 'rgba(52,211,153,0.5)';
-
-   if (pct < 50) {
-       c = '#ef4444'; 
-       liquid = 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(248,113,113,0.35))';
-       borderGlow = 'rgba(248,113,113,0.5)';
-   } else if (pct < 80) {
-       c = '#f59e0b'; 
-       liquid = 'linear-gradient(90deg, rgba(245,158,11,0.15), rgba(251,191,36,0.35))';
-       borderGlow = 'rgba(251,191,36,0.5)';
-   }
+   let c = '#10b981';
+   if (pct < 50) c = '#ef4444';
+   else if (pct < 80) c = '#f59e0b';
    
-   // Tighter padding
-   let html = '<td style="min-width:145px; padding:4px 6px; vertical-align:middle;">';
+   let html = '<td style="min-width:100px; padding:6px 10px; vertical-align:middle;">';
    
-   if (target === 0 && achv === 0) {
-       html += '<div style="color:var(--text-faint);text-align:center;font-size:14px;font-weight:500;">—</div></td>';
+   if (target === 0 && achv === 0 && (prevAchv === undefined || prevAchv === 0)) {
+       html += '<div style="color:var(--text-faint);text-align:center;font-size:12px;">—</div></td>';
        return html;
    }
    
-   // The Full-Cell Glassmorphism Capsule - reduced height (30px)
-   html += '<div style="position:relative; width:100%; min-height:30px; border-radius:100px; background:var(--bg-hover); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(128,128,128,0.15); box-shadow:0 2px 6px rgba(0,0,0,0.04); overflow:hidden; display:flex; align-items:center;">';
-   
-   // Absolute Translucent Progress Fill
-   html += '<div style="position:absolute; top:0; left:0; height:100%; width:' + Math.min(pct, 100) + '%; background:' + liquid + '; z-index:0; border-right:1px solid ' + borderGlow + '; box-shadow:2px 0 10px ' + borderGlow + ';"></div>';
-   
-   // Foreground Text Layer
-   html += '<div style="position:relative; z-index:1; width:100%; display:flex; justify-content:space-between; align-items:center; padding:0 12px;">';
-   
-   html += '<div style="display:flex; align-items:baseline; gap:6px;" title="' + window.fmt.num(achv) + ' Achieved / ' + window.fmt.num(target) + ' Target">';
-   html += '<span style="font-size:13px; font-weight:800; color:var(--text-main); letter-spacing:-0.2px;">' + window.fmt.num(achv) + '</span>';
-   html += '<span style="font-size:10.5px; font-weight:600; color:var(--text-muted);">/ ' + window.fmt.num(target) + '</span>';
-   html += '</div>';
-   
-   html += '<span style="font-size:12.5px; font-weight:800; color:' + c + ';">' + pct + '%</span>';
-   
-   html += '</div>'; // End Text Layer
-   html += '</div></td>'; // End Capsule & Cell
+   let varHtml = '';
+   if (prevAchv !== undefined) {
+       const prevA = parseFloat(prevAchv) || 0;
+       if (achv === 0 && prevA === 0) {
+           varHtml = '<span style="color:var(--text-muted); font-size:10px; font-weight:700;">0.0%</span>';
+       } else if (prevA === 0 && achv > 0) {
+           varHtml = '<span style="color:var(--accent3); font-size:10px; font-weight:700;">↑ 100.0%</span>';
+       } else if (achv === 0 && prevA > 0) {
+           varHtml = '<span style="color:var(--danger); font-size:10px; font-weight:700;">↓ 100.0%</span>';
+       } else {
+           const diffPct = ((achv - prevA) / prevA * 100).toFixed(1);
+           let varColor = diffPct > 0 ? 'var(--accent3)' : diffPct < 0 ? 'var(--danger)' : 'var(--text-muted)';
+           let arrow = diffPct > 0 ? '↑ ' : diffPct < 0 ? '↓ ' : '';
+           varHtml = `<span style="color:${varColor}; font-size:10px; font-weight:700;">${arrow}${Math.abs(diffPct)}%</span>`;
+       }
+   }
+
+   html += '<div title="' + window.fmt.num(achv) + ' / ' + window.fmt.num(target) + '">';
+   html += '<div style="font-size:12.5px; font-weight:700; color:var(--text-main); line-height:1;">' + window.fmt.short(achv) + '</div>';
+   html += '<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">' + window.fmt.short(target) + ' <span style="color:' + c + '; font-weight:600;">' + pct + '%</span></div>';
+   if (varHtml) {
+       html += '<div style="margin-top:2px;">' + varHtml + '</div>';
+   }
+   html += '</div></td>';
    return html;
 };
 
@@ -652,22 +1097,35 @@ window.comparisonMode = 'none';
 
 window.setComparisonMode = function(mode, btn) {
   window.comparisonMode = mode;
-  document.querySelectorAll('.comp-toggles .btn').forEach(function(b) {
-    b.className = 'btn btn-sm btn-ghost';
-  });
+  const parentToggles = btn ? btn.closest('.comp-toggles') : null;
+  if (parentToggles) {
+    parentToggles.querySelectorAll('.btn').forEach(function(b) {
+      b.className = 'btn btn-sm btn-ghost';
+    });
+  } else {
+    document.querySelectorAll('.comp-toggles .btn').forEach(function(b) {
+      b.className = 'btn btn-sm btn-ghost';
+    });
+  }
   if (btn) btn.className = 'btn btn-sm btn-primary';
   
-  if (document.getElementById('page-hodqoq').classList.contains('active')) {
+  if (document.getElementById('page-hodqoq') && document.getElementById('page-hodqoq').classList.contains('active')) {
     window.loadHODQoQ();
   }
-  if (document.getElementById('page-custqoq').classList.contains('active')) {
+  if (document.getElementById('page-custqoq') && document.getElementById('page-custqoq').classList.contains('active')) {
     window.loadCustSale(window.custSalePage || 1);
   }
-  if (document.getElementById('page-product').classList.contains('active')) {
+  if (document.getElementById('page-product') && document.getElementById('page-product').classList.contains('active')) {
     if (typeof window.loadTimeWiseSales === 'function') window.loadTimeWiseSales();
   }
-  if (document.getElementById('page-hodsku').classList.contains('active')) {
+  if (document.getElementById('page-hodsku') && document.getElementById('page-hodsku').classList.contains('active')) {
     if (typeof window.loadHodSkuSales === 'function') window.loadHodSkuSales();
+  }
+  if (document.getElementById('page-hodtargets') && document.getElementById('page-hodtargets').classList.contains('active')) {
+    if (typeof window.loadHodTargets === 'function') window.loadHodTargets(1);
+  }
+  if (document.getElementById('page-targets') && document.getElementById('page-targets').classList.contains('active')) {
+    if (typeof window.loadTargets === 'function') window.loadTargets(1);
   }
 };
 

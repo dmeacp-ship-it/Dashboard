@@ -20,7 +20,7 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=8561473f"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=bb687539"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=fa29927b"/>
 </head>
 
@@ -391,6 +391,12 @@
               <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-hodtargets', -350)"><i class="ph ph-caret-left"></i></button>
               <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-hodtargets', 350)"><i class="ph ph-caret-right"></i></button>
             </div>
+            <div class="btn-group comp-toggles" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <select id="hodtarget-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadHodTargets(1)"></select>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
@@ -437,7 +443,13 @@
               <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-targets', -350)"><i class="ph ph-caret-left"></i></button>
               <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-targets', 350)"><i class="ph ph-caret-right"></i></button>
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('targets', 'Executive Targets')">
+            <div class="btn-group comp-toggles" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <select id="target-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadTargets(1)"></select>
+            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('targets', 'Executive Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
             </button>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('targets', 'tbl-targets-head', function(){ window.loadTargets(window.targetPage||1); })">
@@ -1466,8 +1478,8 @@
   </div>
 
 <script defer src="/js/javascript.min.js?v=ed5a5527"></script>
-<script defer src="/js/javascript1.min.js?v=d3318b51"></script>
-<script defer src="/js/javascript2.min.js?v=cfc55f99"></script>
+<script defer src="/js/javascript1.min.js?v=63f4f725"></script>
+<script defer src="/js/javascript2.min.js?v=076a61f9"></script>
 <script defer src="/js/fms.min.js?v=e9b8a378"></script>
 
 </body>

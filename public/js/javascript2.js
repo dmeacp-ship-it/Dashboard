@@ -1101,11 +1101,19 @@ window.renderKPIs = function(k, monthly) {
 
   monthly.forEach(function(r) {
     const fy = window.getRowFY(r);
-    if (!fyData[fy]) fyData[fy] = { sqft: 0, rev: 0, months: new Set() };
-    fyData[fy].sqft += Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391);
+    if (!fyData[fy]) fyData[fy] = { sqft: 0, rev: 0, months: new Set(), byIdx: {} };
+    const sq = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391);
+    fyData[fy].sqft += sq;
     fyData[fy].rev  += Number(r['NET REVENUE']) || 0;
     const sk = window.getSortKey(r);
-    if (sk) fyData[fy].months.add(sk.slice(0, 7));
+    if (sk) {
+      fyData[fy].months.add(sk.slice(0, 7));
+      const mo = parseInt(sk.slice(5, 7), 10);
+      if (!isNaN(mo)) {
+        const idx = mo >= 4 ? mo - 4 : mo + 8;   // 0 = Apr … 11 = Mar
+        fyData[fy].byIdx[idx] = (fyData[fy].byIdx[idx] || 0) + sq;
+      }
+    }
   });
 
   const sortedFys     = Object.keys(fyData).sort().reverse();
@@ -1116,6 +1124,23 @@ window.renderKPIs = function(k, monthly) {
   const currYrRev     = currentFy !== 'N/A' ? (fyData[currentFy].rev || 0) : 0;
   const yrGrowth      = prevYrSqft ? ((currYrSqft - prevYrSqft) / prevYrSqft * 100) : 0;
   const currYrSqm     = Math.round(currYrSqft / 10.76391);
+
+  // ── Like-for-like YTD: current FY vs the SAME months of the previous FY ────
+  // Comparing a part-year against a full prior year understates growth, so we
+  // clip the previous FY to the months the current FY has actually reported.
+  const FYMN      = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+  const curIdxs   = currentFy !== 'N/A' ? Object.keys(fyData[currentFy].byIdx).map(Number).sort(function(a,b){return a-b;}) : [];
+  const lastIdx   = curIdxs.length ? curIdxs[curIdxs.length - 1] : -1;
+  let prevYtdSqft = 0;
+  if (prevFy && fyData[prevFy] && lastIdx >= 0) {
+    Object.keys(fyData[prevFy].byIdx).forEach(function(i) {
+      if (Number(i) <= lastIdx) prevYtdSqft += fyData[prevFy].byIdx[i];
+    });
+  }
+  const ytdGrowth = prevYtdSqft ? +((currYrSqft - prevYtdSqft) / prevYtdSqft * 100).toFixed(1) : null;
+  const ytdPeriod = lastIdx < 0 ? ''
+    : (curIdxs[0] === lastIdx ? FYMN[lastIdx] : FYMN[curIdxs[0]] + '–' + FYMN[lastIdx]);
+  const ytdMax    = Math.max(currYrSqft, prevYtdSqft, 1);
 
   let curFyMoCount = 1;
   if (currentFy !== 'N/A') {
@@ -1182,6 +1207,16 @@ window.renderKPIs = function(k, monthly) {
     return '<div style="height:1px;background:var(--border);margin:5px 0;flex-shrink:0;"></div>';
   }
 
+  function _cmpRow(label, valueTxt, value, max, color, dim) {
+    return `<div style="margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:10px;font-weight:700;margin-bottom:3px;">
+        <span style="color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</span>
+        <span style="font-size:10.5px;flex-shrink:0;color:${dim ? 'var(--text-sub)' : 'var(--text-main)'};">${valueTxt}</span>
+      </div>
+      ${_bar(value, max, color, 6)}
+    </div>`;
+  }
+
   function _kv(label, value, color) {
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:1px 0;">
       <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;">${label}</span>
@@ -1203,18 +1238,18 @@ window.renderKPIs = function(k, monthly) {
     {v:c31_60, c:'#38bdf8'},
     {v:c61_90, c:'#f59e0b'},
     {v:c90p,   c:'#ef4444'}
-  ], window.fmt.short(totalC), 80);
+  ], window.fmt.short(totalC), 66);
 
   function cRow(clr, lbl, cnt) {
     const pct = totalC > 0 ? ((cnt/totalC)*100).toFixed(1) : '0.0';
-    return `<div style="padding:1px 0;">
+    return `<div>
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="width:7px;height:7px;border-radius:50%;background:${clr};flex-shrink:0;"></div>
         <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;flex:1;">${lbl}</span>
         <span style="font-size:12px;font-weight:800;color:var(--text-main);">${window.fmt.num(cnt)}</span>
         <span style="font-size:9.5px;color:${clr};font-weight:700;min-width:34px;text-align:right;">${pct}%</span>
       </div>
-      ${_bar(cnt, totalC, clr, 4)}
+      ${_bar(cnt, totalC, clr, 3)}
     </div>`;
   }
 
@@ -1257,37 +1292,37 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
   `<div class="kpi-card" style="--kpi-color:#10b981;">
-    <div class="kpi-header-row" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#10b981;"><i class="ph ph-ruler"></i></div>
         <div class="kpi-label">YTD SQ FT (${currentFy})</div>
       </div>
-      ${_dlt(yrGrowth)}
+      ${_dlt(ytdGrowth)}
     </div>
-    <div style="height:80px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+    <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
       <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(currYrSqft)}</div>
-      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrSqft)} sqft</div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrSqft)} sqft · ${curFyMoCount} of 12 mo</div>
     </div>
-    <div style="margin-top:auto;margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-bottom:4px;">
-        <span style="color:var(--text-muted);">vs ${prevFy || 'prev yr'} (${window.fmt.short(prevYrSqft)})</span>
-        <span style="color:${yrGrowth>=0?'#10b981':'#ef4444'}">${window.fmt.pct(yrGrowth)}</span>
-      </div>
-      ${_bar(Math.min(currYrSqft, Math.max(prevYrSqft, currYrSqft, 1)), Math.max(prevYrSqft, currYrSqft, 1), '#10b981', 7)}
+    <div style="margin-top:auto;">
+      ${_cmpRow(
+          `${prevFy || 'Prev FY'} YTD${ytdPeriod ? ' (' + ytdPeriod + ')' : ''}`,
+          prevYtdSqft ? window.fmt.short(prevYtdSqft) + ' sqft' : '—',
+          prevYtdSqft, ytdMax, 'var(--text-faint)', true
+      )}
     </div>
     <div>
       ${_sep()}
       <div style="display:flex;flex-direction:column;gap:4px;">
-        ${_kv('Months tracked', curFyMoCount + ' of 12', 'var(--text-sub)')}
-        ${_kv('Prev FY total', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
+        ${_kv('YoY same period', ytdGrowth === null ? '—' : window.fmt.pct(ytdGrowth), ytdGrowth === null ? 'var(--text-muted)' : (ytdGrowth >= 0 ? '#10b981' : '#ef4444'))}
+        ${_kv('Prev FY full year', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
       </div>
     </div>
   </div>`
 
   // ── Card 2 — MTD SALE SQ FT ───────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
-    <div class="kpi-header-row" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-calendar"></i></div>
         <div class="kpi-label">MTD SALE SQ FT</div>
       </div>
@@ -1314,8 +1349,8 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 3 — CURR YR AVG SQ FT / MO ──────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#8b5cf6;">
-    <div class="kpi-header-row" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#8b5cf6;"><i class="ph ph-chart-line"></i></div>
         <div class="kpi-label">CURR YR AVG / MO</div>
       </div>
@@ -1342,12 +1377,12 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 4 — TOTAL CUSTOMERS ───────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#ec4899;">
-    <div class="kpi-header-row" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
         <div class="kpi-label">TOTAL CUSTOMERS</div>
       </div>
-      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);color:#10b981;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
+      <span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:#10b981;"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${custDonutSvg}
@@ -1356,7 +1391,7 @@ window.renderKPIs = function(k, monthly) {
         <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">total accounts</div>
       </div>
     </div>
-    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:1px;margin-top:auto;">
+    <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;flex-direction:column;gap:2px;margin-top:auto;">
       ${cRow('#10b981', '0–30d &nbsp;Active',  c30)}
       ${cRow('#38bdf8', '31–60d',               c31_60)}
       ${cRow('#f59e0b', '61–90d',               c61_90)}
@@ -1367,8 +1402,10 @@ window.renderKPIs = function(k, monthly) {
   // ── Card 5 — 80% VOLUME CONTRIBUTORS ─────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#f59e0b;">
     <div class="kpi-header-row">
-      <div class="kpi-icon" style="color:#f59e0b;"><i class="ph ph-star"></i></div>
-      <div class="kpi-label">80% VOLUME CONTRIBUTORS</div>
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:#f59e0b;"><i class="ph ph-star"></i></div>
+        <div class="kpi-label">80% VOLUME CONTRIBUTORS</div>
+      </div>
     </div>
     
     <div class="kpi-card-split-row" style="flex:1;">
@@ -1424,12 +1461,12 @@ window.renderKPIs = function(k, monthly) {
 
   // ── Card 6 — TOTAL OUTSTANDING ────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:#ef4444;">
-    <div class="kpi-header-row" style="justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#ef4444;"><i class="ph ph-currency-inr"></i></div>
         <div class="kpi-label">TOTAL OUTSTANDING</div>
       </div>
-      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.12);color:#ef4444;padding:3px 8px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;"><i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors</span>
+      <span class="kpi-pill" style="background:rgba(239,68,68,0.12);color:#ef4444;"><i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${osDonutSvg}
@@ -1724,6 +1761,46 @@ window._updateMsLabel = function(key) {
   }
 };
 
+// ── Cascading geo filters: zone → state → hod ──────────────────────────────
+// filterOptions.geo is a list of distinct {zone,state,hod} triples. Narrow the
+// downstream picker to whatever the upstream selection actually allows.
+// Returns null when the backend sent no geo map, so callers fall back to the
+// flat list and the pickers behave exactly as before.
+window._geoOptions = function(level) {
+  const geo = (window.App.filterOptions && window.App.filterOptions.geo) || [];
+  if (!geo.length) return null;
+
+  const sel = function(key) {
+    let v = window.App.filters[key];
+    if (!Array.isArray(v)) v = [v || 'All'];
+    return (v.length === 0 || v.indexOf('All') > -1) ? null : v;  // null = unconstrained
+  };
+  const zones  = sel('zone');
+  const states = level === 'hod' ? sel('state') : null;
+
+  const seen = {};
+  geo.forEach(function(g) {
+    if (zones  && zones.indexOf(g.zone)   === -1) return;
+    if (states && states.indexOf(g.state) === -1) return;
+    if (g[level]) seen[g[level]] = 1;
+  });
+  return ['All'].concat(Object.keys(seen).sort());
+};
+
+window._refreshGeoDrops = function(changed) {
+  const downstream = changed === 'zone' ? ['state', 'hod'] : ['hod'];
+  downstream.forEach(function(key) {
+    const opts = window._geoOptions(key);
+    if (!opts) return;
+    // Drop any selection the new upstream choice no longer permits.
+    let cur = window.App.filters[key];
+    if (!Array.isArray(cur)) cur = [cur || 'All'];
+    const kept = cur.filter(function(v) { return v !== 'All' && opts.indexOf(v) > -1; });
+    window.App.filters[key] = kept.length ? kept : ['All'];
+    window._buildCheckboxes(key, opts);
+  });
+};
+
 window._buildCheckboxes = function(key, optionsArray) {
   const drop = document.getElementById('ms-drop-' + key); 
   if (!drop) return; 
@@ -1744,8 +1821,9 @@ window._buildCheckboxes = function(key, optionsArray) {
       else if (val !== 'All' && cb.checked) { const allCb = drop.querySelector('input[value="All"]'); if (allCb) allCb.checked = false; }
       let checkedVals = []; drop.querySelectorAll('input:checked').forEach(i => checkedVals.push(i.value));
       if (checkedVals.length === 0) { const allCb = drop.querySelector('input[value="All"]'); if (allCb) allCb.checked = true; checkedVals = ['All']; }
-      window.App.filters[key] = checkedVals; 
+      window.App.filters[key] = checkedVals;
       window._updateMsLabel(key);
+      if (key === 'zone' || key === 'state') window._refreshGeoDrops(key);
     };
     drop.appendChild(div);
   });
@@ -1759,6 +1837,9 @@ window.populateFilters = function(opts) {
     if (k === 'quarter') {
       optionsArray.push('All');
       (opts.fy || []).forEach(function(f) { if (f === 'All') return; (opts.quarter || []).forEach(function(q) { if (q === 'All') return; optionsArray.push(f + '|' + q); }); });
+    } else if (k === 'state' || k === 'hod') {
+      // Built after 'zone' in this same loop, so it already reflects the zone selection.
+      optionsArray = window._geoOptions(k) || opts[k] || ['All'];
     } else { optionsArray = opts[k] || ['All']; }
     window._buildCheckboxes(k, optionsArray);
   });

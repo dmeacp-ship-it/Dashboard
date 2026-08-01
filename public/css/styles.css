@@ -506,6 +506,9 @@ nav { padding: 4px 0; flex: 1; }
   padding: 24px 24px 20px; background: var(--bg-body);
   border-top-left-radius: 32px; box-shadow: inset 4px 4px 16px rgba(0,0,0,0.2);
   min-width: 0;
+  isolation: isolate;
+  transform: translateZ(0);
+  contain: layout style;
 }
 [data-theme="light"] #content {
   box-shadow: inset 4px 4px 16px rgba(0,0,0,0.04);
@@ -617,6 +620,21 @@ nav { padding: 4px 0; flex: 1; }
   overflow: hidden;
   gap: 0;
 }
+/* The pill never wraps below the label: the header is a fixed-height row and
+   the pill is vertically centred in it, so it lands at the same y-position on
+   every card. Long labels wrap to a second line rather than truncating. */
+/* 26px icon == two 10px/1.3 label lines, so the row is 26px tall whether the
+   label runs one line or two; flex-shrink:0 stops a tight card squashing it. */
+#kpi-grid .kpi-header-row { flex-wrap: nowrap; min-height: 26px; flex-shrink: 0; margin-bottom: 6px; }
+#kpi-grid .kpi-icon { width: 26px; height: 26px; font-size: 13px; }
+#kpi-grid .kpi-head-left { gap: 8px; }
+#kpi-grid .kpi-label {
+  font-size: 10px; letter-spacing: 0.04em; line-height: 1.3; min-width: 0;
+  white-space: normal; overflow-wrap: anywhere; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+#kpi-grid .kpi-delta,
+#kpi-grid .kpi-pill { flex-shrink: 0; font-size: 10px; padding: 4px 7px; line-height: 1; }
 [data-theme="light"] .kpi-card { box-shadow: var(--shadow-xs); }
 .kpi-card:hover { 
   transform: translateY(-5px); 
@@ -631,6 +649,7 @@ nav { padding: 4px 0; flex: 1; }
 }
 
 .kpi-header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; margin-bottom: 5px; }
+.kpi-head-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; }
 .kpi-icon {
   width: 28px; height: 28px; border-radius: 8px;
   background: var(--brand-muted); color: var(--kpi-color, var(--brand-primary));
@@ -644,6 +663,8 @@ nav { padding: 4px 0; flex: 1; }
 .kpi-delta { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 100px; }
 .kpi-delta.up   { background: rgba(16,185,129,0.15); color: var(--accent3); }
 .kpi-delta.down { background: rgba(239,68,68,0.15);  color: var(--danger); }
+/* Header badge pill — same metrics as .kpi-delta so both land in the same spot. */
+.kpi-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
 .kpi-sub { font-size: 11px; color: var(--text-faint); font-weight: 600; }
 
 /* ── TABLE ── */
@@ -658,41 +679,52 @@ nav { padding: 4px 0; flex: 1; }
   overflow-y: auto; overflow-x: auto; flex: 1; 
   background: transparent; min-height: 200px; 
   -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  contain: strict;
 }
 
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; contain: layout style; }
 thead { position: sticky; top: 0; z-index: 20; }
 thead th {
   position: sticky; top: 0; z-index: 10;
   background: var(--brand-primary) !important; color: #ffffff !important;
-  text-align: left; padding: 12px 18px; font-size: 11px; font-weight: 800;
-  text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
-  border-bottom: 1px solid var(--brand-primary) !important;
+  text-align: left; padding: 10px 14px; font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
+  border: none !important;
+  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 thead th.sticky-col, thead th[style*="sticky"] { 
   position: sticky;
   background: var(--brand-primary) !important; color: #ffffff !important; 
   z-index: 15 !important;
+  will-change: transform;
+  backface-visibility: hidden;
 }
+thead th:last-child { border-right: none !important; }
 
-tbody tr { transition: background var(--t-fast); cursor: default; }
+tbody tr { cursor: default; }
 tbody tr:nth-child(even) { background: transparent; }
-tbody tr:not(:last-child) td { border-bottom: 1px dashed var(--border) !important; }
-tbody td { padding: 12px 18px; color: var(--text-sub); vertical-align: middle; font-weight: 500; font-size: 13.5px; }
+tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border) !important; }
+tbody td { padding: 10px 14px; color: var(--text-sub); vertical-align: middle; font-weight: 500; font-size: 13px; }
 tbody td.sticky-col, tbody td[style*="sticky"] { 
   position: sticky;
   background-color: var(--bg-card) !important;
   color: var(--text-main) !important; 
   font-weight: 600 !important; 
-  z-index: 5 !important; 
+  z-index: 5 !important;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 tbody tr:hover td.sticky-col, tbody tr:hover td[style*="sticky"] {
   background-color: var(--bg-hover) !important;
 }
 
-tbody tr:hover { background: rgba(79,70,229,0.08) !important; }
-tbody tr:hover td:first-child { box-shadow: inset 4px 0 0 var(--brand-primary) !important; }
-tbody td:first-child { color: var(--text-muted); font-size: 12px; font-weight: 600; width: 44px; padding-right: 10px; }
+tbody tr:hover { background: rgba(79,70,229,0.05) !important; }
+tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--brand-primary) !important; }
+tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight: 600; width: 36px; padding-right: 8px; }
 
 /* ── BADGES ── */
 .badge {
@@ -1156,3 +1188,35 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
+
+/* Compare Mode Styles */
+.compare-float-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--popover-bg);
+  border: 1px solid var(--brand-primary);
+  border-radius: 100px;
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35);
+  backdrop-filter: blur(16px);
+  animation: floatBarIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.25) both;
+}
+
+@keyframes floatBarIn {
+  from { opacity: 0; transform: translate(-50%, 20px) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+tr.row-selected-compare td {
+  background-color: rgba(79, 70, 229, 0.12) !important;
+}
+
+tr.row-selected-compare td.sticky-col, tr.row-selected-compare td[style*="sticky"] {
+  background-color: rgba(79, 70, 229, 0.18) !important;
+}

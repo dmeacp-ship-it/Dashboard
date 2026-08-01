@@ -487,7 +487,7 @@ async function getFilterOptions(userProfile) {
   else if (role === ROLES.ZONAL_HEAD) scope.allowed_zones = (userProfile.allowed_zones && userProfile.allowed_zones.length) ? userProfile.allowed_zones : ['__none__'];
   else if (role === ROLES.STATE_MANAGER || role === ROLES.VIEWER) scope.allowed_states = userProfile.allowed_states || null;
 
-  const cacheKey = 'filterOptions_' + role + '_' +
+  const cacheKey = 'filterOptions_v2_' + role + '_' +
     ((scope.allowed_hods || scope.allowed_zones || scope.allowed_states || []).join('|'));
   return cached(cacheKey, async function () {
     const scopeFilter = { _scope: scope };
@@ -518,13 +518,29 @@ async function getFilterOptions(userProfile) {
       .filter(function (v, i, a) { return a.indexOf(v) === i; })
       .sort(function (a, b) { return _mSk(a).localeCompare(_mSk(b)); });
 
+    // Distinct zone/state/hod triples so the UI can cascade the geo pickers
+    // (pick a zone -> only its states, pick a state -> only its HODs).
+    const seenGeo = {}, geo = [];
+    rows.forEach(function (r) {
+      const z = String(_zone(r) || '').trim();
+      const s = String(_state(r) || '').trim();
+      const h = String(_hod(r) || '').trim();
+      const bad = function (v) { return !v || v.indexOf('#NAME?') > -1 || v.indexOf('N/A') > -1; };
+      if (bad(z) && bad(s) && bad(h)) return;
+      const key = z + '' + s + '' + h;
+      if (seenGeo[key]) return;
+      seenGeo[key] = 1;
+      geo.push({ zone: z, state: s, hod: h });
+    });
+
     return {
       fy: uniq(rows.map(function (r) { return _robustFy(r); })),
       quarter: uniq(rows.map(function (r) { return _qtr(r); })),
       month: ['All'].concat(months),
       state: uniq(rows.map(function (r) { return _state(r); })),
       zone: uniq(rows.map(function (r) { return _zone(r); })),
-      hod: uniq(rows.map(function (r) { return _hod(r); }))
+      hod: uniq(rows.map(function (r) { return _hod(r); })),
+      geo: geo
     };
   });
 }
