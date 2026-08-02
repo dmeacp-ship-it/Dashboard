@@ -260,15 +260,12 @@
 .fms-scope .lbl-progress-bg > div:first-child { border-radius: 999px 0 0 999px; }
 .fms-scope .lbl-progress-bg > div:last-child  { border-radius: 0 999px 999px 0; }
 
-/* ── order reference row (order detail modal) ── */
-.fms-scope .ref-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--sub);
-}
+/* ── .ref-row is intentionally NOT styled ──
+   It sits on a <tr> in the Reference Orders table and exists purely as a
+   selector hook for the search filter (see fms.js). Giving it any `display`
+   value overrides the table row layout, which detaches the <td>s from their
+   columns and makes the order number and customer name overlap. Leave it
+   unstyled; row appearance comes from the shared `.fms-scope tbody` rules. */
 
 /* ── live activity feed timeline ── */
 .fms-scope .tl-container { display: flex; flex-direction: column; }
