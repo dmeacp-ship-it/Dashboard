@@ -11,21 +11,33 @@ let CACHE_TS = Date.now();
  * Cache wrapper similar to GAS _cached()
  * Uses the CACHE_TS to partition cache keys. When CACHE_TS updates,
  * old keys naturally miss and eventually expire via TTL.
+ *
+ * @param {string}   key
+ * @param {Function} fn         producer, called only on a miss
+ * @param {number}  [ttlSeconds] per-entry TTL; defaults to CONFIG.CACHE_TTL (6h).
+ *   Callers that read live-ish sources (Google Sheets via getCustomReport /
+ *   getSheetHeaders / getSheetTabs) pass a shorter TTL — this argument was
+ *   previously accepted by those call sites but ignored here, so everything
+ *   silently sat on the 6-hour default.
  */
-async function cached(key, fn) {
+async function cached(key, fn, ttlSeconds) {
   const versionedKey = `${key}_${CACHE_TS}`;
-  
+
   const cachedData = cache.get(versionedKey);
   if (cachedData !== undefined) {
     return cachedData;
   }
 
   const freshData = await fn();
-  
+
   if (freshData !== undefined && freshData !== null) {
-    cache.set(versionedKey, freshData);
+    if (typeof ttlSeconds === 'number' && ttlSeconds > 0) {
+      cache.set(versionedKey, freshData, ttlSeconds);
+    } else {
+      cache.set(versionedKey, freshData);
+    }
   }
-  
+
   return freshData;
 }
 

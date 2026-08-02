@@ -232,6 +232,8 @@ function _mapOrder(row, gi) {
     plantStatus: _s(g('PLANT STATUS')),
     plantRemarks: _s(g('PLANT REMARKS')),
     specialRemarks: _s(g('SPECIAL REMARKS')),
+    // DO generation date is stamped into FINAL REMARKS as [DO_GEN_DATE:...]
+    doGenDate: (function (rem) { const m = String(rem || '').match(/\[DO_GEN_DATE:([^\]]+)\]/); return m ? m[1] : ''; })(g('FINAL REMARKS')),
     customerName: custName2 || custName1 || dealerName || dealerParty || '—'
   };
 }
@@ -279,6 +281,8 @@ async function _allOrders(force) {
 
 const _FACTORY = 'Cust. to Factory';
 const _STOCKF = 'Branch Stock order- Factory';
+// Statuses that take an order out of the open pipeline.
+const _TERMINAL = ['fully dispatched', 'rejected', 'cancelled', 'received', 'closed (short)'];
 
 function _applyFmsScope(items, scope) {
   // HOD filtering removed as requested: FMS tables are now globally visible
@@ -321,7 +325,10 @@ async function getFmsDashboard(scope) {
   const s = {
     total: 0, pendingCRR: 0, pendingAcc: 0, pendingPlant: 0, pendingDO: 0,
     onHold: 0, autoApproved: 0, accApproved: 0, dispatched: 0, rejected: 0,
-    factory: 0, stock: 0, totalValue: 0, approvedValue: 0, otifPct: 100
+    factory: 0, stock: 0, totalValue: 0, approvedValue: 0, otifPct: 100,
+    // Open-order breakdown (everything not in a terminal state)
+    open: 0, branchOrderOpen: 0, branchTransferOpen: 0,
+    stockOpen: 0, cvbOpen: 0, directOpen: 0, factoryOpen: 0
   };
   let completed = 0, otifOk = 0;
 
@@ -331,7 +338,9 @@ async function getFmsDashboard(scope) {
     if (st === 'Pending CRR') s.pendingCRR++;
     else if (st === 'Pending DO Generation') { s.pendingCRR++; s.pendingDO++; }
     else if (st === 'Pending Accounts' || st === 'Processing...') s.pendingAcc++;
-    else if (st === 'Pending Plant') s.pendingPlant++;
+    // Pending Plant only counts factory-bound work — branch orders sitting in
+    // this status are not the plant's queue.
+    else if (st === 'Pending Plant') { if (ot === _FACTORY || ot === _STOCKF) s.pendingPlant++; }
     else if (st === 'On Hold') s.onHold++;
     else if (st === 'Auto Approved') { s.autoApproved++; s.approvedValue += val; }
     else if (st === 'Accounts Approved') { s.accApproved++; s.approvedValue += val; }
@@ -345,6 +354,19 @@ async function getFmsDashboard(scope) {
     } else if (st === 'Rejected') s.rejected++;
     if (ot === _FACTORY) s.factory++;
     if (ot === _STOCKF) s.stock++;
+
+    // Open pipeline, split by what kind of order it is.
+    if (_TERMINAL.indexOf(String(st || '').toLowerCase()) === -1) {
+      s.open++;
+      const otL = String(ot || o.orderTypeForm || '').trim().toLowerCase();
+      if (otL.indexOf('stock') > -1) { s.stockOpen++; s.factoryOpen++; }
+      else if (otL.indexOf('factory') > -1) {
+        s.factoryOpen++;
+        if (String(o.customerName || '').toUpperCase().indexOf('VIRGO ACP INDUSTRIES') > -1) s.cvbOpen++;
+        else s.directOpen++;
+      } else if (otL.indexOf('transfer') > -1) s.branchTransferOpen++;
+      else s.branchOrderOpen++;
+    }
   });
   s.otifPct = completed > 0 ? Math.round((otifOk / completed) * 100) : 100;
   s.fetchedAt = fetchedAt;
@@ -354,8 +376,14 @@ async function getFmsDashboard(scope) {
 function _parseDate(s) {
   if (!s) return null;
   s = String(s).trim();
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // M/D/YYYY (sheet locale)
-  if (m) return new Date(+m[3], +m[1] - 1, +m[2]);
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // D/M/YYYY or M/D/YYYY
+  if (m) {
+    let p1 = +m[1], p2 = +m[2], y = +m[3];
+    let month = p1, day = p2;
+    if (p1 > 12) { day = p1; month = p2; }
+    else if (p2 > 12) { month = p1; day = p2; }
+    return new Date(y, month - 1, day);
+  }
   m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); // ISO
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
   const d = new Date(s);
@@ -584,59 +612,170 @@ async function getFmsPartySummary(scope) {
   return { orders: orders, fetchedAt: ordWrap.fetchedAt };
 }
 
-// Dispatch reconciliation audit — faithful port of getDispatchReconciliation
-// (read-only: no fix actions). 3 checks across ORDER RESPONSES vs DO PRODUCTS.
-async function getFmsReconcile(scope) {
+// Month-wise plant report — faithful port of getPlantMonthWiseAggregated.
+// Factory-bound orders only, bucketed by month, split into the three plant
+// categories, with per-order qty/sqft resolved from DO PRODUCTS where present.
+const _MW_STATUSES = ['Pending CRR', 'Pending Acc. Approval', 'Pending Plant', 'Under Production', 'Ready for Dispatch', 'Fully Dispatched'];
+const _MW_CATS = ['Customer Via Branch', 'Direct Customer to Factory', 'Stock Order'];
+const _MW_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function _mwZeroCat() { return { rCount: 0, rQty: 0, rSq: 0, dCount: 0, dQty: 0, dSq: 0, pCount: 0, pQty: 0, pSq: 0 }; }
+
+async function getFmsMonthWise(scope) {
   const [ordWrap, doData] = await Promise.all([_allOrders(false), _loadTab('DO PRODUCTS', false)]);
   let allOrds = ordWrap.orders;
   if (scope) allOrds = _applyFmsScope(allOrds, scope);
-  const orderMap = {};
-  allOrds.forEach((o) => { orderMap[o.orderNo] = o; });
 
+  // Per-order received/dispatched qty + sqft from the DO line items.
   const gi = _hindex(doData.headers);
-  const oNoIdx = gi('ORDER NUMBER'), prodIdx = gi('PROD STATUS'), qcIdx = gi('QC STATUS'),
-    qtyIdx = gi('QTY (SHEETS)'), codeIdx = gi('GRADE / COLOUR CODE');
-
+  const oNoIdx = gi('ORDER NUMBER'), qtyIdx = gi('QTY (SHEETS)'), dQtyIdx = gi('DISPATCH QTY'),
+    sqmIdx = gi('QTY (SQM)'), lenIdx = gi('LENGTH (MM)'), widIdx = gi('WIDTH (MM)');
   const doMap = {};
   doData.rows.forEach((r) => {
-    const dONo = _s(r[oNoIdx]); if (!dONo) return;
-    const dProd = _s(r[prodIdx]), dQc = _s(r[qcIdx]), dQty = _num(r[qtyIdx]), dCode = _s(r[codeIdx]);
-    if (!doMap[dONo]) doMap[dONo] = { totalQty: 0, unmarkedCount: 0, items: [] };
-    doMap[dONo].totalQty += dQty;
-    if (!(dProd === 'Dispatched' || dQc === 'Dispatched')) doMap[dONo].unmarkedCount++;
-    doMap[dONo].items.push({ code: dCode, prodStatus: dProd, qcStatus: dQc, qty: dQty });
+    const oNo = _s(r[oNoIdx]); if (!oNo) return;
+    if (!doMap[oNo]) doMap[oNo] = { recvQty: 0, recvSq: 0, dispQty: 0, dispSq: 0 };
+    const qty = _num(r[qtyIdx]), dQty = _num(r[dQtyIdx]), sqm = _num(r[sqmIdx]);
+    const sqftPerItem = sqm > 0
+      ? (sqm * 10.7639) / (qty || 1)
+      : (_num(r[lenIdx]) * _num(r[widIdx]) / 1000000) * 10.7639;
+    doMap[oNo].recvQty += qty;
+    doMap[oNo].recvSq += sqftPerItem * qty;
+    doMap[oNo].dispQty += dQty;
+    doMap[oNo].dispSq += sqftPerItem * dQty;
   });
 
-  const check1 = [], check2 = [], check3 = [];
-  Object.keys(orderMap).forEach((oNo) => {
-    const ord = orderMap[oNo], doi = doMap[oNo];
-    if (ord.status === 'Fully Dispatched' && doi && doi.unmarkedCount > 0) {
-      check1.push({ orderNo: oNo, customerName: ord.customerName, branchName: ord.branchName, orderType: ord.orderType, timestamp: ord.timestamp, unmarkedItems: doi.unmarkedCount, totalItems: doi.items.length });
+  const monthMap = {};
+  allOrds.forEach((o) => {
+    if (o.orderType !== _FACTORY && o.orderType !== _STOCKF) return;
+    if (_MW_STATUSES.indexOf(o.status) === -1) return;
+
+    const d = new Date(o.timestamp || o.deliveryDate);
+    if (isNaN(d.getTime())) return;
+    const mStr = _MW_MON[d.getMonth()] + ' ' + d.getFullYear();
+
+    if (!monthMap[mStr]) {
+      monthMap[mStr] = {
+        month: mStr, sortKey: d.getFullYear() * 100 + d.getMonth(),
+        ReceivedCount: 0, ReceivedQty: 0, ReceivedSqFt: 0,
+        DispatchedCount: 0, DispatchedQty: 0, DispatchedSqFt: 0,
+        PendingCount: 0, PendingQty: 0, PendingSqFt: 0,
+        cats: _MW_CATS.reduce((a, c) => { a[c] = _mwZeroCat(); return a; }, {})
+      };
     }
+
+    // Category: a VIRGO customer with a ref came via a branch, without one it
+    // is a stock order; anything else is a direct factory order.
+    const hasVirgo = String(o.customerName || '').toUpperCase().indexOf('VIRGO') !== -1;
+    const hasRef = String(o.orderRef || '').trim().length > 0;
+    const cat = hasVirgo ? (hasRef ? 'Customer Via Branch' : 'Stock Order') : 'Direct Customer to Factory';
+
+    const di = doMap[o.orderNo];
+    const oRecvQty = di ? di.recvQty : o.quantityOrdered;
+    const oRecvSq = di ? di.recvSq : 0;
+    const oDispQty = di ? di.dispQty : o.dispatchedQty;
+    const oDispSq = di ? di.dispSq : 0;
+    const done = o.status === 'Fully Dispatched';
+    const oPendQty = done ? 0 : Math.max(0, oRecvQty - oDispQty);
+    const oPendSq = done ? 0 : Math.max(0, oRecvSq - oDispSq);
+
+    const m = monthMap[mStr], c = m.cats[cat];
+    m.ReceivedCount++; m.ReceivedQty += oRecvQty; m.ReceivedSqFt += oRecvSq;
+    if (done) m.DispatchedCount++; else m.PendingCount++;
+    m.DispatchedQty += oDispQty; m.DispatchedSqFt += oDispSq;
+    m.PendingQty += oPendQty; m.PendingSqFt += oPendSq;
+
+    c.rCount++; c.rQty += oRecvQty; c.rSq += oRecvSq;
+    if (done) c.dCount++; else c.pCount++;
+    c.dQty += oDispQty; c.dSq += oDispSq;
+    c.pQty += oPendQty; c.pSq += oPendSq;
   });
-  Object.keys(doMap).forEach((oNo) => {
-    const ord = orderMap[oNo]; if (!ord) return;
-    const doi = doMap[oNo];
-    const diff = ord.quantityOrdered - doi.totalQty;
-    if (ord.quantityOrdered > 0 && doi.totalQty > 0 && Math.abs(diff) > 0.5 && ord.status !== 'Cancelled') {
-      check2.push({ orderNo: oNo, customerName: ord.customerName, branchName: ord.branchName, status: ord.status, timestamp: ord.timestamp, quantityOrdered: ord.quantityOrdered, dispatchedQty: ord.dispatchedQty, doTotal: doi.totalQty, diff: diff });
-    }
-  });
-  Object.keys(doMap).forEach((oNo) => {
-    const ord = orderMap[oNo]; if (!ord) return;
-    const doi = doMap[oNo];
-    const hasMarked = doi.items.some((i) => i.prodStatus === 'Dispatched' || i.qcStatus === 'Dispatched');
-    const orderIsDisp = ord.status === 'Fully Dispatched' || ord.status === 'Partially Dispatched';
-    if (hasMarked && !orderIsDisp && ord.status !== 'Cancelled') {
-      check3.push({ orderNo: oNo, customerName: ord.customerName, branchName: ord.branchName, status: ord.status, timestamp: ord.timestamp, markedCount: doi.items.filter((i) => i.prodStatus === 'Dispatched' || i.qcStatus === 'Dispatched').length, totalItems: doi.items.length });
-    }
-  });
-  return { check1: check1, check2: check2, check3: check3, fetchedAt: ordWrap.fetchedAt };
+
+  const months = Object.keys(monthMap).map((k) => monthMap[k]).sort((a, b) => b.sortKey - a.sortKey);
+  return { months: months, fetchedAt: ordWrap.fetchedAt };
 }
+
+// Delivery tracking — item-wise view of everything that has been dispatched,
+// with its delivery state. Fully-delivered lines drop off after 180 days so
+// the queue stays about live work. Read-only: no "mark delivered" action.
+const _DLV_STALE_DAYS = 180;
+const _DLV_OVERDUE_DAYS = 15;
+
+async function getFmsDelivery(scope) {
+  const [ordWrap, doData] = await Promise.all([_allOrders(false), _loadTab('DO PRODUCTS', false)]);
+  let allOrds = ordWrap.orders;
+  if (scope) allOrds = _applyFmsScope(allOrds, scope);
+  const byNo = {};
+  allOrds.forEach((o) => { byNo[o.orderNo.toUpperCase()] = o; });
+
+  const gi = _hindex(doData.headers);
+  const g = (r, n) => { const i = gi(n); return i === -1 ? '' : (r[i] == null ? '' : r[i]); };
+
+  const now = Date.now();
+  const rows = [];
+  const stat = { pending: 0, partial: 0, delivered: 0, pendingQty: 0, deliveredQty: 0, overdue: 0 };
+
+  doData.rows.forEach((r) => {
+    const orderNo = _s(g(r, 'ORDER NUMBER'));
+    if (!orderNo) return;
+    const dispQty = _num(g(r, 'DISPATCH QTY'));
+    if (dispQty <= 0) return;                       // not dispatched yet
+
+    const ord = byNo[orderNo.toUpperCase()] || {};
+    const dlvQty = _num(g(r, 'DELIVERED QTY'));
+    const dlvDateRaw = _s(g(r, 'DELIVERED DATE'));
+    const statusRaw = _s(g(r, 'DELIVERY STATUS'));
+
+    // Delivered state comes from qty first, falling back to the sheet's label.
+    let bucket;
+    if (dlvQty >= dispQty && dispQty > 0) bucket = 'delivered';
+    else if (dlvQty > 0) bucket = 'partial';
+    else bucket = /delivered/i.test(statusRaw) ? 'delivered' : 'pending';
+
+    const dispDate = _parseDate(ord.dispatchDate) || _parseDate(_s(g(r, 'DO DATE')));
+    const ageDays = dispDate ? Math.floor((now - dispDate.getTime()) / 86400000) : null;
+
+    // Retire long-settled lines.
+    if (bucket === 'delivered') {
+      const dd = _parseDate(dlvDateRaw) || dispDate;
+      if (dd && (now - dd.getTime()) / 86400000 > _DLV_STALE_DAYS) return;
+    }
+
+    const overdue = bucket !== 'delivered' && ageDays !== null && ageDays > _DLV_OVERDUE_DAYS;
+    stat[bucket]++;
+    if (bucket === 'delivered') stat.deliveredQty += dlvQty;
+    else { stat.pendingQty += Math.max(0, dispQty - dlvQty); stat.deliveredQty += dlvQty; }
+    if (overdue) stat.overdue++;
+
+    const len = _num(g(r, 'LENGTH (MM)')), wid = _num(g(r, 'WIDTH (MM)'));
+    rows.push({
+      orderNo: orderNo,
+      customer: ord.customerName || _s(g(r, 'CUSTOMER NAME')) || '—',
+      branch: ord.branchName || _s(g(r, 'LOCATION')) || '—',
+      code: _s(g(r, 'GRADE / COLOUR CODE')),
+      batch: _s(g(r, 'BATCH')),
+      size: len && wid ? len + ' × ' + wid : '',
+      dispatchQty: dispQty,
+      dispatchDate: ord.dispatchDate || _s(g(r, 'DO DATE')),
+      ageDays: ageDays,
+      bucket: bucket,
+      overdue: overdue,
+      deliveryStatus: statusRaw,
+      deliveredQty: dlvQty,
+      deliveredDate: dlvDateRaw,
+      deliveredBy: _s(g(r, 'DELIVERED BY')),
+      remarks: _s(g(r, 'DELIVERY REMARKS'))
+    });
+  });
+
+  // Oldest dispatches first — those are the ones that need chasing.
+  rows.sort((a, b) => (b.ageDays == null ? -1 : b.ageDays) - (a.ageDays == null ? -1 : a.ageDays));
+  return { rows: rows, stats: stat, fetchedAt: ordWrap.fetchedAt };
+}
+
 
 module.exports = {
   getFmsTable, listFmsTables,
   getFmsOrders, getFmsDashboard, getFmsOrderDetail,
-  getFmsPartySummary, getFmsReconcile, getFmsPlantItems,
+  getFmsPartySummary, getFmsPlantItems, getFmsMonthWise, getFmsDelivery,
   FMS_TABLES, FMS_SHEET_ID
 };

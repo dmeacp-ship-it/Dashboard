@@ -18,6 +18,57 @@ window.App = {
 };
 
 window.custSort        = 'sqm';
+
+// Global Table Sorting Registry & Helpers
+window.tableSortRules = {};
+
+window.toggleHeaderSort = function(tableId, field, refreshFnName) {
+  if (!tableId || !field) return;
+  if (!window.tableSortRules[tableId]) window.tableSortRules[tableId] = [];
+  const rules = window.tableSortRules[tableId];
+  const idx = rules.findIndex(r => r.field === field);
+  if (idx > -1) {
+    if (rules[idx].dir === 'asc') rules[idx].dir = 'desc';
+    else rules.splice(idx, 1);
+  } else {
+    window.tableSortRules[tableId] = [{ field: field, dir: 'asc' }];
+  }
+  if (refreshFnName && typeof window[refreshFnName] === 'function') {
+    window[refreshFnName](1);
+  } else if (typeof window.loadPage === 'function') {
+    window.loadPage(window.App.currentPage, 1);
+  }
+};
+
+window._getSortIndicator = function(tableId, field) {
+  const rules = (window.tableSortRules && window.tableSortRules[tableId]) || [];
+  const r = rules.find(x => x.field === field);
+  if (!r) return '<span style="opacity:0.35; margin-left:4px; font-size:10px; cursor:pointer;" title="Click to sort">↕</span>';
+  return r.dir === 'asc' 
+    ? '<span style="color:var(--brand-primary); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Ascending (Click to switch to Descending)">↑</span>' 
+    : '<span style="color:var(--brand-primary); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Descending (Click to remove sort)">↓</span>';
+};
+
+window.applyMultiSort = function(data, tableId) {
+  const rules = window.tableSortRules[tableId];
+  if (!rules || !rules.length) return data;
+  return data.sort(function(a, b) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      let valA = a[rule.field];
+      let valB = b[rule.field];
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+      let cmp = 0;
+      const numA = !isNaN(parseFloat(valA)) && isFinite(valA);
+      const numB = !isNaN(parseFloat(valB)) && isFinite(valB);
+      if (numA && numB) cmp = parseFloat(valA) - parseFloat(valB);
+      else cmp = String(valA).localeCompare(String(valB));
+      if (cmp !== 0) return rule.dir === 'asc' ? cmp : -cmp;
+    }
+    return 0;
+  });
+};
 window.inactiveDays    = 90;
 window.rfmSegFilter    = 'All';
 window.prodSort        = 'sqm';
@@ -51,6 +102,25 @@ window.tableAIHistory = {};
 window.MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 window._kpiTooltips = [];
 window._appReady    = false;
+
+/* ── HTML escaping ──────────────────────────────────────────────────────────
+   Every value that reaches the dashboard originates in a Google Sheet (customer
+   names, HOD names, states, item descriptions, …), so it is untrusted input:
+   anyone who can edit a source sheet could otherwise inject markup into every
+   viewer's session. Wrap such values before they go into an innerHTML string.
+
+   Escapes the five characters that matter in both element text and quoted
+   attribute values, so `title="${esc(v)}"` is safe too. Numbers formatted by
+   window.fmt.*, badge class names and literal markup do NOT need this. */
+window.esc = function(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
 
 window.theme = function() { return document.documentElement.getAttribute('data-theme') || 'dark'; };
 window.tc = function() { return window.theme() === 'light' ? '#374151' : '#d1d5db'; };
@@ -554,13 +624,13 @@ window.addConnectionRow = function(id = '', name = '', url = '', key = '', isAct
   row.innerHTML = `
     ${activeBadge}
     <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Connection Name</label><input type="text" class="form-input conn-name" placeholder="e.g. Primary Database" value="${name}" /></div>
+      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Connection Name</label><input type="text" class="form-input conn-name" placeholder="e.g. Primary Database" value="${window.esc(name)}" /></div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase URL</label><input type="text" class="form-input conn-url" placeholder="https://..." value="${url}" /></div>
+      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase URL</label><input type="text" class="form-input conn-url" placeholder="https://..." value="${window.esc(url)}" /></div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase Key</label><input type="password" class="form-input conn-key" placeholder="eyJ..." value="${key}" /></div>
+      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase Key</label><input type="password" class="form-input conn-key" placeholder="eyJ..." value="${window.esc(key)}" /><div style="font-size:10px;color:var(--text3);margin-top:3px;">Stored keys are masked. Leave as-is to keep the current key; type a new one to replace it.</div></div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
       ${setActiveBtn}
@@ -1563,7 +1633,7 @@ window.loadUsers = async function() {
         : (u.role === 'zonal_head') ? ((u.allowed_zones || []).join(', ') || '—')
         : 'All data';
       htmlStr += '<tr>'
-        + '<td style="padding:12px 18px;"><b>' + (u.full_name || u.username) + '</b><br><span style="color:var(--text-muted);font-size:11px;">@' + u.username + '</span>'
+        + '<td style="padding:12px 18px;"><b>' + window.esc(u.full_name || u.username) + '</b><br><span style="color:var(--text-muted);font-size:11px;">@' + window.esc(u.username) + '</span>'
         + '<div style="color:var(--text-muted);font-size:10.5px;margin-top:3px;max-width:260px;">' + scope + '</div></td>'
         + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
         + '<td style="padding:12px 18px;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
@@ -1904,19 +1974,23 @@ window.submitEditUser = function() {
 };
 
 window.updateMyPassword = function() {
+  var cur = document.getElementById('profile-current-password').value;
   var pwd = document.getElementById('profile-new-password').value;
   var conf = document.getElementById('profile-confirm-password').value;
+  if (!cur) return window.toast('Enter your current password.', 'error');
   if (!pwd) return window.toast('Password cannot be empty.', 'error');
+  if (pwd.length < 8) return window.toast('New password must be at least 8 characters.', 'error');
   if (pwd !== conf) return window.toast('Passwords do not match.', 'error');
-  
+
   var btn = document.querySelector('#tab-account .btn-primary');
   var origText = btn.innerHTML;
   btn.innerHTML = '<i class="ph ph-spinner spin"></i> Updating...';
   btn.disabled = true;
-  
-  window.api('updateMyPassword', { newPassword: pwd })
+
+  window.api('updateMyPassword', { currentPassword: cur, newPassword: pwd })
     .then(function() {
       window.toast('Password updated successfully.', 'success');
+      document.getElementById('profile-current-password').value = '';
       document.getElementById('profile-new-password').value = '';
       document.getElementById('profile-confirm-password').value = '';
     })

@@ -21,13 +21,46 @@
   function debounce(fn, ms) { var t; return function () { var a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
 
   var _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  function _parseDate(str) {
+  /**
+   * Parses a sheet date. Handles D/M/YYYY, M/D/YYYY and ISO.
+   *
+   * `preferPast` resolves the genuinely ambiguous case. The ORDER RESPONSES tab
+   * contains MIXED formats — most rows are month-first ("4/10/2026" = 10 Apr),
+   * but a subset (all PANCHKULA-BRANCH) are day-first ("12/6/2026" = 12 Jun).
+   * When both parts are <= 12 there is no way to tell them apart from the string
+   * alone. For fields that record something that ALREADY HAPPENED — order
+   * timestamp, CRR/accounts/dispatch stamps, DO dates — a reading that lands in
+   * the future is impossible, so we flip to the other interpretation.
+   *
+   * Left off (default false) for fields that are legitimately in the future,
+   * above all DELIVERY REQUIRED ON. Never enable it for those.
+   *
+   * Without this, those rows parsed months ahead of today, which made
+   * `Date.now() - ts` negative and rendered every one of them as "Just now" at
+   * the top of the Live Activity Feed, burying all genuinely recent events.
+   */
+  function _parseDate(str, preferPast) {
     if (!str) return null;
     var s = String(str).trim();
-    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\s,T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/); // M/D/YYYY h:mm
-    if (m) return new Date(+m[3], +m[1] - 1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
-    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[\sT](\d{1,2}):(\d{2}))?/); // ISO
-    if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\s,T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/); // D/M/YYYY or M/D/YYYY
+    if (m) {
+      var p1 = +m[1], p2 = +m[2], y = +m[3], hh = +(m[4] || 0), mm = +(m[5] || 0), ss = +(m[6] || 0);
+      var month = p1, day = p2;
+      var ambiguous = false;
+      if (p1 > 12) { day = p1; month = p2; }          // unambiguously day-first
+      else if (p2 > 12) { month = p1; day = p2; }     // unambiguously month-first
+      else { ambiguous = true; }                      // both <= 12: could be either
+      var d1 = new Date(y, month - 1, day, hh, mm, ss);
+      if (preferPast && ambiguous && d1.getTime() > Date.now()) {
+        // month-first puts this in the future, which is impossible for a
+        // recorded event — read it day-first instead.
+        var swapped = new Date(y, day - 1, month, hh, mm, ss);
+        if (!isNaN(swapped.getTime()) && swapped.getTime() <= Date.now()) return swapped;
+      }
+      return d1;
+    }
+    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?)?/); // ISO
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
     var d = new Date(s); return isNaN(d.getTime()) ? null : d;
   }
   function _fmtDate(str, withTime) {
@@ -107,13 +140,28 @@
   function put(key, v) { FMS.state.cache[key] = v; FMS.state.ts[key] = Date.now(); }
 
   /* ───────────────────────── nav config ───────────────────────── */
-  var SUBS = [
-    { v: 'all-orders',    ic: 'ph-list-bullets',          lb: 'All Orders' },
-    { v: 'plant',         ic: 'ph-factory',               lb: 'Plant & Dispatch' },
-    { v: 'party-summary', ic: 'ph-list-magnifying-glass', lb: 'Party Summary Report' }
+  // Every FMS view lives under one sidebar group.
+  // Top-level entry, sits beside the main Dashboard rather than in the group.
+  var DASH_NAV = { v: 'dash', ic: 'ph-gauge', lb: 'FMS Dashboard' };
+  var REPORTS = [
+    { v: 'all-orders',        ic: 'ph-list-bullets',            lb: 'All Orders' },
+    { v: 'order-lifecycle',   ic: 'ph-clock',                   lb: 'Order Lifecycle' },
+    { v: 'month-wise',        ic: 'ph-calendar',                lb: 'Month-Wise Report' },
+    { v: 'reference-orders',  ic: 'ph-link',                    lb: 'Reference Orders' },
+    { v: 'plant',             ic: 'ph-factory',                 lb: 'Plant & Dispatch' },
+    { v: 'dispatch-history',  ic: 'ph-clock-counter-clockwise', lb: 'Dispatch History' },
+    { v: 'delivery-tracking', ic: 'ph-seal-check',              lb: 'Delivery Tracking' }
   ];
+  // Queue views are reachable from the dashboard action pills, but are not
+  // sidebar entries of their own.
+  var QUEUES = {
+    crr:  { lb: 'CRR Queue',       ic: 'ph-clipboard-text' },
+    acc:  { lb: 'Accounts Queue',  ic: 'ph-currency-circle-dollar' },
+    hold: { lb: 'On Hold Orders',  ic: 'ph-pause-circle' }
+  };
   var VIEW_TITLE = {};
-  SUBS.forEach(function (s) { VIEW_TITLE[s.v] = s.lb; });
+  REPORTS.concat([DASH_NAV]).forEach(function (s) { VIEW_TITLE[s.v] = s.lb; });
+  Object.keys(QUEUES).forEach(function (k) { VIEW_TITLE[k] = QUEUES[k].lb; });
 
   // generic sheet-table views (server-paginated)
   var SHEET_VIEWS = {
@@ -144,31 +192,40 @@
       '<section id="page-fmsoms" class="page fms-scope"><div id="fms-host"></div></section>');
   }
 
-  function injectNav() {
-    var nav = document.querySelector('#sidebar nav');
-    if (!nav || document.getElementById('fms-nav-root')) return;
-    var sub = SUBS.map(function (s) {
+  function _navGroup(rootId, btnId, menuId, icon, label, items) {
+    var sub = items.map(function (s) {
       return '<div class="nav-item" data-page="fmsoms" data-fms="' + s.v + '" onclick="FMS.open(\'' + s.v + '\')">' +
         '<span class="nav-icon"><i class="ph ' + s.ic + '"></i></span><span class="nav-label">' + esc(s.lb) + '</span></div>';
     }).join('');
-    var html = '<div id="fms-nav-root" class="nav-group-wrapper">' +
-      '<div class="nav-group-btn" id="fms-group-btn" onclick="window.togglePopover(this, \'fms-submenu\', event)">' +
-      '<span class="nav-group-icon"><i class="ph ph-stack-simple"></i></span><span class="nav-group-label">FMS — OMS</span>' +
+    return '<div id="' + rootId + '" class="nav-group-wrapper">' +
+      '<div class="nav-group-btn" id="' + btnId + '" onclick="window.togglePopover(this, \'' + menuId + '\', event)">' +
+      '<span class="nav-group-icon"><i class="ph ' + icon + '"></i></span><span class="nav-group-label">' + esc(label) + '</span>' +
       '<span class="nav-chevron"><i class="ph ph-caret-right"></i></span></div>' +
-      '<div class="nav-submenu" id="fms-submenu">' + sub + '</div></div>';
+      '<div class="nav-submenu" id="' + menuId + '">' + sub + '</div></div>';
+  }
+
+  function injectNav() {
+    var nav = document.querySelector('#sidebar nav');
+    if (!nav || document.getElementById('fms-nav-root')) return;
+    var html =
+      '<div class="nav-item" id="fms-dash-nav" data-page="fmsoms" data-fms="' + DASH_NAV.v + '" onclick="FMS.open(\'' + DASH_NAV.v + '\')">' +
+      '<span class="nav-icon"><i class="ph ' + DASH_NAV.ic + '"></i></span><span class="nav-label">' + esc(DASH_NAV.lb) + '</span></div>' +
+      _navGroup('fms-nav-root', 'fms-rep-btn', 'fms-rep-submenu', 'ph-chart-bar', 'Live FMS Reports', REPORTS);
     var dash = nav.querySelector('.nav-item[data-page="overview"]');
     if (dash) dash.insertAdjacentHTML('afterend', html);
     else nav.insertAdjacentHTML('beforeend', html);
   }
 
   function syncNav() {
-    document.querySelectorAll('#fms-submenu .nav-item').forEach(function (el) {
+    // The main router marks every [data-page="fmsoms"] item active, so narrow
+    // it back down to whichever FMS view is actually showing.
+    document.querySelectorAll('.nav-item[data-fms]').forEach(function (el) {
       el.classList.toggle('active', el.dataset.fms === FMS.state.view);
     });
-    var b = document.getElementById('fms-group-btn');
-    if (b) b.classList.toggle('fms-on', SUBS.some(function (s) { return s.v === FMS.state.view; }));
+    var rb = document.getElementById('fms-rep-btn');
+    if (rb) rb.classList.toggle('fms-on', REPORTS.some(function (s) { return s.v === FMS.state.view; }));
     var pt = document.getElementById('page-title');
-    if (pt) pt.textContent = VIEW_TITLE[FMS.state.view] || 'FMS — OMS';
+    if (pt) pt.textContent = VIEW_TITLE[FMS.state.view] || 'Live FMS Reports';
   }
 
   /* ───────────────────────── public nav ───────────────────────── */
@@ -194,61 +251,115 @@
   }
   function render() {
     var v = FMS.state.view;
+    if (v === 'dash') return viewDash();
+    if (QUEUES[v]) return viewOrders(v, QUEUES[v].lb, QUEUES[v].ic, false);
+    if (v === 'order-lifecycle') return viewLifecycle();
+    if (v === 'month-wise') return viewMonthWise();
+    if (v === 'reference-orders') return viewReferenceOrders();
     if (v === 'plant') {
       if (!_isAdmin()) return setC(empt('ph-lock', 'Restricted', 'Plant & Dispatch is available to Admins only.'));
       return viewPlantItems();
     }
-    if (v === 'party-summary') return viewPartySummary();
-    // default + 'all-orders' → KPI cards (from dashboard) merged with the All Orders table
-    return viewOrders('all', 'All Orders', 'ph-list-bullets', true);
+    if (v === 'dispatch-history') return viewSheet('dispatch-history');
+    if (v === 'delivery-tracking') return viewDelivery();
+    // default + 'all-orders' → the table on its own; KPI cards live on Dashboard
+    return viewOrders('all', 'All Orders', 'ph-list-bullets', false);
   }
 
-  // Hide the Plant & Dispatch menu item for non-admins (called after login).
+  // Plant & Dispatch exposes factory-floor data — hide it for non-admins.
   FMS.applyRole = function () {
-    var el = document.querySelector('#fms-submenu .nav-item[data-fms="plant"]');
+    var el = document.querySelector('#fms-rep-submenu .nav-item[data-fms="plant"]');
     if (el) el.style.display = _isAdmin() ? '' : 'none';
   };
 
   /* ───────────────────────── DASHBOARD ───────────────────────── */
+  // KPI set mirrors the FMS admin dashboard: open pipeline broken down by
+  // order type, rather than lifetime totals.
+  function statCards(d) {
+    return sc('ph-folder-open', d.open || 0, 'ca', 'Open Orders') +
+      sc('ph-currency-circle-dollar', d.pendingAcc || 0, 'co', 'Pend. Accounts') +
+      sc('ph-clipboard-text', d.pendingCRR || 0, 'cy', 'Pend. CRR') +
+      sc('ph-pause-circle', d.onHold || 0, 'ck', 'On Hold') +
+      sc('ph-buildings', d.branchOrderOpen || 0, 'co', 'Branch Ord.') +
+      sc('ph-arrows-left-right', d.branchTransferOpen || 0, 'cr', 'Br. Transfer') +
+      sc('ph-factory', d.factoryOpen || 0, 'ct', 'Open Factory') +
+      sc('ph-git-branch', d.cvbOpen || 0, 'ca', 'Via Branch') +
+      sc('ph-factory', d.directOpen || 0, 'cp', 'Direct Factory') +
+      sc('ph-stack', d.stockOpen || 0, 'ct', 'Stock Ord.') +
+      sc('ph-target', (d.otifPct || 0) + '%', 'cg', 'OTIF Score');
+  }
+
+  // Open-pipeline counts, derived from the same order list that feeds the
+  // donut and leaderboard. Computing them here (rather than trusting the
+  // server payload) keeps the cards and the chart from ever disagreeing.
+  function deriveOpenStats(orders) {
+    var s = { open: 0, branchOrderOpen: 0, branchTransferOpen: 0, factoryOpen: 0, cvbOpen: 0, directOpen: 0, stockOpen: 0 };
+    (orders || []).forEach(function (o) {
+      if (DASH_DONE.indexOf(String(o.status || '').trim().toLowerCase()) > -1) return;
+      s.open++;
+      var t = String(o.orderType || o.orderTypeForm || '').trim().toLowerCase();
+      if (t.indexOf('stock') > -1) { s.stockOpen++; s.factoryOpen++; }
+      else if (t.indexOf('factory') > -1) {
+        s.factoryOpen++;
+        if (String(o.customerName || '').toUpperCase().indexOf('VIRGO ACP INDUSTRIES') > -1) s.cvbOpen++;
+        else s.directOpen++;
+      } else if (t.indexOf('transfer') > -1) s.branchTransferOpen++;
+      else s.branchOrderOpen++;
+    });
+    return s;
+  }
+
   function viewDash() {
     if (fresh('dash')) { renderDash(FMS.state.cache.dash); }
     else setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading dashboard…</div>');
     var my = ++FMS._req;
     Promise.all([api('getFmsDashboard'), api('getFmsOrders', { queue: 'all' })]).then(function (res) {
       if (my !== FMS._req || FMS.state.view !== 'dash') return;
-      put('dash', res[0]); put('orders_all', res[1].orders);
-      renderDash(res[0]);
+      var stats = Object.assign({}, res[0], deriveOpenStats(res[1].orders));
+      put('dash', stats); put('orders_all', res[1].orders);
+      renderDash(stats);
     }).catch(function (e) { if (FMS.state.view === 'dash') setC(empt('ph-warning', 'Error Loading Dashboard', e.message)); });
   }
 
-  function renderDash(d) {
-    var cards =
-      sc('ph-package', d.total, 'ca', 'Total') +
-      sc('ph-clipboard-text', d.pendingCRR, 'cy', 'CRR Queue') +
-      sc('ph-currency-circle-dollar', d.pendingAcc, 'co', 'Pend. Acc') +
-      sc('ph-factory', d.pendingPlant, 'ct', 'Pend. Plant') +
-      sc('ph-pause-circle', d.onHold, 'ck', 'On Hold') +
-      sc('ph-check-circle', d.autoApproved, 'cg', 'Auto Appr') +
-      sc('ph-check-circle', d.accApproved, 'cg', 'Acc Appr') +
-      sc('ph-stack', d.stock, 'ct', 'Stock') +
-      sc('ph-truck', d.dispatched, 'cd', 'Dispatched') +
-      sc('ph-target', d.otifPct + '%', 'cg', 'OTIF Score') +
-      sc('ph-x-circle', d.rejected, 'cr', 'Rejected');
+  var DASH_DONE = ['fully dispatched', 'rejected', 'cancelled', 'received', 'closed (short)'];
+  var DASH_TYPES = {
+    'Branch Order':    '#f59e0b',
+    'Stock Order':     '#14b8a6',
+    'Factory Order':   '#a855f7',
+    'Branch Transfer': '#ec4899'
+  };
+  // Bucket used by both the donut and the leaderboard bars.
+  function dashBucket(o) {
+    var t = String(o.orderType || o.orderTypeForm || '').trim().toLowerCase();
+    if (t.indexOf('stock') > -1) return 'Stock Order';
+    if (t.indexOf('factory') > -1) return 'Factory Order';
+    if (t.indexOf('transfer') > -1) return 'Branch Transfer';
+    return 'Branch Order';
+  }
+  function timeAgo(ts) {
+    var diff = Date.now() - ts;
+    // Defensive: a stamp ahead of "now" means the date could not be
+    // disambiguated. Show the actual date rather than claiming it just happened.
+    if (diff < 0) return _fmtDate(new Date(ts), false);
+    if (diff < 60000) return 'Just now';
+    var mins = Math.floor(diff / 60000); if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(diff / 3600000); if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(diff / 86400000);
+    return days === 1 ? 'Yesterday' : days + 'd ago';
+  }
 
+  function renderDash(d) {
     var pills = [
       ['all-orders', 'btn-primary', 'package', 'All Orders'],
       ['crr', 'btn-ghost', 'clipboard-text', 'CRR Queue'],
       ['acc', 'btn-ghost', 'currency-circle-dollar', 'Accounts Queue'],
-      ['plant', 'btn-plant', 'factory', 'Plant & Dispatch'],
       ['hold', 'btn-hold', 'pause-circle', 'On Hold']
     ].map(function (b) { return '<button class="btn ' + b[1] + '" onclick="FMS.open(\'' + b[0] + '\')"><i class="ph ph-' + b[2] + '"></i> ' + b[3] + '</button>'; }).join('');
 
-    setC('<div class="stats" style="margin-bottom:18px">' + cards + '</div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">' + pills + '</div>' +
-      '<div class="card" style="margin-bottom:0">' +
-      '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-clock-counter-clockwise accent"></i> Recent Orders Ageing</span>' +
-      '<button class="btn btn-ghost btn-sm" onclick="FMS.open(\'all-orders\')">View All</button></div>' +
-      '<div class="tbl-wrap" style="max-height:calc(100vh - 380px)"><div id="fms-ageing" style="padding:34px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading…</div></div></div>');
+    setC('<div class="stats" style="margin-bottom:16px">' + statCards(d) + '</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' + pills + '</div>' +
+      '<div class="dash-grid" id="fms-dashgrid">' +
+      '<div class="card" style="margin-bottom:0;padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading analytics &amp; timeline…</div></div>');
 
     // count-up animation
     requestAnimationFrame(function () {
@@ -260,50 +371,135 @@
     });
 
     var orders = FMS.state.cache.orders_all;
-    if (orders) renderAgeing(orders);
-    else api('getFmsOrders', { queue: 'all' }).then(function (r) { put('orders_all', r.orders); if (FMS.state.view === 'dash') renderAgeing(r.orders); });
+    if (orders) renderDashGrid(orders);
+    else api('getFmsOrders', { queue: 'all' }).then(function (r) { put('orders_all', r.orders); if (FMS.state.view === 'dash') renderDashGrid(r.orders); });
   }
 
-  function renderAgeing(orders) {
-    var wrap = document.getElementById('fms-ageing'); if (!wrap) return;
-    if (!orders.length) { wrap.innerHTML = empt('ph-package', 'No orders', 'Nothing to show.'); return; }
-    var now = Date.now();
-    var rows = orders.slice(0, 30).map(function (o) {
-      var sTime = _parseDate(o.timestamp);
-      var isDone = o.status === 'Fully Dispatched' || o.status === 'Rejected';
-      var eTime = isDone && o.dispatchDate ? _parseDate(o.dispatchDate) : new Date(now);
-      var ageStr = '—', cls = 'bdg';
-      if (sTime && eTime) {
-        var days = Math.floor((eTime.getTime() - sTime.getTime()) / 86400000);
-        ageStr = days <= 0 ? 'Today' : days + ' Day' + (days > 1 ? 's' : '');
-        cls = isDone ? 'b-full' : (days > 3 ? 'b-rej' : 'b-crr');
-      }
-      return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')">' +
-        '<td class="fwb accent" style="padding:11px 16px">' + esc(o.orderNo) + '</td>' +
-        '<td style="padding:11px 16px"><div class="fw5" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.customerName) + '">' + esc(o.customerName) + '</div><div class="muted text-xs">' + esc(o.branchName || '—') + '</div></td>' +
-        '<td style="padding:11px 16px">' + tBadge(o.orderType || o.orderTypeForm) + '</td>' +
-        '<td class="muted text-sm" style="padding:11px 16px">' + _fmtDate(o.timestamp, true) + '</td>' +
-        '<td style="padding:11px 16px">' + sBadge(o.status) + '</td>' +
-        '<td class="tc" style="padding:11px 16px"><span class="badge ' + cls + '">' + ageStr + '</span></td></tr>';
-    }).join('');
+  // Donut by order type + branch leaderboard + activity timeline, all derived
+  // from the same order list.
+  function renderDashGrid(orders) {
+    var wrap = document.getElementById('fms-dashgrid'); if (!wrap) return;
     FMS.state.currentTableData = orders;
-    wrap.innerHTML = '<table><thead><tr><th>Order No</th><th>Customer &amp; Branch</th><th>Type</th><th>Submitted</th><th>Status</th><th class="tc">Ageing</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    if (!orders || !orders.length) {
+      wrap.innerHTML = '<div class="card" style="grid-column:1/-1;padding:40px;text-align:center" class="muted"><i class="ph ph-package"></i><p>No orders found.</p></div>';
+      return;
+    }
+    var active = orders.filter(function (o) { return DASH_DONE.indexOf(String(o.status || '').trim().toLowerCase()) === -1; });
+
+    /* ── donut ── */
+    var counts = {}; Object.keys(DASH_TYPES).forEach(function (k) { counts[k] = 0; });
+    active.forEach(function (o) { counts[dashBucket(o)]++; });
+    var total = active.length, R = 42, C = 2 * Math.PI * R;
+    var segs = '', legend = '', cum = 0;
+    Object.keys(DASH_TYPES).forEach(function (name) {
+      var n = counts[name]; if (!n) return;
+      var pct = n / total, len = pct * C, col = DASH_TYPES[name];
+      segs += '<circle cx="60" cy="60" r="' + R + '" fill="transparent" stroke="' + col + '" stroke-width="10" ' +
+        'stroke-dasharray="' + len.toFixed(2) + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + (-(cum * C)).toFixed(2) + '" transform="rotate(-90 60 60)"/>';
+      legend += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + col + '"></span>' +
+        '<span style="font-weight:500;color:var(--text)">' + esc(name) + '</span></div>' +
+        '<span style="font-weight:700;color:var(--sub)">' + n + ' <span style="font-weight:400;color:var(--muted);font-size:10px">(' + Math.round(pct * 100) + '%)</span></span></div>';
+      cum += pct;
+    });
+    if (!total) {
+      segs = '<circle cx="60" cy="60" r="' + R + '" fill="transparent" stroke="var(--border2)" stroke-width="10"/>';
+      legend = '<div class="muted tc" style="font-size:12px;padding:20px 0">No active orders in workflow.</div>';
+    }
+
+    /* ── leaderboard: active load per branch, split by order type ── */
+    var byBranch = {};
+    active.forEach(function (o) {
+      var k = String(o.branchName || 'Unknown').trim() || 'Unknown';
+      if (!byBranch[k]) byBranch[k] = { total: 0, factory: 0, stock: 0, transfer: 0 };
+      byBranch[k].total++;
+      var t = String(o.orderType || o.orderTypeForm || '').trim();
+      if (t === 'Cust. to Factory') byBranch[k].factory++;
+      else if (t === 'Branch Stock order- Factory') byBranch[k].stock++;
+      else byBranch[k].transfer++;
+    });
+    var ranked = Object.keys(byBranch).map(function (k) { return [k, byBranch[k]]; })
+      .sort(function (a, b) { return b[1].total - a[1].total; });
+    var board;
+    if (!ranked.length) board = '<div class="muted text-sm tc" style="padding:10px 0">No active branch load.</div>';
+    else {
+      var max = ranked[0][1].total;
+      board = ranked.map(function (e) {
+        var name = e[0], c = e[1];
+        var seg = function (v, col, label) {
+          return v > 0 ? '<div style="width:' + ((v / max) * 100) + '%;background:' + col + ';height:100%" title="' + label + ': ' + v + '"></div>' : '';
+        };
+        var key = function (v, col, label) {
+          return v > 0 ? '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + col + ';margin-right:4px"></span>' + label + ': <strong>' + v + '</strong></span>' : '';
+        };
+        return '<div style="margin-bottom:12px">' +
+          '<div class="lbl-row"><span style="color:var(--text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:180px;font-weight:600">' + esc(name) + '</span>' +
+          '<span style="font-weight:700;color:var(--accentH)">' + c.total + ' <span style="font-weight:400;color:var(--muted);font-size:11px">order' + (c.total > 1 ? 's' : '') + '</span></span></div>' +
+          '<div class="lbl-progress-bg">' + seg(c.factory, '#a855f7', 'Factory') + seg(c.stock, '#14b8a6', 'Stock') + seg(c.transfer, '#f59e0b', 'Branch/Transfer') + '</div>' +
+          '<div style="display:flex;gap:10px;font-size:10px;color:var(--muted);margin-top:4px;flex-wrap:wrap">' +
+          key(c.factory, '#a855f7', 'Factory') + key(c.stock, '#14b8a6', 'Stock') + key(c.transfer, '#f59e0b', 'Branch') + '</div></div>';
+      }).join('');
+    }
+
+    /* ── activity feed: one event per workflow stamp, newest first ── */
+    var events = [];
+    orders.forEach(function (o) {
+      var base = { orderNo: o.orderNo, branch: o.branchName || '—', customer: o.customerName || 'Unknown' };
+      var push = function (raw, title, desc, icon, color) {
+        var d = _parseDate(raw, true); if (!d) return;
+        events.push({ orderNo: base.orderNo, branch: base.branch, ts: d.getTime(), title: title, desc: desc, icon: icon, color: color });
+      };
+      push(o.timestamp, 'Order Submitted', 'submitted for ' + base.customer, 'ph-plus-circle', 'var(--accent)');
+      push(o.crrDate, 'CRR Approved', 'approved & DO pending (by ' + (o.crrBy || 'CRR') + ')', 'ph-clipboard-text', '#f59e0b');
+      if (o.accDate) {
+        var hold = String(o.status || '').toLowerCase().indexOf('hold') > -1;
+        push(o.accDate, hold ? 'Placed on Credit Hold' : 'Accounts Approved',
+          hold ? 'on hold: ' + (o.finalRemarks || 'limit exceeded') : 'credit approved (by ' + (o.accBy || 'Accounts') + ')',
+          hold ? 'ph-pause-circle' : 'ph-check-circle', hold ? '#ef4444' : 'var(--green)');
+      }
+      push(o.dispatchDate, o.status === 'Fully Dispatched' ? 'Fully Dispatched' : 'Partially Dispatched',
+        'dispatched ' + o.dispatchedQty + ' sheets (Bill: ' + (o.dispatchBill || 'N/A') + ')', 'ph-truck', 'var(--teal)');
+      push(o.rejectedDate, 'Order Rejected', 'rejected: ' + (o.finalRemarks || 'credit check failed'), 'ph-x-circle', '#ef4444');
+    });
+    events.sort(function (a, b) { return b.ts - a.ts; });
+    var top = events.slice(0, 30);
+    var timeline = !top.length
+      ? '<div class="muted tc" style="padding:40px 0"><i class="ph ph-activity" style="font-size:32px;margin-bottom:8px"></i><p>No recent activity detected.</p></div>'
+      : '<div class="tl-container">' + top.map(function (e) {
+        return '<div class="tl-item clickable" onclick="FMS.viewOrder(\'' + esc(e.orderNo) + '\')">' +
+          '<div class="tl-icon" style="border-color:' + e.color + ';color:' + e.color + '"><i class="ph-bold ' + e.icon + '"></i></div>' +
+          '<div class="tl-content"><div class="tl-header">' +
+          '<span class="tl-title">' + esc(e.title) + ' <span class="accent">#' + esc(e.orderNo) + '</span></span>' +
+          '<span class="tl-time">' + timeAgo(e.ts) + '</span></div>' +
+          '<div class="tl-desc">' + esc(e.desc) + ' <span class="muted" style="font-size:11px">(' + esc(e.branch) + ')</span></div>' +
+          '</div></div>';
+      }).join('') + '</div>';
+
+    wrap.innerHTML =
+      '<div class="card" style="margin-bottom:0;display:flex;flex-direction:column;gap:16px;padding:20px;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:10px;flex-shrink:0">' +
+      '<span class="tbl-ttl" style="font-size:15px;font-weight:700"><i class="ph ph-chart-pie-slice accent"></i> Order Analytics &amp; Leaderboard</span></div>' +
+      '<div style="display:flex;align-items:center;gap:20px;justify-content:center;flex-shrink:0">' +
+      '<div style="position:relative;width:110px;height:110px;flex-shrink:0">' +
+      '<svg width="110" height="110" viewBox="0 0 120 120">' + segs + '</svg>' +
+      '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">' +
+      '<span style="font-size:18px;font-weight:800;color:var(--text)">' + total + '</span>' +
+      '<span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">Active</span></div></div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;font-size:12px;flex:1;min-width:140px">' + legend + '</div></div>' +
+      '<div style="border-top:1px solid var(--border);padding-top:14px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;flex-shrink:0"><i class="ph ph-chart-bar accent"></i> Active Orders by Branch</div>' +
+      '<div style="flex:1;min-height:0;max-height:300px;overflow-y:auto;padding-right:6px">' + board + '</div></div></div>' +
+
+      '<div class="card" style="margin-bottom:0;padding:20px;display:flex;flex-direction:column;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;flex-shrink:0">' +
+      '<span class="tbl-ttl" style="font-size:15px;font-weight:700"><i class="ph ph-activity accent"></i> Live Activity Feed</span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="FMS.open(\'all-orders\')">View All</button></div>' +
+      '<div style="flex:1;min-height:0;max-height:460px;overflow-y:auto;padding-right:4px">' + timeline + '</div></div>';
   }
 
   /* ───────────────────────── ORDERS TABLE ───────────────────────── */
   function dashStatsHtml(d) {
-    return '<div class="stats" id="fms-stats" style="margin-bottom:16px">' +
-      sc('ph-package', d.total, 'ca', 'Total') +
-      sc('ph-clipboard-text', d.pendingCRR, 'cy', 'CRR Queue') +
-      sc('ph-currency-circle-dollar', d.pendingAcc, 'co', 'Pend. Acc') +
-      sc('ph-factory', d.pendingPlant, 'ct', 'Pend. Plant') +
-      sc('ph-pause-circle', d.onHold, 'ck', 'On Hold') +
-      sc('ph-check-circle', d.autoApproved, 'cg', 'Auto Appr') +
-      sc('ph-check-circle', d.accApproved, 'cg', 'Acc Appr') +
-      sc('ph-stack', d.stock, 'ct', 'Stock') +
-      sc('ph-truck', d.dispatched, 'cd', 'Dispatched') +
-      sc('ph-target', d.otifPct + '%', 'cg', 'OTIF Score') +
-      sc('ph-x-circle', d.rejected, 'cr', 'Rejected') + '</div>';
+    return '<div class="stats" id="fms-stats" style="margin-bottom:16px">' + statCards(d) + '</div>';
   }
 
   function viewOrders(queue, title, icon, withStats) {
@@ -413,122 +609,6 @@
     var c = document.getElementById('fms-ocount'); if (c) c.textContent = '(' + filtered.length + ')';
     applyOrdView(filtered);
   }, 220);
-
-  /* ───────────────────────── PLANT & DISPATCH (item-wise) ───────────────────────── */
-  var _pl = { full: [], view: [], cursor: 0, chunk: 50, status: 'all', loc: '', search: '' };
-  var PL_PILLS = [['all', 'All Items'], ['instock', 'In-Stock'], ['inprod', 'In Production'], ['coilna', 'Coil N/A'], ['nostatus', 'No Status'], ['ready', 'Ready for Dispatch']];
-
-  function _plBadge(it) {
-    var p = it.prodStatus;
-    if (!p) return '<span class="muted" style="font-size:11px">No Status</span>';
-    var cls = p === 'In-Stock' ? 'b-full' : (p === 'Under Production' || p === 'Planning for Production') ? 'b-acc' : p === 'Coil N/A' ? 'b-rej' : p === 'Ready For QC' ? 'b-hold' : 'bdg';
-    return '<span class="badge ' + cls + '" style="font-size:11px">' + esc(p) + '</span>';
-  }
-  function _plAging(date) {
-    var d = _parseDate(date); if (!d) return '<span class="muted">—</span>';
-    var days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
-    var c = days <= 3 ? 'var(--green)' : days <= 7 ? 'var(--orange)' : 'var(--red)';
-    return '<span style="font-weight:700;color:' + c + '">' + days + 'd</span>';
-  }
-  function _plMatch(it) {
-    var s = _pl.status;
-    if (s === 'instock' && it.prodStatus !== 'In-Stock') return false;
-    if (s === 'inprod' && !(it.prodStatus === 'Under Production' || it.prodStatus === 'Planning for Production')) return false;
-    if (s === 'coilna' && it.prodStatus !== 'Coil N/A') return false;
-    if (s === 'nostatus' && it.prodStatus) return false;
-    if (s === 'ready' && !(it.qcStatus === 'Ready for Dispatch' || it.prodStatus === 'Ready For QC')) return false;
-    if (_pl.loc && it.location !== _pl.loc) return false;
-    if (_pl.search && q(it.orderNo + it.customer + it.code + it.batch + it.orderRef + it.refCustomer).indexOf(_pl.search) === -1) return false;
-    return true;
-  }
-  function viewPlantItems() {
-    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading plant register…</div>');
-    var my = ++FMS._req;
-    api('getFmsPlantItems').then(function (r) {
-      if (my !== FMS._req || FMS.state.view !== 'plant') return;
-      _pl.full = r.items || []; _pl.status = 'all'; _pl.loc = ''; _pl.search = '';
-      paintPlant(_pl.full);
-    }).catch(function (e) { setC(empt('ph-warning', 'Failed to load', e.message)); });
-  }
-  function paintPlant(items) {
-    var sheets = 0, sqft = 0, wt = 0, inStock = 0, inProd = 0, noStatus = 0, coilNA = 0;
-    items.forEach(function (x) {
-      sheets += x.qty; sqft += x.sqft; wt += x.weight;
-      if (x.prodStatus === 'In-Stock') inStock++;
-      else if (x.prodStatus === 'Under Production' || x.prodStatus === 'Planning for Production') inProd++;
-      else if (x.prodStatus === 'Coil N/A') coilNA++;
-      else if (!x.prodStatus) noStatus++;
-    });
-    var stats = '<div class="stats" style="margin-bottom:16px">' +
-      sc('ph-ruler', Math.round(sqft).toLocaleString('en-IN'), 'ca', 'Total Sqft') +
-      sc('ph-stack', sheets.toLocaleString('en-IN'), 'cp', 'Total Sheets') +
-      sc('ph-check-circle', inStock, 'cg', 'In-Stock') +
-      sc('ph-gear', inProd, 'co', 'In Production') +
-      sc('ph-question', noStatus, 'cd', 'No Status') +
-      sc('ph-x-circle', coilNA, 'cr', 'Coil N/A') +
-      sc('ph-scales', (wt / 1000).toFixed(0) + ' T', 'ct', 'Weight') + '</div>';
-    var pills = PL_PILLS.map(function (p) {
-      return '<button class="btn btn-sm ' + (_pl.status === p[0] ? 'btn-primary' : 'btn-ghost') + '" onclick="FMS.plFilter(\'' + p[0] + '\',this)">' + p[1] + '</button>';
-    }).join('');
-    var locs = Array.from(new Set(items.map(function (x) { return x.location; }).filter(Boolean))).sort();
-    var locOpts = '<option value="">All Locations</option>' + locs.map(function (l) { return '<option value="' + esc(l) + '">' + esc(l) + '</option>'; }).join('');
-    setC(stats +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' + pills + '</div>' +
-      '<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
-      '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-factory accent"></i> Plant &amp; Dispatch <span class="muted fw5 text-sm" id="fms-plcount" style="margin-left:6px">(' + items.length + ')</span></span>' +
-      '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input id="fms-plsrch" class="tsearch" placeholder="Order, party, item code…" oninput="FMS.plSearch(this.value)"></div>' +
-      '<select id="fms-plloc" class="filter-sel" onchange="FMS.plLoc(this.value)">' + locOpts + '</select></div></div>' +
-      '<div class="tbl-wrap" id="fms-plw" style="max-height:calc(100vh - 330px)"><table id="fms-plt" class="fms-orders"><thead><tr>' +
-      '<th>Order No</th><th>Date</th><th style="min-width:160px">Customer</th><th>Location</th><th style="min-width:180px">Description</th><th>Batch</th>' +
-      '<th class="tr">Len</th><th class="tr">Wid</th><th class="tr">Qty</th><th class="tr">Disp</th><th class="tr">Remaining</th><th class="tr">SqM</th><th class="tr">Wt.Kg</th>' +
-      '<th style="min-width:120px">Status</th><th>Order Ref</th><th style="min-width:150px">Ref Customer</th><th>Item Remarks</th><th class="tr">Aging</th>' +
-      '</tr></thead><tbody id="fms-pltb"></tbody></table></div></div>');
-    plApplyView();
-    var w = document.getElementById('fms-plw');
-    if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 120) plMore(); };
-  }
-  function plRow(it) {
-    var ref = it.orderRef ? '<span class="lnk accent" onclick="event.stopPropagation();FMS.viewOrder(\'' + esc(it.orderRef) + '\')">' + esc(it.orderRef) + '</span>' : '<span class="muted">—</span>';
-    return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(it.orderNo) + '\')">' +
-      '<td style="white-space:nowrap"><strong class="accent">' + esc(it.orderNo) + '</strong></td>' +
-      '<td class="muted" style="white-space:nowrap;font-size:12px">' + _fmtDate(it.date, false) + '</td>' +
-      '<td style="min-width:160px;max-width:300px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.customer) + '">' + (esc(it.customer) || '—') + '</div></td>' +
-      '<td style="white-space:nowrap">' + (it.location ? '<span class="badge bdg" style="font-size:11px">' + esc(it.location) + '</span>' : '<span class="muted">—</span>') + '</td>' +
-      '<td style="min-width:180px;max-width:350px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.code) + '">' + esc(it.code) + '</div></td>' +
-      '<td>' + (it.batch ? esc(it.batch) : '<span class="muted">—</span>') + '</td>' +
-      '<td class="tr muted">' + (it.length || '—') + '</td>' +
-      '<td class="tr muted">' + (it.width || '—') + '</td>' +
-      '<td class="tr fwb">' + it.qty + '</td>' +
-      '<td class="tr">' + (it.dispatched > 0 ? it.dispatched : '<span class="muted">—</span>') + '</td>' +
-      '<td class="tr fwb" style="color:var(--orange)">' + it.remaining + '</td>' +
-      '<td class="tr muted">' + it.sqm.toFixed(3) + '</td>' +
-      '<td class="tr muted">' + it.weight.toFixed(1) + '</td>' +
-      '<td>' + _plBadge(it) + '</td>' +
-      '<td style="white-space:nowrap;font-size:12px">' + ref + '</td>' +
-      '<td style="max-width:180px"><div class="fw5" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px" title="' + esc(it.refCustomer) + '">' + (esc(it.refCustomer) || '<span class="muted">—</span>') + '</div></td>' +
-      '<td class="muted" style="max-width:150px;font-size:11px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px" title="' + esc(it.itemRemarks) + '">' + (esc(it.itemRemarks) || '—') + '</div></td>' +
-      '<td class="tr">' + _plAging(it.date) + '</td></tr>';
-  }
-  function plApplyView() {
-    _pl.view = _pl.full.filter(_plMatch); _pl.cursor = 0;
-    var tb = document.getElementById('fms-pltb'); if (!tb) return;
-    tb.innerHTML = ''; plMore();
-    var c = document.getElementById('fms-plcount'); if (c) c.textContent = '(' + _pl.view.length + ')';
-  }
-  function plMore() {
-    var tb = document.getElementById('fms-pltb'); if (!tb) return;
-    var chunk = _pl.view.slice(_pl.cursor, _pl.cursor + _pl.chunk);
-    if (!chunk.length) return;
-    tb.insertAdjacentHTML('beforeend', chunk.map(plRow).join(''));
-    _pl.cursor += chunk.length;
-  }
-  FMS.plFilter = function (s, btn) {
-    _pl.status = s;
-    if (btn && btn.parentNode) { btn.parentNode.querySelectorAll('button').forEach(function (x) { x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); }); btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary'); }
-    plApplyView();
-  };
-  FMS.plSearch = debounce(function (v) { _pl.search = q(v); plApplyView(); }, 220);
-  FMS.plLoc = function (v) { _pl.loc = v; plApplyView(); };
 
   /* ───────────────────────── ORDER DETAIL ───────────────────────── */
   FMS.viewOrder = function (orderNo) {
@@ -658,113 +738,510 @@
     document.getElementById('fms-mfoot').innerHTML = '<button class="btn btn-ghost" onclick="FMS.closeModal()">Close</button>';
   }
 
-  /* ───────────────────────── PARTY SUMMARY ───────────────────────── */
-  function psBadge(type) {
-    var st = { 'Customer Via Branch': ['rgba(99,102,241,0.14)', 'var(--accentH)', 'ph-git-branch'], 'Direct Customer to Factory': ['rgba(168,85,247,0.14)', 'var(--purple)', 'ph-factory'], 'Stock Order': ['rgba(20,184,166,0.14)', 'var(--teal)', 'ph-stack'] }[type] || ['var(--surface)', 'var(--muted)', 'ph-dot'];
-    return '<span class="fms-bk" style="background:' + st[0] + ';color:' + st[1] + '"><i class="ph ' + st[2] + '" style="font-size:12px;margin-right:4px"></i>' + esc(type) + '</span>';
+  /* ───────────────────────── REPORT SHARED BITS ───────────────────────── */
+  // Segregated order type — same rules as the FMS app's getSegregatedOrderType.
+  function segType(o) {
+    var type = String(o.orderType || o.orderTypeForm || '').trim();
+    if (type === 'Branch Transfer') return 'Branch Transfer';
+    if (type === 'Branch Stock order- Factory') return 'Stock Order';
+    var hasVirgo = String(o.customerName || '').toUpperCase().indexOf('VIRGO') > -1;
+    var hasRef = String(o.orderRef || '').trim().length > 0;
+    if (type === 'Cust. to Factory' || type === 'Direct Customer to Factory') return 'Direct Customer to Factory';
+    if (type === 'Branch Order') return (hasVirgo && hasRef) ? 'Customer Via Branch' : 'Branch Order';
+    if (hasVirgo && !hasRef) return 'Stock Order';
+    if (hasVirgo && hasRef) return 'Customer Via Branch';
+    return type || 'Branch Order';
   }
-  function viewPartySummary() {
-    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Building party summary…</div>');
-    var my = ++FMS._req;
-    api('getFmsPartySummary').then(function (res) {
-      if (my !== FMS._req || FMS.state.view !== 'party-summary') return;
-      var orders = res.orders || [];
-      FMS.state.currentTableData = orders;
-      if (!orders.length) { setC(empt('ph-list-magnifying-glass', 'No Pending Orders', 'All orders have been fully dispatched.')); return; }
-      var remQty = orders.reduce(function (s, o) { return s + o.remainingQty; }, 0);
-      var remSqFt = orders.reduce(function (s, o) { return s + o.remainingSqFt; }, 0);
-      var byCVB = orders.filter(function (o) { return o.summaryType === 'Customer Via Branch'; }).length;
-      var byDCF = orders.filter(function (o) { return o.summaryType === 'Direct Customer to Factory'; }).length;
-      var bySO = orders.filter(function (o) { return o.summaryType === 'Stock Order'; }).length;
-      var stats = '<div class="stats" style="margin-bottom:16px">' +
-        sc('ph-list-bullets', orders.length, 'ca', 'Total Orders') +
-        sc('ph-stack', remQty.toLocaleString('en-IN'), 'ct', 'Remaining Qty') +
-        sc('ph-ruler', Math.round(remSqFt).toLocaleString('en-IN'), 'cp', 'Remaining SqFt') +
-        sc('ph-git-branch', byCVB, 'ca', 'Via Branch') +
-        sc('ph-factory', byDCF, 'cp', 'Direct') +
-        sc('ph-stack', bySO, 'ct', 'Stock Orders') + '</div>';
-      var rows = orders.map(function (o) {
-        var pct = o.totalQty > 0 ? Math.round((o.remainingQty / o.totalQty) * 100) : 0;
-        var pc = pct > 80 ? 'var(--red)' : pct > 40 ? 'var(--orange)' : 'var(--green)';
-        var disp = o.totalQty - o.remainingQty;
-        return '<tr class="ps-row clickable" data-s="' + esc(q(o.orderNo + o.orderRef + o.customerName + o.refParty + o.summaryType)) + '" data-type="' + esc(o.summaryType) + '" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')">' +
-          '<td style="padding:10px 14px"><strong class="accent">' + esc(o.orderNo) + '</strong></td>' +
-          '<td style="padding:10px 12px">' + (o.orderRef ? '<span class="lnk text-sm">' + esc(o.orderRef) + '</span>' : '<span class="muted text-xs">—</span>') + '</td>' +
-          '<td class="muted" style="padding:10px 12px;white-space:nowrap;font-size:12px">' + _fmtDate(o.orderDate, false) + '</td>' +
-          '<td style="padding:10px 12px;font-size:12px">' + (o.execName ? '<span class="fw6">' + esc(o.execName) + '</span>' : '<span class="muted text-xs">—</span>') + '</td>' +
-          '<td style="padding:10px 14px;max-width:240px"><div class="fw6" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.customerName) + '">' + esc(o.customerName) + '</div></td>' +
-          '<td style="padding:10px 14px;max-width:220px">' + (o.refParty ? '<div class="fw5 text-sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.refParty) + '">' + esc(o.refParty) + '</div>' : '<span class="muted text-xs">—</span>') + '</td>' +
-          '<td style="padding:10px 12px">' + (o.location ? '<span class="badge bdg">' + esc(o.location) + '</span>' : '<span class="muted text-xs">—</span>') + '</td>' +
-          '<td class="tr fwb" style="padding:10px 12px">' + o.totalQty.toLocaleString('en-IN') + '</td>' +
-          '<td style="padding:10px 14px"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:80px"><div style="width:100%;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-bottom:3px"><div style="width:' + pct + '%;height:100%;background:' + pc + '"></div></div><div style="font-size:10px;color:var(--muted)">' + disp + ' disp.</div></div><span style="font-weight:800;font-size:15px;color:' + pc + ';min-width:42px;text-align:right">' + o.remainingQty.toLocaleString('en-IN') + '</span></div></td>' +
-          '<td style="padding:10px 14px">' + psBadge(o.summaryType) + '</td>' +
-          '<td class="muted" style="padding:10px 12px;white-space:nowrap;font-size:11px">' + _fmtDate(o.deliveryDate, false) + '</td></tr>';
-      }).join('');
-      setC(stats + '<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
-        '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-list-magnifying-glass accent"></i> Party Wise Summary <span class="muted fw5 text-sm" style="margin-left:6px">(' + orders.length + ')</span></span>' +
-        '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input id="srch-ps" class="tsearch" placeholder="Order, party, ref…" oninput="FMS.psFilter()"></div>' +
-        '<select id="type-ps" class="filter-sel" onchange="FMS.psFilter()"><option value="">All Types</option><option value="Customer Via Branch">Customer Via Branch</option><option value="Direct Customer to Factory">Direct Customer to Factory</option><option value="Stock Order">Stock Order</option></select></div></div>' +
-        '<div class="tbl-wrap" style="max-height:calc(100vh - 320px)"><table id="psTable"><thead><tr>' +
-        '<th>Order No.</th><th>Ref Order</th><th class="tc">Order Date</th><th>Executive</th><th>Party Name</th><th>Ref Party</th><th>Location</th><th class="tr">Total Qty</th><th>Remaining</th><th>Order Type</th><th class="tc">Delivery</th>' +
-        '</tr></thead><tbody>' + rows + '</tbody></table></div><div style="padding:10px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">' + orders.length + ' orders · dispatched line items excluded</div></div>');
-    }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
-  }
-  FMS.psFilter = function () {
-    var s = q((document.getElementById('srch-ps') || {}).value || '');
-    var type = (document.getElementById('type-ps') || {}).value || '';
-    document.querySelectorAll('#psTable tbody tr.ps-row').forEach(function (tr) {
-      var ms = !s || (tr.dataset.s || '').indexOf(s) !== -1, mt = !type || (tr.dataset.type || '') === type;
-      tr.style.display = (ms && mt) ? '' : 'none';
-    });
+  var SEG_STYLE = {
+    'Branch Order':               ['rgba(249,115,22,0.12)', 'var(--orange)',  'ph-git-commit'],
+    'Customer Via Branch':        ['rgba(99,102,241,0.12)', 'var(--accentH)', 'ph-git-branch'],
+    'Direct Customer to Factory': ['rgba(168,85,247,0.12)', 'var(--purple)',  'ph-factory'],
+    'Stock Order':                ['rgba(20,184,166,0.12)', 'var(--teal)',    'ph-stack'],
+    'Branch Transfer':            ['rgba(234,179,8,0.12)',  '#d97706',        'ph-arrows-left-right']
   };
+  function segBadge(o) {
+    var t = segType(o), s = SEG_STYLE[t] || ['var(--surface)', 'var(--muted)', 'ph-dot'];
+    return '<span class="fms-bk" style="background:' + s[0] + ';color:' + s[1] + '"><i class="ph ' + s[2] + '" style="font-size:12px;margin-right:4px"></i>' + esc(t) + '</span>';
+  }
 
-  /* ───────────────────────── DISPATCH RECONCILE ───────────────────────── */
-  function viewReconcile() {
-    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Auditing dispatch records…</div>');
+  // Days from punch to dispatch; still-open orders age against today. Terminal
+  // states with no dispatch date have no meaningful aging.
+  function agingDays(o) {
+    var start = _parseDate(o.timestamp, true);
+    if (!start) return null;
+    var end = _parseDate(o.dispatchDate, true);
+    if (!end) {
+      var st = String(o.status || '').toLowerCase();
+      if (st === 'cancelled') end = _parseDate(o.holdDate, true);
+      else if (st === 'rejected') end = _parseDate(o.rejectedDate, true);
+      if (!end) {
+        if (st === 'cancelled' || st === 'rejected' || st.indexOf('fully') > -1 || st.indexOf('closed') > -1) return null;
+        end = new Date();
+      }
+    }
+    return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000));
+  }
+
+  /* ───────────────────────── ORDER LIFECYCLE ───────────────────────── */
+  var _lc = { full: [], view: [], cursor: 0, chunk: 60, search: '', status: '', type: '' };
+
+  function lcRow(o) {
+    var aging = agingDays(o), agingBadge = '<span class="muted">—</span>';
+    if (aging !== null) {
+      var c = aging > 15 ? 'var(--red)' : aging > 7 ? 'var(--orange)' : 'var(--green)';
+      var active = (o.dispatchDate && o.dispatchDate !== '—') ? '' : ' (active)';
+      agingBadge = '<span class="badge" style="background:' + c + '15;color:' + c + ';border:1px solid ' + c + '30;font-weight:700">' + aging + 'd' + active + '</span>';
+    }
+    return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')">' +
+      '<td style="padding:9px 14px;white-space:nowrap"><strong class="accent">' + esc(o.orderNo) + '</strong></td>' +
+      '<td style="padding:9px 12px;max-width:240px"><div class="fw6" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(o.customerName) + '">' + esc(o.customerName) + '</div></td>' +
+      '<td style="padding:9px 12px">' + segBadge(o) + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + _fmtDate(o.timestamp, true) + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + _fmtDate(o.accDate, false) + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + _fmtDate(o.doGenDate, true) + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + _fmtDate(o.dispatchDate, true) + '</td>' +
+      '<td class="tc" style="padding:9px 10px;white-space:nowrap">' + agingBadge + '</td>' +
+      '<td style="padding:9px 12px">' + sBadge(o.status) + '</td></tr>';
+  }
+  function lcMore() {
+    var tb = document.getElementById('fms-lctb'); if (!tb) return;
+    var chunk = _lc.view.slice(_lc.cursor, _lc.cursor + _lc.chunk);
+    if (!chunk.length) return;
+    tb.insertAdjacentHTML('beforeend', chunk.map(lcRow).join(''));
+    _lc.cursor += chunk.length;
+  }
+  function lcApply() {
+    _lc.view = _lc.full.filter(function (o) {
+      if (_lc.search && q(o.orderNo + o.customerName).indexOf(_lc.search) === -1) return false;
+      if (_lc.status && String(o.status || '').toLowerCase().indexOf(_lc.status) === -1) return false;
+      if (_lc.type && segType(o).toLowerCase() !== _lc.type) return false;
+      return true;
+    });
+    _lc.cursor = 0;
+    var tb = document.getElementById('fms-lctb'); if (tb) tb.innerHTML = '';
+    lcMore();
+    var c = document.getElementById('fms-lccount'); if (c) c.textContent = '(' + _lc.view.length + ')';
+  }
+  FMS.lcSearch = debounce(function (v) { _lc.search = q(v); lcApply(); }, 220);
+  FMS.lcStatus = function (v) { _lc.status = String(v || '').toLowerCase(); lcApply(); };
+  FMS.lcType = function (v) { _lc.type = String(v || '').toLowerCase(); lcApply(); };
+
+  var LC_STATUSES = ['Pending Accounts', 'Pending DO Generation', 'Pending Plant', 'Auto Approved', 'Accounts Approved', 'Partially Dispatched', 'Fully Dispatched', 'On Hold', 'Rejected', 'Cancelled', 'In Transit'];
+  var LC_TYPES = ['Branch Order', 'Customer Via Branch', 'Direct Customer to Factory', 'Stock Order', 'Branch Transfer'];
+
+  function viewLifecycle() {
+    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading order lifecycle…</div>');
     var my = ++FMS._req;
-    api('getFmsReconcile').then(function (r) {
-      if (my !== FMS._req || FMS.state.view !== 'dispatch-reconcile') return;
-      FMS._rc = r; renderReconcile(r);
+    api('getFmsOrders', { queue: 'all' }).then(function (r) {
+      if (my !== FMS._req || FMS.state.view !== 'order-lifecycle') return;
+      var orders = r.orders || [];
+      FMS.state.currentTableData = orders;
+      if (!orders.length) { setC(empt('ph-package', 'No Orders', 'Nothing to show yet.')); return; }
+      _lc.full = orders; _lc.search = ''; _lc.status = ''; _lc.type = '';
+      var opts = function (list) { return list.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join(''); };
+      setC('<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
+        '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-clock accent"></i> Order Workflow Lifecycle <span class="muted fw5 text-sm" id="fms-lccount" style="margin-left:6px">(' + orders.length + ')</span></span>' +
+        '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input class="tsearch" placeholder="Order no, customer…" oninput="FMS.lcSearch(this.value)"></div>' +
+        '<select class="filter-sel" onchange="FMS.lcStatus(this.value)"><option value="">All Statuses</option>' + opts(LC_STATUSES) + '</select>' +
+        '<select class="filter-sel" onchange="FMS.lcType(this.value)"><option value="">All Order Types</option>' + opts(LC_TYPES) + '</select></div></div>' +
+        '<div class="tbl-wrap" id="fms-lcwrap" style="max-height:calc(100vh - 300px)"><table><thead><tr>' +
+        '<th>Order No</th><th>Customer</th><th>Order Type</th><th>Punched On</th><th>Accounts Action</th><th>DO Generated</th><th>Dispatched On</th><th class="tc">Aging</th><th>Status</th>' +
+        '</tr></thead><tbody id="fms-lctb"></tbody></table></div></div>');
+      lcApply();
+      var w = document.getElementById('fms-lcwrap');
+      if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 200) lcMore(); };
     }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
   }
-  function renderReconcile(data) {
-    var c1 = data.check1 || [], c2 = data.check2 || [], c3 = data.check3 || [];
-    var total = c1.length + c2.length + c3.length;
-    var stats = '<div class="stats" style="margin-bottom:18px">' +
-      sc('ph-check-circle', c1.length === 0 ? '✓' : c1.length, c1.length === 0 ? 'cg' : 'cr', 'Unmarked DO Items') +
-      sc('ph-scales', c2.length === 0 ? '✓' : c2.length, c2.length === 0 ? 'cg' : 'cy', 'Qty Mismatches') +
-      sc('ph-warning-circle', c3.length === 0 ? '✓' : c3.length, c3.length === 0 ? 'cg' : 'co', 'Premature Dispatch') +
-      sc('ph-list-checks', total, total === 0 ? 'cg' : 'cr', 'Total Issues') + '</div>';
-    if (total === 0) {
-      setC(stats + '<div class="card" style="padding:48px;text-align:center"><i class="ph ph-check-circle" style="font-size:52px;color:var(--green);display:block;margin-bottom:16px"></i><h3 style="font-weight:700;font-size:18px;margin-bottom:8px">All Clean</h3><p class="muted">No mismatches found between ORDER RESPONSES and DO PRODUCTS.</p></div>');
-      return;
-    }
-    var tab = FMS._rcTab || 'check1'; FMS._rcTab = tab;
-    function tb(id, label, count, color) {
-      var on = tab === id;
-      return '<button onclick="FMS.rcTab(\'' + id + '\')" style="padding:10px 20px;border:none;background:' + (on ? 'var(--card)' : 'transparent') + ';border-bottom:3px solid ' + (on ? color : 'transparent') + ';color:' + (on ? color : 'var(--muted)') + ';font-weight:' + (on ? '700' : '500') + ';font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px">' + esc(label) + (count > 0 ? '<span style="background:' + color + '22;color:' + color + ';padding:1px 7px;border-radius:100px;font-size:11px;font-weight:700">' + count + '</span>' : '') + '</button>';
-    }
-    var bar = '<div style="display:flex;margin-bottom:18px;border-bottom:2px solid var(--border)">' + tb('check1', 'Unmarked DO Items', c1.length, 'var(--red)') + tb('check2', 'Qty Mismatch', c2.length, 'var(--yellow)') + tb('check3', 'Premature Dispatch', c3.length, 'var(--orange)') + '</div>';
-    var table = tab === 'check1' ? rc1(c1) : tab === 'check2' ? rc2(c2) : rc3(c3);
-    setC(stats + bar + table);
+
+  /* ───────────────────────── REFERENCE ORDERS ───────────────────────── */
+  // Pairs a dispatched plant order with the branch order it references.
+  var _RO_DEAD_PLANT = ['cancelled', 'closed (short)', 'rejected'];
+  var _RO_DEAD_BRANCH = _RO_DEAD_PLANT.concat(['not found']);
+
+  function refPairs(orders) {
+    var byNo = {};
+    orders.forEach(function (o) { byNo[String(o.orderNo).trim().toLowerCase()] = o; });
+    var list = [];
+    orders.forEach(function (plant) {
+      var ref = String(plant.orderRef || '').trim();
+      if (!ref || ref === 'N/A' || ref === '-') return;
+      var branch = byNo[ref.toLowerCase()] || null;
+      var ps = String(plant.status || '').trim().toLowerCase();
+      var bs = branch ? String(branch.status || '').trim().toLowerCase() : '';
+      if (_RO_DEAD_PLANT.indexOf(ps) > -1 || _RO_DEAD_BRANCH.indexOf(bs) > -1) return;
+      // only pairs where the plant side has actually moved
+      var dispatched = ps.indexOf('dispatch') > -1 || ps.indexOf('transit') > -1 || ps.indexOf('delivered') > -1 || _num(plant.dispatchedQty) > 0;
+      if (!dispatched) return;
+      list.push({
+        branchOrderNo: branch ? branch.orderNo : ref,
+        branchCustomer: branch ? branch.customerName : '—',
+        branchStatus: branch ? branch.status : 'Not Found',
+        branchQty: branch ? _num(branch.quantityOrdered) : 0,
+        plantOrderNo: plant.orderNo,
+        plantCustomer: plant.customerName || '—',
+        plantStatus: plant.status,
+        plantQty: _num(plant.quantityOrdered)
+      });
+    });
+    return list;
   }
-  FMS.rcTab = function (id) { FMS._rcTab = id; renderReconcile(FMS._rc || {}); };
-  function rcEmpty(msg) { return '<div class="empty"><i class="ph ph-check-circle" style="color:var(--green)"></i><h3>No Issues</h3><p>' + esc(msg) + '</p></div>'; }
-  function rc1(data) {
-    if (!data.length) return rcEmpty('All Fully Dispatched orders have their DO items correctly marked.');
-    var rows = data.map(function (o) { return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')"><td style="padding:9px 14px"><strong class="accent">' + esc(o.orderNo) + '</strong></td><td style="padding:9px 12px;font-size:12px">' + esc(o.customerName) + '</td><td style="padding:9px 10px"><span class="badge bdg">' + esc(o.branchName || '—') + '</span></td><td class="muted" style="padding:9px 10px;font-size:12px">' + _fmtDate(o.timestamp, false) + '</td><td class="tc" style="padding:9px 10px;font-weight:700;color:var(--red)">' + o.unmarkedItems + ' / ' + o.totalItems + '</td><td style="padding:9px 10px"><span class="badge b-rej"><i class="ph ph-warning-circle"></i> Needs Fix</span></td></tr>'; }).join('');
-    return '<div class="card" style="margin-bottom:0"><div style="background:rgba(239,68,68,0.06);padding:10px 16px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--border)"><i class="ph ph-info red"></i> Orders marked <strong>Fully Dispatched</strong> but with DO PRODUCTS rows not yet marked <strong>Dispatched</strong>.</div><div class="tbl-wrap" style="max-height:calc(100vh - 360px)"><table><thead><tr><th>Order No</th><th>Customer</th><th>Branch</th><th>Date</th><th class="tc">Unmarked / Total</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  function refBadge(status) {
+    if (!status || status === 'Not Found') return '<span class="fms-bk" style="background:rgba(156,163,175,0.12);color:#9ca3af">Not Found</span>';
+    return sBadge(status);
   }
-  function rc2(data) {
-    if (!data.length) return rcEmpty('All order quantities match their DO item totals.');
-    var rows = data.map(function (o) { var col = o.diff > 0 ? 'var(--orange)' : 'var(--red)'; return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')"><td style="padding:9px 14px"><strong class="accent">' + esc(o.orderNo) + '</strong></td><td style="padding:9px 12px;font-size:12px">' + esc(o.customerName) + '</td><td style="padding:9px 10px"><span class="badge bdg">' + esc(o.branchName || '—') + '</span></td><td style="padding:9px 10px">' + sBadge(o.status) + '</td><td class="tr fwb" style="padding:9px 10px">' + o.quantityOrdered + '</td><td class="tr" style="padding:9px 10px;color:var(--green);font-weight:700">' + (o.dispatchedQty || 0) + '</td><td class="tr fwb" style="padding:9px 10px">' + o.doTotal + '</td><td class="tr" style="padding:9px 10px;font-weight:800;color:' + col + '">' + (o.diff > 0 ? '+' : '') + o.diff + '</td></tr>'; }).join('');
-    return '<div class="card" style="margin-bottom:0"><div style="background:rgba(234,179,8,0.06);padding:10px 16px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--border)"><i class="ph ph-info" style="color:var(--yellow)"></i> Orders where <strong>Quantity Ordered</strong> ≠ sum of <strong>DO item quantities</strong>.</div><div class="tbl-wrap" style="max-height:calc(100vh - 360px)"><table><thead><tr><th>Order No</th><th>Customer</th><th>Branch</th><th>Status</th><th class="tr">Ordered</th><th class="tr">Dispatched</th><th class="tr">DO Total</th><th class="tr">Diff</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  function viewReferenceOrders() {
+    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Linking reference orders…</div>');
+    var my = ++FMS._req;
+    api('getFmsOrders', { queue: 'all' }).then(function (r) {
+      if (my !== FMS._req || FMS.state.view !== 'reference-orders') return;
+      var orders = r.orders || [];
+      FMS.state.currentTableData = orders;
+      var data = refPairs(orders);
+      if (!data.length) { setC(empt('ph-link', 'No Linked Pairs', 'No active reference order pairs found.')); return; }
+      var rows = data.map(function (it) {
+        return '<tr class="ref-row" data-s="' + esc(q(it.branchOrderNo + it.branchCustomer + it.branchStatus + it.plantOrderNo + it.plantCustomer + it.plantStatus)) + '">' +
+          '<td style="padding:9px 14px;white-space:nowrap"><span class="lnk" onclick="FMS.viewOrder(\'' + esc(it.branchOrderNo) + '\')"><strong>' + esc(it.branchOrderNo) + '</strong></span></td>' +
+          '<td style="padding:9px 12px;max-width:210px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.branchCustomer) + '">' + esc(it.branchCustomer) + '</div></td>' +
+          '<td style="padding:9px 10px">' + refBadge(it.branchStatus) + '</td>' +
+          '<td class="tr fwb" style="padding:9px 10px">' + it.branchQty.toLocaleString('en-IN') + '</td>' +
+          '<td class="tc muted" style="padding:9px 6px"><i class="ph ph-arrow-right"></i></td>' +
+          '<td style="padding:9px 14px;white-space:nowrap"><span class="lnk" onclick="FMS.viewOrder(\'' + esc(it.plantOrderNo) + '\')"><strong>' + esc(it.plantOrderNo) + '</strong></span></td>' +
+          '<td style="padding:9px 12px;max-width:210px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.plantCustomer) + '">' + esc(it.plantCustomer) + '</div></td>' +
+          '<td style="padding:9px 10px">' + refBadge(it.plantStatus) + '</td>' +
+          '<td class="tr fwb" style="padding:9px 10px">' + it.plantQty.toLocaleString('en-IN') + '</td></tr>';
+      }).join('');
+      setC('<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
+        '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-link accent"></i> Reference Orders Status <span class="muted fw5 text-sm" id="fms-rocount" style="margin-left:6px">(' + data.length + ' linked pairs)</span></span>' +
+        '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input class="tsearch" placeholder="Order no, customer, status…" oninput="FMS.roSearch(this.value)"></div></div></div>' +
+        '<div class="tbl-wrap" style="max-height:calc(100vh - 300px)"><table id="fms-rotbl"><thead><tr>' +
+        '<th>Branch Order</th><th>Branch Customer</th><th>Branch Status</th><th class="tr">Branch Qty</th>' +
+        '<th class="tc"><i class="ph ph-arrow-right"></i></th>' +
+        '<th>Plant Order</th><th>Plant Customer</th><th>Plant Status</th><th class="tr">Plant Qty</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div></div>');
+    }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
   }
-  function rc3(data) {
-    if (!data.length) return rcEmpty('No DO items are marked Dispatched ahead of their order status.');
-    var rows = data.map(function (o) { return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')"><td style="padding:9px 14px"><strong class="accent">' + esc(o.orderNo) + '</strong></td><td style="padding:9px 12px;font-size:12px">' + esc(o.customerName) + '</td><td style="padding:9px 10px"><span class="badge bdg">' + esc(o.branchName || '—') + '</span></td><td style="padding:9px 10px">' + sBadge(o.status) + '</td><td class="muted" style="padding:9px 10px;font-size:12px">' + _fmtDate(o.timestamp, false) + '</td><td class="tc" style="padding:9px 10px;font-weight:700;color:var(--orange)">' + o.markedCount + ' / ' + o.totalItems + '</td></tr>'; }).join('');
-    return '<div class="card" style="margin-bottom:0"><div style="background:rgba(249,115,22,0.06);padding:10px 16px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--border)"><i class="ph ph-info" style="color:var(--orange)"></i> DO items marked <strong>Dispatched</strong> while the order is not yet dispatched.</div><div class="tbl-wrap" style="max-height:calc(100vh - 360px)"><table><thead><tr><th>Order No</th><th>Customer</th><th>Branch</th><th>Status</th><th>Date</th><th class="tc">Marked / Total</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  FMS.roSearch = debounce(function (val) {
+    var s = q(val), n = 0;
+    document.querySelectorAll('#fms-rotbl tbody tr.ref-row').forEach(function (tr) {
+      var hit = !s || (tr.dataset.s || '').indexOf(s) !== -1;
+      tr.style.display = hit ? '' : 'none'; if (hit) n++;
+    });
+    var c = document.getElementById('fms-rocount'); if (c) c.textContent = '(' + n + ' linked pairs)';
+  }, 200);
+
+  /* ───────────────────────── MONTH-WISE PLANT REPORT ───────────────────────── */
+  var MW_BANDS = [
+    { key: 'Received',   color: '#2563eb', bg: 'rgba(59,130,246,0.10)', badgeBg: '#3b82f6', badgeColor: '#ffffff' },
+    { key: 'Dispatched', color: '#059669', bg: 'rgba(16,185,129,0.10)', badgeBg: '#10b981', badgeColor: '#ffffff' },
+    { key: 'Pending',    color: '#ea580c', bg: 'rgba(249,115,22,0.10)', badgeBg: '#f97316', badgeColor: '#ffffff' }
+  ];
+  var MW_CAT_STYLE = {
+    'Customer Via Branch':        ['ph-git-branch', '#6366f1'],
+    'Direct Customer to Factory': ['ph-factory',    '#a855f7'],
+    'Stock Order':                ['ph-stack',      '#14b8a6']
+  };
+  function mwNum(n) { return Math.round(Number(n) || 0).toLocaleString('en-IN'); }
+  function mwCell(val, color, lft, dim) {
+    var zero = !val || val === '0';
+    var style = zero ? 'color:var(--muted);opacity:.45;font-weight:400' : 'color:' + color + ';font-weight:' + (dim ? '600' : '700');
+    return '<td class="tc" style="padding:8px 10px;font-size:12.5px;' + (lft ? 'border-left:1px solid var(--border);' : '') + style + '">' + (zero ? '—' : val) + '</td>';
   }
+  function mwPct(part, total, color, lft) {
+    if (!total) return mwCell('', color, lft, true);
+    return mwCell(((part / total) * 100).toFixed(1) + '%', color, lft, true);
+  }
+  // One band (Received / Dispatched / Pending) = orders, qty, sqft, share.
+  function mwBand(counts, sqTotal, color, dim) {
+    return mwCell(mwNum(counts[0]), color, true, dim) +
+      mwCell(mwNum(counts[1]), color, false, dim) +
+      mwCell(mwNum(counts[2]), color, false, dim) +
+      mwPct(counts[2], sqTotal, color, false);
+  }
+  function mwCatRow(name, c, m) {
+    var st = MW_CAT_STYLE[name] || ['ph-dot', 'var(--muted)'];
+    return '<tr style="background:var(--card)">' +
+      '<td style="padding:7px 16px 7px 30px;border-bottom:1px solid var(--border)"><i class="ph ' + st[0] + '" style="color:' + st[1] + ';font-size:14px;margin-right:7px"></i><span style="font-size:12.5px;color:var(--sub)">' + esc(name) + '</span></td>' +
+      mwBand([c.rCount, c.rQty, c.rSq], m.ReceivedSqFt, MW_BANDS[0].color, true) +
+      mwBand([c.dCount, c.dQty, c.dSq], m.DispatchedSqFt, MW_BANDS[1].color, true) +
+      mwBand([c.pCount, c.pQty, c.pSq], m.PendingSqFt, MW_BANDS[2].color, true) + '</tr>';
+  }
+  function mwMonthRow(m) {
+    var zc = { rCount: 0, rQty: 0, rSq: 0, dCount: 0, dQty: 0, dSq: 0, pCount: 0, pQty: 0, pSq: 0 };
+    var html = '<tr style="background:rgba(99,102,241,0.06)">' +
+      '<td class="fwb accent" style="padding:11px 16px;border-bottom:1px solid var(--border);font-size:13.5px">' + esc(m.month) + '</td>' +
+      mwBand([m.ReceivedCount, m.ReceivedQty, m.ReceivedSqFt], m.ReceivedSqFt, MW_BANDS[0].color) +
+      mwBand([m.DispatchedCount, m.DispatchedQty, m.DispatchedSqFt], m.DispatchedSqFt, MW_BANDS[1].color) +
+      mwBand([m.PendingCount, m.PendingQty, m.PendingSqFt], m.PendingSqFt, MW_BANDS[2].color) + '</tr>';
+    Object.keys(MW_CAT_STYLE).forEach(function (k) { html += mwCatRow(k, (m.cats && m.cats[k]) || zc, m); });
+    return html;
+  }
+  function viewMonthWise() {
+    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Aggregating month-wise plant data…</div>');
+    var my = ++FMS._req;
+    api('getFmsMonthWise').then(function (r) {
+      if (my !== FMS._req || FMS.state.view !== 'month-wise') return;
+      var months = r.months || [];
+      FMS.state.currentTableData = months;
+      if (!months.length) { setC(empt('ph-calendar', 'No Data', 'No plant orders found.')); return; }
+
+      var t = { rc: 0, rq: 0, rs: 0, dc: 0, dq: 0, ds: 0, pc: 0, pq: 0, ps: 0 };
+      months.forEach(function (m) {
+        t.rc += m.ReceivedCount; t.rq += m.ReceivedQty; t.rs += m.ReceivedSqFt;
+        t.dc += m.DispatchedCount; t.dq += m.DispatchedQty; t.ds += m.DispatchedSqFt;
+        t.pc += m.PendingCount; t.pq += m.PendingQty; t.ps += m.PendingSqFt;
+      });
+
+      var bandHead = MW_BANDS.map(function (b) {
+        return '<th class="tc" colspan="4" style="border-left:1px solid var(--border);padding:8px 0">' +
+          '<span style="display:inline-block;background:' + b.badgeBg + ';color:' + b.badgeColor + ';padding:4px 16px;border-radius:100px;font-size:11px;font-weight:800;letter-spacing:.6px;box-shadow:0 2px 4px rgba(0,0,0,0.15)">' + b.key.toUpperCase() + '</span></th>';
+      }).join('');
+      var subHead = MW_BANDS.map(function (b, idx) {
+        return '<th class="tc" style="' + (idx > 0 ? 'border-left:1px solid var(--border);' : '') + 'font-size:10px;padding:6px 4px;color:var(--text-muted);font-weight:800">ORDERS</th>' +
+          '<th class="tc" style="font-size:10px;padding:6px 4px;color:var(--text-muted);font-weight:800">QTY</th>' +
+          '<th class="tc" style="font-size:10px;padding:6px 4px;color:var(--text-muted);font-weight:800">SQ FT</th>' +
+          '<th class="tc" style="font-size:10px;padding:6px 4px;color:var(--text-muted);font-weight:800">%</th>';
+      }).join('');
+      function totCell(v, lft) {
+        return '<th class="tc" style="' + (lft ? 'border-left:1px solid var(--border);' : '') + 'font-size:12px;color:var(--text-main);font-weight:800;padding:8px 6px">' + v + '</th>';
+      }
+      var totRow =
+        totCell(mwNum(t.rc), true) + totCell(mwNum(t.rq)) + totCell(mwNum(t.rs)) + totCell(t.rs > 0 ? '100%' : '—') +
+        totCell(mwNum(t.dc), true) + totCell(mwNum(t.dq)) + totCell(mwNum(t.ds)) + totCell(t.ds > 0 ? '100%' : '—') +
+        totCell(mwNum(t.pc), true) + totCell(mwNum(t.pq)) + totCell(mwNum(t.ps)) + totCell(t.ps > 0 ? '100%' : '—');
+
+      setC('<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
+        '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-calendar accent"></i> Month-Wise Plant Report <span class="muted fw5 text-sm" style="margin-left:6px">(' + months.length + ' months)</span></span></div>' +
+        '<div class="tbl-wrap" style="max-height:calc(100vh - 300px)"><table id="fms-mwtbl"><thead>' +
+        '<tr><th style="text-align:left;min-width:190px;color:var(--text-main)">MONTH / CATEGORY</th>' + bandHead + '</tr>' +
+        '<tr><th></th>' + subHead + '</tr>' +
+        '<tr><th style="text-align:left;font-weight:800;color:var(--text-main);padding:8px 12px;font-size:12px">TOTALS</th>' + totRow + '</tr>' +
+        '</thead><tbody>' + months.map(mwMonthRow).join('') + '</tbody></table></div>' +
+        '<div style="padding:9px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">Factory-bound orders only · % is each row\'s share of that month\'s band total</div></div>');
+    }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
+  }
+
+  /* ───────────────────────── PLANT & DISPATCH (item-wise) ───────────────────────── */
+  var _pl = { full: [], view: [], cursor: 0, chunk: 50, status: 'all', loc: '', search: '' };
+  var PL_PILLS = [['all', 'All Items'], ['instock', 'In-Stock'], ['inprod', 'In Production'], ['coilna', 'Coil N/A'], ['nostatus', 'No Status'], ['ready', 'Ready for Dispatch']];
+
+  function _plBadge(it) {
+    var p = it.prodStatus;
+    if (!p) return '<span class="muted" style="font-size:11px">No Status</span>';
+    var cls = p === 'In-Stock' ? 'b-full' : (p === 'Under Production' || p === 'Planning for Production') ? 'b-acc' : p === 'Coil N/A' ? 'b-rej' : p === 'Ready For QC' ? 'b-hold' : 'bdg';
+    return '<span class="badge ' + cls + '" style="font-size:11px">' + esc(p) + '</span>';
+  }
+  function _plAging(date) {
+    var d = _parseDate(date, true); if (!d) return '<span class="muted">—</span>';
+    var days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+    var c = days <= 3 ? 'var(--green)' : days <= 7 ? 'var(--orange)' : 'var(--red)';
+    return '<span style="font-weight:700;color:' + c + '">' + days + 'd</span>';
+  }
+  function _plMatch(it) {
+    var s = _pl.status;
+    if (s === 'instock' && it.prodStatus !== 'In-Stock') return false;
+    if (s === 'inprod' && !(it.prodStatus === 'Under Production' || it.prodStatus === 'Planning for Production')) return false;
+    if (s === 'coilna' && it.prodStatus !== 'Coil N/A') return false;
+    if (s === 'nostatus' && it.prodStatus) return false;
+    if (s === 'ready' && !(it.qcStatus === 'Ready for Dispatch' || it.prodStatus === 'Ready For QC')) return false;
+    if (_pl.loc && it.location !== _pl.loc) return false;
+    if (_pl.search && q(it.orderNo + it.customer + it.code + it.batch + it.orderRef + it.refCustomer).indexOf(_pl.search) === -1) return false;
+    return true;
+  }
+  function viewPlantItems() {
+    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading plant register…</div>');
+    var my = ++FMS._req;
+    api('getFmsPlantItems').then(function (r) {
+      if (my !== FMS._req || FMS.state.view !== 'plant') return;
+      _pl.full = r.items || []; _pl.status = 'all'; _pl.loc = ''; _pl.search = '';
+      paintPlant(_pl.full);
+    }).catch(function (e) { setC(empt('ph-warning', 'Failed to load', e.message)); });
+  }
+  function paintPlant(items) {
+    var sheets = 0, sqft = 0, wt = 0, inStock = 0, inProd = 0, noStatus = 0, coilNA = 0;
+    items.forEach(function (x) {
+      sheets += x.qty; sqft += x.sqft; wt += x.weight;
+      if (x.prodStatus === 'In-Stock') inStock++;
+      else if (x.prodStatus === 'Under Production' || x.prodStatus === 'Planning for Production') inProd++;
+      else if (x.prodStatus === 'Coil N/A') coilNA++;
+      else if (!x.prodStatus) noStatus++;
+    });
+    var stats = '<div class="stats" style="margin-bottom:16px">' +
+      sc('ph-ruler', Math.round(sqft).toLocaleString('en-IN'), 'ca', 'Total Sqft') +
+      sc('ph-stack', sheets.toLocaleString('en-IN'), 'cp', 'Total Sheets') +
+      sc('ph-check-circle', inStock, 'cg', 'In-Stock') +
+      sc('ph-gear', inProd, 'co', 'In Production') +
+      sc('ph-question', noStatus, 'cd', 'No Status') +
+      sc('ph-x-circle', coilNA, 'cr', 'Coil N/A') +
+      sc('ph-scales', (wt / 1000).toFixed(0) + ' T', 'ct', 'Weight') + '</div>';
+    var pills = PL_PILLS.map(function (p) {
+      return '<button class="btn btn-sm ' + (_pl.status === p[0] ? 'btn-primary' : 'btn-ghost') + '" onclick="FMS.plFilter(\'' + p[0] + '\',this)">' + p[1] + '</button>';
+    }).join('');
+    var locs = Array.from(new Set(items.map(function (x) { return x.location; }).filter(Boolean))).sort();
+    var locOpts = '<option value="">All Locations</option>' + locs.map(function (l) { return '<option value="' + esc(l) + '">' + esc(l) + '</option>'; }).join('');
+    setC(stats +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' + pills + '</div>' +
+      '<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
+      '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-factory accent"></i> Plant &amp; Dispatch <span class="muted fw5 text-sm" id="fms-plcount" style="margin-left:6px">(' + items.length + ')</span></span>' +
+      '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input id="fms-plsrch" class="tsearch" placeholder="Order, party, item code…" oninput="FMS.plSearch(this.value)"></div>' +
+      '<select id="fms-plloc" class="filter-sel" onchange="FMS.plLoc(this.value)">' + locOpts + '</select></div></div>' +
+      '<div class="tbl-wrap" id="fms-plw" style="max-height:calc(100vh - 330px)"><table id="fms-plt" class="fms-orders"><thead><tr>' +
+      '<th>Order No</th><th>Date</th><th style="min-width:160px">Customer</th><th>Location</th><th style="min-width:180px">Description</th><th>Batch</th>' +
+      '<th class="tr">Len</th><th class="tr">Wid</th><th class="tr">Qty</th><th class="tr">Disp</th><th class="tr">Remaining</th><th class="tr">SqM</th><th class="tr">Wt.Kg</th>' +
+      '<th style="min-width:120px">Status</th><th>Order Ref</th><th style="min-width:150px">Ref Customer</th><th>Item Remarks</th><th class="tr">Aging</th>' +
+      '</tr></thead><tbody id="fms-pltb"></tbody></table></div></div>');
+    plApplyView();
+    var w = document.getElementById('fms-plw');
+    if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 120) plMore(); };
+  }
+  function plRow(it) {
+    var ref = it.orderRef ? '<span class="lnk accent" onclick="event.stopPropagation();FMS.viewOrder(\'' + esc(it.orderRef) + '\')">' + esc(it.orderRef) + '</span>' : '<span class="muted">—</span>';
+    return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(it.orderNo) + '\')">' +
+      '<td style="white-space:nowrap"><strong class="accent">' + esc(it.orderNo) + '</strong></td>' +
+      '<td class="muted" style="white-space:nowrap;font-size:12px">' + _fmtDate(it.date, false) + '</td>' +
+      '<td style="min-width:160px;max-width:300px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.customer) + '">' + (esc(it.customer) || '—') + '</div></td>' +
+      '<td style="white-space:nowrap">' + (it.location ? '<span class="badge bdg" style="font-size:11px">' + esc(it.location) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td style="min-width:180px;max-width:350px;white-space:normal;line-height:1.4;vertical-align:middle"><div class="fw5" title="' + esc(it.code) + '">' + esc(it.code) + '</div></td>' +
+      '<td>' + (it.batch ? esc(it.batch) : '<span class="muted">—</span>') + '</td>' +
+      '<td class="tr muted">' + (it.length || '—') + '</td>' +
+      '<td class="tr muted">' + (it.width || '—') + '</td>' +
+      '<td class="tr fwb">' + it.qty + '</td>' +
+      '<td class="tr">' + (it.dispatched > 0 ? it.dispatched : '<span class="muted">—</span>') + '</td>' +
+      '<td class="tr fwb" style="color:var(--orange)">' + it.remaining + '</td>' +
+      '<td class="tr muted">' + it.sqm.toFixed(3) + '</td>' +
+      '<td class="tr muted">' + it.weight.toFixed(1) + '</td>' +
+      '<td>' + _plBadge(it) + '</td>' +
+      '<td style="white-space:nowrap;font-size:12px">' + ref + '</td>' +
+      '<td style="max-width:180px"><div class="fw5" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px" title="' + esc(it.refCustomer) + '">' + (esc(it.refCustomer) || '<span class="muted">—</span>') + '</div></td>' +
+      '<td class="muted" style="max-width:150px;font-size:11px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px" title="' + esc(it.itemRemarks) + '">' + (esc(it.itemRemarks) || '—') + '</div></td>' +
+      '<td class="tr">' + _plAging(it.date) + '</td></tr>';
+  }
+  function plApplyView() {
+    _pl.view = _pl.full.filter(_plMatch); _pl.cursor = 0;
+    var tb = document.getElementById('fms-pltb'); if (!tb) return;
+    tb.innerHTML = ''; plMore();
+    var c = document.getElementById('fms-plcount'); if (c) c.textContent = '(' + _pl.view.length + ')';
+  }
+  function plMore() {
+    var tb = document.getElementById('fms-pltb'); if (!tb) return;
+    var chunk = _pl.view.slice(_pl.cursor, _pl.cursor + _pl.chunk);
+    if (!chunk.length) return;
+    tb.insertAdjacentHTML('beforeend', chunk.map(plRow).join(''));
+    _pl.cursor += chunk.length;
+  }
+  FMS.plFilter = function (s, btn) {
+    _pl.status = s;
+    if (btn && btn.parentNode) { btn.parentNode.querySelectorAll('button').forEach(function (x) { x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); }); btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary'); }
+    plApplyView();
+  };
+  FMS.plSearch = debounce(function (v) { _pl.search = q(v); plApplyView(); }, 220);
+  FMS.plLoc = function (v) { _pl.loc = v; plApplyView(); };
+
+  /* ───────────────────────── DELIVERY TRACKING ───────────────────────── */
+  var _dlv = { full: [], view: [], cursor: 0, chunk: 60, pill: 'pending', branch: '', search: '' };
+  var DLV_PILLS = [
+    ['pending',   'Awaiting',     'ph-hourglass',       'var(--yellow)'],
+    ['partial',   'Partial',      'ph-truck',           'var(--accentH)'],
+    ['delivered', 'Delivered',    'ph-seal-check',      'var(--green)'],
+    ['overdue',   'Over 15 Days', 'ph-warning-circle',  'var(--red)'],
+    ['',          'All',          'ph-stack',           'var(--sub)']
+  ];
+  function dlvBadge(r) {
+    var s = r.bucket === 'delivered' ? ['b-full', 'Delivered']
+      : r.bucket === 'partial' ? ['b-part', 'Partial']
+        : [r.overdue ? 'b-rej' : 'b-crr', 'Awaiting'];
+    return '<span class="badge ' + s[0] + '">' + s[1] + '</span>';
+  }
+  function dlvMatch(r) {
+    if (_dlv.pill === 'overdue') { if (!r.overdue) return false; }
+    else if (_dlv.pill && r.bucket !== _dlv.pill) return false;
+    if (_dlv.branch && r.branch !== _dlv.branch) return false;
+    if (_dlv.search && q(r.orderNo + r.customer + r.code + r.batch + r.branch).indexOf(_dlv.search) === -1) return false;
+    return true;
+  }
+  function dlvRow(r) {
+    var age = r.ageDays == null ? '<span class="muted">—</span>'
+      : '<span style="font-weight:700;color:' + (r.overdue ? 'var(--red)' : r.ageDays > 7 ? 'var(--orange)' : 'var(--green)') + '">' + r.ageDays + 'd</span>';
+    var pend = Math.max(0, r.dispatchQty - r.deliveredQty);
+    return '<tr class="clickable" onclick="FMS.viewOrder(\'' + esc(r.orderNo) + '\')">' +
+      '<td style="padding:9px 14px;white-space:nowrap"><strong class="accent">' + esc(r.orderNo) + '</strong></td>' +
+      '<td style="padding:9px 12px;max-width:220px"><div class="fw6" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.customer) + '">' + esc(r.customer) + '</div>' +
+      '<div class="muted text-xs">' + esc(r.branch) + '</div></td>' +
+      '<td style="padding:9px 12px;max-width:200px"><div class="fw5 text-sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.code) + '">' + esc(r.code) + '</div>' +
+      '<div class="muted text-xs">' + esc(r.size) + (r.batch ? ' · ' + esc(r.batch) : '') + '</div></td>' +
+      '<td class="tr fwb" style="padding:9px 10px">' + r.dispatchQty.toLocaleString('en-IN') + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + _fmtDate(r.dispatchDate, false) + '</td>' +
+      '<td class="tc" style="padding:9px 10px;white-space:nowrap">' + age + '</td>' +
+      '<td style="padding:9px 10px">' + dlvBadge(r) + '</td>' +
+      '<td class="tr" style="padding:9px 10px;font-weight:700;color:' + (r.deliveredQty > 0 ? 'var(--green)' : 'var(--muted)') + '">' + r.deliveredQty.toLocaleString('en-IN') + '</td>' +
+      '<td class="tr" style="padding:9px 10px;font-weight:700;color:' + (pend > 0 ? 'var(--orange)' : 'var(--muted)') + '">' + pend.toLocaleString('en-IN') + '</td>' +
+      '<td class="muted" style="padding:9px 10px;white-space:nowrap;font-size:12px">' + (r.deliveredDate ? _fmtDate(r.deliveredDate, false) : '—') + '</td>' +
+      '<td class="muted" style="padding:9px 12px;max-width:180px;font-size:12px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.remarks) + '">' + (esc(r.remarks) || '—') + '</div></td></tr>';
+  }
+  function dlvMore() {
+    var tb = document.getElementById('fms-dlvtb'); if (!tb) return;
+    var chunk = _dlv.view.slice(_dlv.cursor, _dlv.cursor + _dlv.chunk);
+    if (!chunk.length) return;
+    tb.insertAdjacentHTML('beforeend', chunk.map(dlvRow).join(''));
+    _dlv.cursor += chunk.length;
+  }
+  function dlvApply() {
+    _dlv.view = _dlv.full.filter(dlvMatch);
+    _dlv.cursor = 0;
+    var tb = document.getElementById('fms-dlvtb'); if (tb) tb.innerHTML = '';
+    dlvMore();
+    var c = document.getElementById('fms-dlvcount'); if (c) c.textContent = '(' + _dlv.view.length + ')';
+  }
+  FMS.dlvPill = function (v, btn) {
+    _dlv.pill = v;
+    if (btn && btn.parentNode) { btn.parentNode.querySelectorAll('button').forEach(function (x) { x.classList.remove('btn-primary'); x.classList.add('btn-ghost'); }); btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary'); }
+    dlvApply();
+  };
+  FMS.dlvSearch = debounce(function (v) { _dlv.search = q(v); dlvApply(); }, 220);
+  FMS.dlvBranch = function (v) { _dlv.branch = v; dlvApply(); };
+
+  function viewDelivery() {
+    setC('<div style="padding:40px;text-align:center" class="muted"><i class="ph ph-spinner spin text-lg"></i><br>Loading delivery queue…</div>');
+    var my = ++FMS._req;
+    api('getFmsDelivery').then(function (res) {
+      if (my !== FMS._req || FMS.state.view !== 'delivery-tracking') return;
+      var rows = res.rows || [], s = res.stats || {};
+      if (!rows.length) { setC(empt('ph-seal-check', 'Nothing Dispatched', 'No dispatched items to track yet.')); return; }
+      _dlv.full = rows; _dlv.cursor = 0; _dlv.pill = 'pending'; _dlv.branch = ''; _dlv.search = '';
+
+      var stats = '<div class="stats" style="margin-bottom:16px">' +
+        sc('ph-hourglass', s.pending || 0, 'cy', 'Awaiting Delivery') +
+        sc('ph-truck', s.partial || 0, 'ca', 'Partially Delivered') +
+        sc('ph-seal-check', s.delivered || 0, 'cg', 'Delivered') +
+        sc('ph-stack', (s.pendingQty || 0).toLocaleString('en-IN'), 'cd', 'Qty In Transit') +
+        sc('ph-check-square', (s.deliveredQty || 0).toLocaleString('en-IN'), 'cg', 'Qty Delivered') +
+        sc('ph-warning-circle', s.overdue || 0, 'cr', 'Over 15 Days') + '</div>';
+
+      var pills = DLV_PILLS.map(function (p) {
+        return '<button class="btn ' + (_dlv.pill === p[0] ? 'btn-primary' : 'btn-ghost') + '" onclick="FMS.dlvPill(\'' + p[0] + '\',this)"><i class="ph ' + p[2] + '"></i> ' + p[1] + '</button>';
+      }).join('');
+
+      var branches = {}; rows.forEach(function (r) { if (r.branch) branches[r.branch] = 1; });
+      var brOpts = '<option value="">All Branches</option>' + Object.keys(branches).sort().map(function (b) {
+        return '<option value="' + esc(b) + '">' + esc(b) + '</option>';
+      }).join('');
+
+      setC(stats +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' + pills + '</div>' +
+        '<div class="card" style="margin-bottom:0;display:flex;flex-direction:column">' +
+        '<div class="tbl-top"><span class="tbl-ttl"><i class="ph ph-seal-check accent"></i> Dispatched Items <span class="muted fw5 text-sm" id="fms-dlvcount" style="margin-left:6px">(0)</span></span>' +
+        '<div class="tbl-filters"><div class="sw"><i class="ph ph-magnifying-glass"></i><input class="tsearch" placeholder="Order, party, item…" oninput="FMS.dlvSearch(this.value)"></div>' +
+        '<select class="filter-sel" onchange="FMS.dlvBranch(this.value)">' + brOpts + '</select></div></div>' +
+        '<div class="tbl-wrap" id="fms-dlvwrap" style="max-height:calc(100vh - 380px)"><table><thead><tr>' +
+        '<th>Order No</th><th>Customer / Branch</th><th>Item</th><th class="tr">Disp. Qty</th><th>Dispatched</th>' +
+        '<th class="tc">Age</th><th>Delivery</th><th class="tr">Dlv. Qty</th><th class="tr">Pending</th><th>Delivered On</th><th>Remarks</th>' +
+        '</tr></thead><tbody id="fms-dlvtb"></tbody></table></div>' +
+        '<div style="padding:9px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">Item-wise across dispatched lines · fully delivered lines drop off after 180 days</div></div>');
+      dlvApply();
+      var w = document.getElementById('fms-dlvwrap');
+      if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 200) dlvMore(); };
+    }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
+  }
+
   FMS.filterSimple = debounce(function (val, tableId) {
     var s = q(val); var tb = document.getElementById(tableId); if (!tb) return;
     tb.querySelectorAll('tbody tr').forEach(function (tr) { tr.style.display = (!s || q(tr.textContent).indexOf(s) !== -1) ? '' : 'none'; });
@@ -790,7 +1267,7 @@
       var now = Date.now();
       var rows = r.orders.filter(function (o) { return VALID[o.orderType] && ['Rejected', 'Cancelled'].indexOf(o.status) === -1; }).map(function (o) {
         var doDate = o.crrDate || '';
-        var d = _parseDate(doDate);
+        var d = _parseDate(doDate, true);
         var days = d ? Math.floor((now - d.getTime()) / 86400000) : null;
         return { o: o, doDate: doDate, days: days, bucket: darBucket(days) };
       }).sort(function (a, b) { return (b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days); });

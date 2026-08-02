@@ -24,7 +24,7 @@
   --text-main:         #f9fafb;
   --text-sub:          #d1d5db;
   --text-muted:        #9ca3af;
-  --text-faint:        #6b7280;
+  --text-faint:        #9ca3af;
 
   /* Brand / Accents */
   --brand-primary:     #4f46e5;
@@ -88,7 +88,7 @@
   --text-main:         #111827;
   --text-sub:          #374151;
   --text-muted:        #6b7280;
-  --text-faint:        #9ca3af;
+  --text-faint:        #4b5563;
   
   --brand-muted:       rgba(79, 70, 229, 0.08);
   --surface-glass:     rgba(255,255,255,0.96);
@@ -216,12 +216,12 @@ h1, h2, h3, .page-title, .brand-name, .kpi-value, .chart-title, .table-title {
 .brand-sub  { font-size: 11px; color: var(--text-muted); font-weight: 500; }
 
 .sidebar-scrollable { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 0 12px; }
-nav { padding: 4px 0; flex: 1; }
+nav { padding: 2px 0; flex: 1; }
 
-.nav-section { padding: 16px 12px 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.nav-section { padding: 10px 12px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
 .nav-item, .nav-group-btn {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; margin-bottom: 4px; border-radius: var(--radius);
+  padding: 7px 14px; margin-bottom: 2px; border-radius: var(--radius);
   cursor: pointer; transition: all var(--t-fast);
   color: var(--text-sub); font-size: 13px; font-weight: 500;
   white-space: nowrap;
@@ -688,22 +688,30 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13
 thead { position: sticky; top: 0; z-index: 20; }
 thead th {
   position: sticky; top: 0; z-index: 10;
-  background: var(--brand-primary) !important; color: #ffffff !important;
+  background: var(--bg-elevated) !important; color: var(--text-main) !important;
   text-align: left; padding: 10px 14px; font-size: 10.5px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
   border: none !important;
-  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  border-bottom: 1px solid var(--border) !important;
   will-change: transform;
   backface-visibility: hidden;
 }
 thead th.sticky-col, thead th[style*="sticky"] { 
   position: sticky;
-  background: var(--brand-primary) !important; color: #ffffff !important; 
+  background: var(--bg-elevated) !important; color: var(--text-main) !important; 
   z-index: 15 !important;
+  box-shadow: 4px 0 8px rgba(0,0,0,0.12) !important;
   will-change: transform;
   backface-visibility: hidden;
 }
-thead th:last-child { border-right: none !important; }
+th.sortable-th {
+  cursor: pointer !important;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+th.sortable-th:hover {
+  background: var(--bg-hover) !important;
+}
 
 tbody tr { cursor: default; }
 tbody tr:nth-child(even) { background: transparent; }
@@ -715,6 +723,7 @@ tbody td.sticky-col, tbody td[style*="sticky"] {
   color: var(--text-main) !important; 
   font-weight: 600 !important; 
   z-index: 5 !important;
+  box-shadow: 4px 0 8px rgba(0,0,0,0.12) !important;
   will-change: transform;
   backface-visibility: hidden;
 }
@@ -874,19 +883,27 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 .modal-actions { display: flex; gap: 12px; justify-content: center; }
 .modal-actions .btn { flex: 1; justify-content: center; padding: 10px; }
 
-/* ── TOOLTIP ── */
+/* ── BEAUTIFIED TOOLTIP ── */
 #row-tooltip {
   position: fixed; z-index: 99999;
-  background: var(--popover-bg); border: 1px solid var(--border-light);
-  border-radius: 12px; padding: 12px 16px;
-  font-size: 12.5px; font-weight: 500; color: var(--text-sub);
-  line-height: 1.6; max-width: 280px; pointer-events: none;
-  opacity: 0; transform: translateY(10px);
-  transition: opacity 0.2s ease, transform var(--t-spring);
-  box-shadow: var(--shadow-lg); backdrop-filter: blur(16px);
+  background: var(--surface-glass); 
+  border: 1px solid var(--border-hover);
+  border-radius: 16px; padding: 14px 18px;
+  font-size: 13.5px; font-weight: 500; color: var(--text-main);
+  line-height: 1.5; min-width: 240px; max-width: 360px; pointer-events: none;
+  opacity: 0; transform: translateY(8px) scale(0.96);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.25);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(79, 70, 229, 0.2);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
 }
-#row-tooltip.show { opacity: 1; transform: translateY(0); }
-#row-tooltip .tt-title { font-size: 11px; font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-family: 'Plus Jakarta Sans'; }
+#row-tooltip.show { opacity: 1; transform: translateY(0) scale(1); }
+#row-tooltip .tt-title { 
+  font-size: 12px; font-weight: 800; color: var(--brand-primary); 
+  text-transform: uppercase; letter-spacing: 0.08em; 
+  margin-bottom: 8px; border-bottom: 1px solid var(--border); 
+  padding-bottom: 6px; font-family: 'Plus Jakarta Sans'; 
+  display: flex; align-items: center; justify-content: space-between;
+}
 
 /* ── TOASTS ── */
 #toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }

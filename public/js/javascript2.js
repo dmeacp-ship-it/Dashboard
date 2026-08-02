@@ -161,8 +161,8 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   const displayRows = sorted.slice((page-1)*ps, page*ps);
   window.App.lastTableData['skutypeqoq'] = displayRows;
 
-  const stickyST  = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:110px;padding:12px 14px;';
-  const stickyHOD = 'position:sticky;left:110px;top:0;z-index:15;background:var(--brand-primary);min-width:160px;max-width:160px;border-right:1px solid rgba(255,255,255,0.2);padding:12px 14px;';
+  const stickyST  = 'position:sticky;left:0;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:110px;padding:12px 14px;';
+  const stickyHOD = 'position:sticky;left:110px;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:12px 14px;';
   const stickyRowST  = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:110px;padding:10px 14px;';
   const stickyRowHOD = 'position:sticky;left:110px;z-index:5;background:var(--bg-card);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:10px 14px;';
 
@@ -171,9 +171,9 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
     <th style="${stickyHOD}">HOD</th>`;
   
   periods.forEach(p => {
-    thHtml += `<th style="min-width:140px;padding:12px 14px;border-left:2px solid rgba(255,255,255,0.2);text-align:left;font-weight:800;color:#ffffff;">TOTAL (${p})</th>`;
+    thHtml += `<th style="min-width:140px;padding:12px 14px;border-left:2px solid rgba(255,255,255,0.2);text-align:left;font-weight:800;color:#ffffff;">TOTAL (${window.esc(p)})</th>`;
     skuTypes.forEach(sku => {
-      thHtml += `<th style="min-width:130px;padding:12px 14px;text-align:left;text-transform:uppercase;">${sku}</th>`;
+      thHtml += `<th style="min-width:130px;padding:12px 14px;text-align:left;text-transform:uppercase;">${window.esc(sku)}</th>`;
     });
   });
   thHtml += '</tr>';
@@ -184,8 +184,8 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   let html = '';
   displayRows.forEach(r => {
     html += `<tr>
-      <td style="font-weight:600;color:var(--text-main);${stickyRowST}">${r.STATE || '-'}</td>
-      <td style="font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${stickyRowHOD}" title="${r.HOD || '-'}">${r.HOD || '-'}</td>`;
+      <td style="font-weight:600;color:var(--text-main);${stickyRowST}">${window.esc(r.STATE || '-')}</td>
+      <td style="font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${stickyRowHOD}" title="${window.esc(r.HOD || '-')}">${window.esc(r.HOD || '-')}</td>`;
     
     periods.forEach(p => {
       const pData = r.periods[p];
@@ -293,9 +293,9 @@ window._renderOutstandingTable = function() {
   const sq = (window.searchQueries['outstanding'] || '').toLowerCase();
   if (sq) { rows = rows.filter(function(r) { return (r.STATE || '').toLowerCase().indexOf(sq) !== -1 || (r.HOD || '').toLowerCase().indexOf(sq) !== -1 || (r.CUSTOMER_NAME || '').toLowerCase().indexOf(sq) !== -1; }); }
 
-  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-  const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:110px;padding:8px 12px;';
-  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;';
+  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:44px;max-width:44px;padding:8px 12px;';
+  const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:110px;padding:8px 12px;';
+  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:150px;border-right:1px solid var(--border);padding:8px 12px;';
   const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
   const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:110px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:154px;z-index:5;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
@@ -323,7 +323,7 @@ window._renderOutstandingTable = function() {
     const risk   = total > 0 ? ((r.DAYS_90_PLUS || 0) / total * 100).toFixed(1) : '0.0';
     const rColor = parseFloat(risk) >= 30 ? 'var(--danger)' : parseFloat(risk) >= 15 ? '#f97316' : 'var(--accent3)';
     const idx    = ((page - 1) * ps) + i + 1;
-    htmlStr += '<tr><td style="' + stickyRowN + '">' + idx + '</td><td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + (r.STATE || '-') + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + (r.HOD || '-') + '</td><td style="font-weight:700;color:var(--text-main);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;">' + (r.CUSTOMER_NAME || '-') + '</td><td style="text-align:right;color:var(--text-muted);padding:6px 12px;">' + window.fmt.num(r.CREDIT_LIMIT) + '</td><td style="text-align:right;font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(total) + '</td><td style="text-align:right;color:var(--accent3);padding:6px 12px;">' + window.fmt.num(r.BELOW_45) + '</td><td style="text-align:right;color:#f97316;padding:6px 12px;">' + window.fmt.num(r.ABOVE_45) + '</td><td style="text-align:right;font-weight:700;color:var(--danger);padding:6px 12px;">' + window.fmt.num(r.DAYS_90_PLUS) + '</td><td style="text-align:right;font-weight:700;color:' + rColor + ';padding:6px 12px;">' + risk + '%</td></tr>';
+    htmlStr += '<tr><td style="' + stickyRowN + '">' + idx + '</td><td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + window.esc(r.HOD || '-') + '</td><td style="font-weight:700;color:var(--text-main);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;">' + window.esc(r.CUSTOMER_NAME || '-') + '</td><td style="text-align:right;color:var(--text-muted);padding:6px 12px;">' + window.fmt.num(r.CREDIT_LIMIT) + '</td><td style="text-align:right;font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(total) + '</td><td style="text-align:right;color:var(--accent3);padding:6px 12px;">' + window.fmt.num(r.BELOW_45) + '</td><td style="text-align:right;color:#f97316;padding:6px 12px;">' + window.fmt.num(r.ABOVE_45) + '</td><td style="text-align:right;font-weight:700;color:var(--danger);padding:6px 12px;">' + window.fmt.num(r.DAYS_90_PLUS) + '</td><td style="text-align:right;font-weight:700;color:' + rColor + ';padding:6px 12px;">' + risk + '%</td></tr>';
   });
   tbody.innerHTML = htmlStr;
   window._renderPagination({ page: window.outstandingPage, totalPages: totalPages, total: rows.length }, 'setOutstandingPage', 'pagination-outstanding');
@@ -368,11 +368,11 @@ window.loadTopCustomers = async function(page = 1) {
       const days   = r['DAYS SINCE LAST PURCHASE'] || 0;
       const dBadge = days <= 30 ? 'badge-green' : days <= 90 ? 'badge-blue' : days <= 180 ? 'badge-amber' : 'badge-red';
       const index = ((res.page - 1) * res.pageSize) + i + 1;
-      const safeName = (r['CUSTOMER NAME'] || '-').replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+      const safeName = window.esc(r['CUSTOMER NAME'] || '-');
       const ttHtml = '<b>State:</b> ' + (r['STATE'] || '-') + '<br><b>SQ FT:</b> ' + window.fmt.num(r['SQ FT.']) + '<br><b>Txns:</b> ' + r['TRANSACTION COUNT'];
       
       htmlStr += '<tr onmouseenter="window.showRowTooltip(event, \'' + safeName + '\', \'' + ttHtml + '\')" onmouseleave="window.hideRowTooltip()">'
-        + '<td style="padding:6px 12px;">' + index + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + safeName + '</td><td style="padding:6px 12px;">' + (r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + (r['HOD NAME'] || 'Unassigned') + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TOTAL SQM']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TRANSACTION COUNT']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="padding:6px 12px;"><span class="badge ' + dBadge + '">' + days + 'd</span></td></tr>';
+        + '<td style="padding:6px 12px;">' + index + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + safeName + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['HOD NAME'] || 'Unassigned') + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TOTAL SQM']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TRANSACTION COUNT']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="padding:6px 12px;"><span class="badge ' + dBadge + '">' + days + 'd</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(9, e.message); }
@@ -406,7 +406,7 @@ window.loadInactive = async function(page = 1) {
       const cat   = r['INACTIVE CATEGORY'] || '';
       const badge = cat.indexOf('180') !== -1 ? 'badge-red' : cat.indexOf('120') !== -1 ? 'badge-amber' : 'badge-blue';
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + (r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + (r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="font-weight:700;color:var(--danger);padding:6px 12px;">' + (r['DAYS SINCE LAST PURCHASE'] || 0) + 'd</td><td style="padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TRANSACTION COUNT']) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + (cat || '-') + '</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="font-weight:700;color:var(--danger);padding:6px 12px;">' + (r['DAYS SINCE LAST PURCHASE'] || 0) + 'd</td><td style="padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TRANSACTION COUNT']) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
@@ -438,7 +438,7 @@ window.loadDeclining = async function(page = 1) {
       const pct   = r['DECLINE %'] || 0; const cat   = r['DECLINE CATEGORY'] || '';
       const badge = cat.indexOf('Critical') !== -1 ? 'badge-red' : cat.indexOf('Severe') !== -1 ? 'badge-amber' : 'badge-purple';
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + (r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + (r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['PREV 6M SQM'] || 0) * 10.76391) + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['LAST 6M SQM'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + window.fmt.num((r['SQM CHANGE'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:800;padding:6px 12px;">' + pct.toFixed(1) + '%</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + (cat || '-') + '</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['PREV 6M SQM'] || 0) * 10.76391) + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['LAST 6M SQM'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + window.fmt.num((r['SQM CHANGE'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:800;padding:6px 12px;">' + pct.toFixed(1) + '%</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
@@ -465,7 +465,7 @@ window.loadLostHV = async function(page = 1) {
     let htmlStr = '';
     rows.forEach(function(r, i) {
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + (r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + (r['STATE'] || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + (r['DAYS INACTIVE'] || 0) + 'd</td><td style="padding:6px 12px;"><span class="badge badge-purple">Top ' + (100 - (r['SQM PERCENTILE'] || 0)) + '%</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + (r['DAYS INACTIVE'] || 0) + 'd</td><td style="padding:6px 12px;"><span class="badge badge-purple">Top ' + (100 - (r['SQM PERCENTILE'] || 0)) + '%</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(7, e.message); }
@@ -504,7 +504,7 @@ window.loadRFM = async function(page = 1) {
     let htmlStr = ''; const segColors = { Champions: 'badge-green', Loyal: 'badge-blue', 'At Risk': 'badge-amber', Hibernating: 'badge-purple', Lost: 'badge-red' };
     rows.forEach(function(r, i) {
       const seg   = r['SEGMENT'] || '-'; const badge = segColors[seg] || 'badge-gray'; const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + (r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + (r['STATE'] || '-') + '</td><td style="font-size:11px;color:var(--text-muted);padding:6px 12px;">' + (r['RECENCY (DAYS)'] || 0) + 'd ago · ' + (r['FREQUENCY'] || 0) + ' orders</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="font-size:11px;font-weight:600;padding:6px 12px;"><span style="color:var(--accent)">R' + (r['R SCORE']||0) + '</span> <span style="color:var(--accent3)">F' + (r['F SCORE']||0) + '</span> <span style="color:var(--accent2)">M' + (r['M SCORE']||0) + '</span></td><td style="font-weight:800;color:var(--text-main);padding:6px 12px;">' + (r['RFM TOTAL'] || 0) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '">' + seg + '</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-size:11px;color:var(--text-muted);padding:6px 12px;">' + (r['RECENCY (DAYS)'] || 0) + 'd ago · ' + (r['FREQUENCY'] || 0) + ' orders</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="font-size:11px;font-weight:600;padding:6px 12px;"><span style="color:var(--accent)">R' + (r['R SCORE']||0) + '</span> <span style="color:var(--accent3)">F' + (r['F SCORE']||0) + '</span> <span style="color:var(--accent2)">M' + (r['M SCORE']||0) + '</span></td><td style="font-weight:800;color:var(--text-main);padding:6px 12px;">' + (r['RFM TOTAL'] || 0) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '">' + window.esc(seg) + '</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
@@ -597,9 +597,9 @@ window.loadTimeWiseSales = async function() {
       data = window.applyMultiSort(data, 'product');
     }
     
-    const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-    const stickyCAT = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
-    const stickyTOT = 'position:sticky;left:224px;top:0;z-index:15;background:var(--brand-primary);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid rgba(255,255,255,0.1);';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:44px;max-width:44px;padding:8px 12px;';
+    const stickyCAT = 'position:sticky;left:44px;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyTOT = 'position:sticky;left:224px;top:0;z-index:15;background:var(--bg-elevated);color:var(--text-main);min-width:130px;max-width:130px;padding:8px 12px;border-right:1px solid var(--border);';
     
     const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowCAT = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);';
@@ -618,7 +618,7 @@ window.loadTimeWiseSales = async function() {
         if (window._hodTh) {
            trHead += window._hodTh(c, i === 0, sub, hasVar);
         } else {
-           trHead += '<th style="text-align:right;">' + c + '</th>';
+           trHead += '<th style="text-align:right;">' + window.esc(c) + '</th>';
         }
     });
     trHead += '</tr>';
@@ -736,8 +736,8 @@ window.loadHodSkuSales = async function() {
         return (b.totalSqftByPeriod[latest] || 0) - (a.totalSqftByPeriod[latest] || 0);
     });
     
-    const stickyN   = 'position:sticky;left:0;top:0;z-index:20;background:var(--brand-primary);min-width:44px;max-width:44px;padding:8px 12px;';
-    const stickyHOD = 'position:sticky;left:44px;top:0;z-index:20;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
+    const stickyN   = 'position:sticky;left:0;top:0;z-index:20;background:var(--bg-elevated);color:var(--text-main);min-width:44px;max-width:44px;padding:8px 12px;';
+    const stickyHOD = 'position:sticky;left:44px;top:0;z-index:20;background:var(--bg-elevated);color:var(--text-main);min-width:180px;max-width:180px;padding:8px 12px;border-right:1px solid var(--border);';
     
     const stickyRowN   = 'position:sticky;left:0;z-index:10;background:var(--bg-card);min-width:44px;max-width:44px;padding:6px 12px;';
     const stickyRowHOD = 'position:sticky;left:44px;z-index:10;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;border-right:1px solid var(--border);color:var(--text-main);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
@@ -855,7 +855,7 @@ window.loadCategoricalPerformance = function() {
   let htmlStr = '';
   rows.forEach(function(r, i) {
     const share = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0';
-    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + (r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
+    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.esc(r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
   });
   tbody.innerHTML = htmlStr;
 };
@@ -1845,6 +1845,26 @@ window.populateFilters = function(opts) {
   });
 };
 
+window._updateFilterBadge = function() {
+  const dot = document.getElementById('filter-active-dot');
+  if (!dot) return;
+  let activeCount = 0;
+  ['fy', 'quarter', 'month', 'zone', 'state', 'hod'].forEach(function(k) {
+    let val = window.App.filters[k];
+    if (Array.isArray(val)) {
+      if (val.length > 0 && !val.includes('All')) activeCount++;
+    } else if (val && val !== 'All') {
+      activeCount++;
+    }
+  });
+  if (activeCount > 0) {
+    dot.style.display = 'block';
+    dot.title = activeCount + ' active filter' + (activeCount > 1 ? 's' : '');
+  } else {
+    dot.style.display = 'none';
+  }
+};
+
 window.applyMultiFilters = function() {
    document.querySelectorAll('.ms-wrap').forEach(w => w.classList.remove('open'));
    const fp = document.getElementById('filter-panel');
@@ -1859,6 +1879,7 @@ window.applyMultiFilters = function() {
      }
    }
    
+   window._updateFilterBadge();
    window.App.data.overview = null;
    if (window.loadPage) window.loadPage(window.App.currentPage);
 };
@@ -1868,6 +1889,7 @@ window.resetFilters = function() {
    if (window.populateFilters) window.populateFilters(window.App.filterOptions);
    const fp = document.getElementById('filter-panel');
    if (fp) fp.classList.add('hidden');
+   window._updateFilterBadge();
    window.App.data.overview = null;
    if (window.loadPage) window.loadPage(window.App.currentPage);
 };
@@ -2271,7 +2293,7 @@ window.pivotDrillDown=function(key){
   var hdrs=window._pivotRaw[0];var parts=key.split('|||');
   dT.innerHTML='<i class="ph ph-magnifying-glass-plus"></i> '+parts[0].replace(/\|\|/g,' \u2192 ')+' \u00D7 '+parts[1]+' ('+rows.length+' rows)';
   dH.innerHTML='<tr>'+hdrs.map(function(h){return '<th style="font-size:11px;">'+h+'</th>';}).join('')+'</tr>';
-  dB.innerHTML=rows.map(function(r){return '<tr>'+hdrs.map(function(_,j){return '<td style="font-size:12px;">'+(r[j]||'')+'</td>';}).join('')+'</tr>';}).join('');
+  dB.innerHTML=rows.map(function(r){return '<tr>'+hdrs.map(function(_,j){return '<td style="font-size:12px;">'+window.esc(r[j]||'')+'</td>';}).join('')+'</tr>';}).join('');
   panel.style.display='block';panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 };
 
@@ -2279,4 +2301,8 @@ document.addEventListener('DOMContentLoaded',function(){
   ['pivot-agg-method','pivot-sort-col','pivot-display-mode','pivot-num-format'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('change',function(){window.renderPivotTable();});});
 });
 window.filterCustomReport=function(query){var q=query.toLowerCase();document.querySelectorAll('.custom-report-row').forEach(function(row){var match=false;for(var i=0;i<row.cells.length;i++){if(row.cells[i].textContent.toLowerCase().indexOf(q)!==-1){match=true;break;}}row.style.display=match?'':'none';});};
-document.addEventListener("DOMContentLoaded",function(){if(window.loadOverview&&window.App.currentPage==='overview'){window.loadOverview(true);}});
+// Overview is loaded by _bootDashboard() once auth resolves. Firing it here on
+// DOMContentLoaded raced _initAuth(): every cold load sent getKPIs +
+// getOverviewData with no token, got two 401s, and then repeated the work after
+// login. Only load here if a session is already established.
+document.addEventListener("DOMContentLoaded",function(){if(window._appReady&&window.loadOverview&&window.App.currentPage==='overview'){window.loadOverview(true);}});

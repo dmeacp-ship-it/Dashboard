@@ -211,9 +211,17 @@ window.loadHodTargets = async function(page = 1) {
             r._latestA = (r[dataKey] && r[dataKey][latestPeriod]) ? (r[dataKey][latestPeriod].a || 0) : 0;
         });
         hodRows.sort((a,b) => {
-            if ((b._latestA || 0) !== (a._latestA || 0)) return (b._latestA || 0) - (a._latestA || 0);
-            if ((b._maxA || 0) !== (a._maxA || 0)) return (b._maxA || 0) - (a._maxA || 0);
-            return (a.STATE||'').localeCompare(b.STATE||'');
+            let sCmp = (a.STATE || '').trim().localeCompare((b.STATE || '').trim());
+            if (sCmp !== 0) return sCmp;
+
+            let hA = (a.HOD_NAME || a['HOD NAME'] || a.HOD || '').trim();
+            let hB = (b.HOD_NAME || b['HOD NAME'] || b.HOD || '').trim();
+            let hCmp = hA.localeCompare(hB);
+            if (hCmp !== 0) return hCmp;
+
+            let diffA = (b._latestA || 0) - (a._latestA || 0);
+            if (diffA !== 0) return diffA;
+            return (b._maxA || 0) - (a._maxA || 0);
         });
 
         if (window.tableSortRules['hodtargets'] && window.tableSortRules['hodtargets'].length > 0) {
@@ -398,8 +406,8 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
 
     thead.innerHTML = '<tr>'
         + '<th style="' + stickyN + '">' + (isCompare ? '<input type="checkbox" class="ms-checkbox" ' + (allSelected ? 'checked' : '') + ' onchange="window.toggleAllHodSelection(this.checked)">' : '#') + '</th>'
-        + '<th style="' + stickyST + '">State</th>'
-        + '<th style="' + stickyHOD + '">HOD Name</th>'
+        + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodtargets\', \'STATE\', \'loadHodTargets\')">State ' + window._getSortIndicator('hodtargets', 'STATE') + '</th>'
+        + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodtargets\', \'HOD\', \'loadHodTargets\')">HOD Name ' + window._getSortIndicator('hodtargets', 'HOD') + '</th>'
         + displayCols.map((c, i) => {
             let sub = '';
             if (window.comparisonMode !== 'none') {
@@ -429,8 +437,8 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
         }
 
         let html = '<td style="' + stickyRowN + '">' + firstColContent + '</td>'
-        + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + (r.STATE || '-') + '</td>'
-        + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+(r.HOD||'-')+'">' + (r.HOD || '-') + '</td>';
+        + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td>'
+        + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+window.esc(r.HOD||'-')+'">' + window.esc(r.HOD || '-') + '</td>';
         
         displayCols.forEach((c, colIdx) => {
             const obj = (r[dataKey] || {})[c] || {t:0, a:0};
@@ -608,11 +616,17 @@ window.loadTargets = async function(page = 1) {
     });
 
     rows.sort(function(a,b) {
-        if ((b._latestA || 0) !== (a._latestA || 0)) return (b._latestA || 0) - (a._latestA || 0);
-        if ((b._maxA || 0) !== (a._maxA || 0)) return (b._maxA || 0) - (a._maxA || 0);
-        let sCmp = (a.STATE||'').localeCompare(b.STATE||'');
+        let sCmp = (a.STATE || '').trim().localeCompare((b.STATE || '').trim());
         if (sCmp !== 0) return sCmp;
-        return (a.HOD||'').localeCompare(b.HOD||'');
+
+        let nameA = (a.EXECUTIVE || a.HOD || a.HOD_NAME || '').trim();
+        let nameB = (b.EXECUTIVE || b.HOD || b.HOD_NAME || '').trim();
+        let hCmp = nameA.localeCompare(nameB);
+        if (hCmp !== 0) return hCmp;
+
+        let diffA = (b._latestA || 0) - (a._latestA || 0);
+        if (diffA !== 0) return diffA;
+        return (b._maxA || 0) - (a._maxA || 0);
     });
 
     if (window.tableSortRules['targets'] && window.tableSortRules['targets'].length > 0) {
@@ -641,11 +655,17 @@ window.loadTargets = async function(page = 1) {
 
 window._targetTh = function(label, isCurrent, suffix, hasVar) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:105px;padding:5px 8px;font-size:11px;';
+    + 'white-space:nowrap;min-width:130px;padding:8px 10px;font-size:11.5px;text-align:center;';
+  let badgeHtml = '';
+  if (suffix) {
+    let bg = isCurrent ? 'var(--brand-primary)' : 'rgba(107, 114, 128, 0.12)';
+    let fg = isCurrent ? '#ffffff' : 'var(--text-muted)';
+    badgeHtml = '<br><span style="font-size:9px;font-weight:700;letter-spacing:0.04em;background:' + bg + ';color:' + fg + ';padding:2px 6px;border-radius:4px;display:inline-block;margin-top:3px;">' + suffix + '</span>';
+  }
   return '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:3px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
     + label
-    + (suffix ? '<br><span style="font-size:8.5px;opacity:0.75;font-weight:700;letter-spacing:0.04em;">(' + suffix + ')</span>' : '')
+    + badgeHtml
     + '</th>';
 };
 
@@ -663,9 +683,9 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
 
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
-    + '<th style="' + stickyST + '">State</th>'
-    + '<th style="' + stickyHOD + '">HOD Name</th>'
-    + '<th style="' + stickyEMP + '">Executive Name</th>'
+    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'STATE\', \'loadTargets\')">State ' + window._getSortIndicator('targets', 'STATE') + '</th>'
+    + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'HOD\', \'loadTargets\')">HOD Name ' + window._getSortIndicator('targets', 'HOD') + '</th>'
+    + '<th style="' + stickyEMP + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'EMPLOYEE\', \'loadTargets\')">Executive Name ' + window._getSortIndicator('targets', 'EMPLOYEE') + '</th>'
     + displayCols.map(function(c, i) {
         let sub = '';
         if (window.comparisonMode !== 'none') {
@@ -689,9 +709,9 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
   displayRows.forEach(function(r, i) {
     const idx = ((page - 1) * pageSize) + i + 1;
     let html = '<td style="' + stickyRowN + '">' + idx + '</td>'
-      + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + (r.STATE || '-') + '</td>'
-      + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+(r.HOD||'-')+'">' + (r.HOD || '-') + '</td>'
-      + '<td style="color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowEMP + '" title="'+(r.EMPLOYEE||'-')+'">' + (r.EMPLOYEE || '-') + '</td>';
+      + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td>'
+      + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+window.esc(r.HOD||'-')+'">' + window.esc(r.HOD || '-') + '</td>'
+      + '<td style="color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowEMP + '" title="'+window.esc(r.EMPLOYEE||'-')+'">' + window.esc(r.EMPLOYEE || '-') + '</td>';
       
     displayCols.forEach(function(c, colIdx) {
        const obj = (r[dataKey] || {})[c] || {t:0, a:0};
@@ -806,8 +826,8 @@ window.openCompareModal = function(type) {
             <div class="table-card" style="padding:16px; border-top:3px solid ${color}; display:flex; flex-direction:column; gap:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <div style="font-size:15px; font-weight:800; color:var(--text-main);">${name}</div>
-                        <div style="font-size:11.5px; color:var(--text-muted); font-weight:500; margin-top:2px;">${subInfo}</div>
+                        <div style="font-size:15px; font-weight:800; color:var(--text-main);">${window.esc(name)}</div>
+                        <div style="font-size:11.5px; color:var(--text-muted); font-weight:500; margin-top:2px;">${window.esc(subInfo)}</div>
                     </div>
                     <span class="badge" style="background:${color}22; color:${color}; border-color:${color}44; font-size:12px;">${pct}%</span>
                 </div>
@@ -881,7 +901,7 @@ window.openCompareModal = function(type) {
                             const name = isHod ? (r.HOD || 'Unknown') : (r.EMPLOYEE || 'Unknown');
                             return `
                                 <tr style="border-bottom:1px solid var(--border);">
-                                    <td style="padding:8px 12px; font-weight:700; color:var(--text-main); white-space:nowrap;">${name}</td>
+                                    <td style="padding:8px 12px; font-weight:700; color:var(--text-main); white-space:nowrap;">${window.esc(name)}</td>
                                     ${sortedPeriods.map(p => {
                                         const pObj = (r[dataKey] || {})[p] || {t:0, a:0};
                                         const pPct = pObj.t > 0 ? ((pObj.a / pObj.t) * 100).toFixed(1) : (pObj.a > 0 ? 100 : 0);
@@ -914,18 +934,43 @@ window.closeCompareModal = function() {
     if (modal) modal.classList.remove('show');
 };
 
+window.targetDensityMode = 'simple';
+
+window.setTargetDensity = function(mode, btn) {
+   window.targetDensityMode = mode;
+   document.querySelectorAll('.btn-density-simple').forEach(b => {
+     b.className = (mode === 'simple') ? 'btn btn-sm btn-primary btn-density-simple' : 'btn btn-sm btn-ghost btn-density-simple';
+   });
+   document.querySelectorAll('.btn-density-detailed').forEach(b => {
+     b.className = (mode === 'detailed') ? 'btn btn-sm btn-primary btn-density-detailed' : 'btn btn-sm btn-ghost btn-density-detailed';
+   });
+   if (typeof window.loadHodTargets === 'function') window.loadHodTargets(window.hodTargetPage || 1);
+   if (typeof window.loadTargets === 'function') window.loadTargets(window.targetPage || 1);
+};
+
 window._targetTd = function(target, achv, prevTarget, prevAchv) {
    target = target || 0; achv = achv || 0;
    const pct = target > 0 ? ((achv / target) * 100).toFixed(1) : (achv > 0 ? 100.0 : 0.0);
    
-   let c = '#10b981';
-   if (pct < 50) c = '#ef4444';
-   else if (pct < 80) c = '#f59e0b';
+   let bgPill = 'rgba(16, 185, 129, 0.15)', fgPill = '#10b981';
+   if (pct < 50) { bgPill = 'rgba(239, 68, 68, 0.15)'; fgPill = '#ef4444'; }
+   else if (pct < 80) { bgPill = 'rgba(245, 158, 11, 0.15)'; fgPill = '#f59e0b'; }
    
-   let html = '<td style="min-width:100px; padding:6px 10px; vertical-align:middle;">';
+   const targetFmt = '₹' + window.fmt.num(target);
+   const achvFmt   = '₹' + window.fmt.num(achv);
+   const ttBody = `<div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">`
+     + `<div style="display:flex;justify-content:space-between;gap:16px;"><span style="color:var(--text-muted);font-weight:600;">Target Assigned:</span><span style="font-weight:800;color:var(--text-main);">${targetFmt}</span></div>`
+     + `<div style="display:flex;justify-content:space-between;gap:16px;"><span style="color:var(--text-muted);font-weight:600;">Actual Generated:</span><span style="font-weight:800;color:var(--text-main);">${achvFmt}</span></div>`
+     + `<div style="display:flex;justify-content:space-between;gap:16px;padding-top:4px;border-top:1px solid var(--border);"><span style="color:var(--text-muted);font-weight:600;">Conversion Rate:</span><span style="background:${bgPill};color:${fgPill};padding:2px 8px;border-radius:6px;font-weight:800;font-size:11px;">${pct}%</span></div>`
+     + `</div>`;
+
+   const escTitle = 'Target vs Achievement';
+   const escBody  = ttBody.replace(/"/g, '&quot;');
+
+   let html = `<td style="min-width:125px; padding:7px 10px; vertical-align:middle; text-align:center; border-right:1px solid var(--border-light);" onmouseenter="window.showRowTooltip(event, '${escTitle}', '${escBody}')" onmouseleave="window.hideRowTooltip()">`;
    
    if (target === 0 && achv === 0 && (prevAchv === undefined || prevAchv === 0)) {
-       html += '<div style="color:var(--text-faint);text-align:center;font-size:12px;">—</div></td>';
+       html += '<div style="color:var(--text-faint);text-align:center;font-size:13px;">—</div></td>';
        return html;
    }
    
@@ -933,26 +978,44 @@ window._targetTd = function(target, achv, prevTarget, prevAchv) {
    if (prevAchv !== undefined) {
        const prevA = parseFloat(prevAchv) || 0;
        if (achv === 0 && prevA === 0) {
-           varHtml = '<span style="color:var(--text-muted); font-size:10px; font-weight:700;">0.0%</span>';
+           varHtml = '<span style="color:var(--text-muted); font-size:10.5px; font-weight:700;">0.0%</span>';
        } else if (prevA === 0 && achv > 0) {
-           varHtml = '<span style="color:var(--accent3); font-size:10px; font-weight:700;">↑ 100.0%</span>';
+           varHtml = '<span style="color:var(--accent3); font-size:10.5px; font-weight:700;">↑ 100.0%</span>';
        } else if (achv === 0 && prevA > 0) {
-           varHtml = '<span style="color:var(--danger); font-size:10px; font-weight:700;">↓ 100.0%</span>';
+           varHtml = '<span style="color:var(--danger); font-size:10.5px; font-weight:700;">↓ 100.0%</span>';
        } else {
            const diffPct = ((achv - prevA) / prevA * 100).toFixed(1);
            let varColor = diffPct > 0 ? 'var(--accent3)' : diffPct < 0 ? 'var(--danger)' : 'var(--text-muted)';
            let arrow = diffPct > 0 ? '↑ ' : diffPct < 0 ? '↓ ' : '';
-           varHtml = `<span style="color:${varColor}; font-size:10px; font-weight:700;">${arrow}${Math.abs(diffPct)}%</span>`;
+           varHtml = `<span style="color:${varColor}; font-size:10.5px; font-weight:700;">${arrow}${Math.abs(diffPct)}%</span>`;
        }
    }
 
-   html += '<div title="' + window.fmt.num(achv) + ' / ' + window.fmt.num(target) + '">';
-   html += '<div style="font-size:12.5px; font-weight:700; color:var(--text-main); line-height:1;">' + window.fmt.short(achv) + '</div>';
-   html += '<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">' + window.fmt.short(target) + ' <span style="color:' + c + '; font-weight:600;">' + pct + '%</span></div>';
-   if (varHtml) {
-       html += '<div style="margin-top:2px;">' + varHtml + '</div>';
+   const isDetailed = window.targetDensityMode === 'detailed';
+
+   html += `<div style="display:flex; flex-direction:column; align-items:center; gap:2px;">`;
+   html += `<div style="font-size:14px; font-weight:800; color:var(--text-main); line-height:1.1;">${window.fmt.short(achv)}</div>`;
+   
+   if (isDetailed) {
+     html += `<div style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-muted); font-weight:500;">`;
+     html += `<span>/ ${window.fmt.short(target)}</span>`;
+     html += `<span style="background:${bgPill}; color:${fgPill}; padding:1px 5px; border-radius:4px; font-size:10.5px; font-weight:700;">${pct}%</span>`;
+     html += `</div>`;
+   } else {
+     // Simple Mode (Clean & uncluttered): Show Achievement + Colored Badge + Micro Progress Bar
+     const clampedPct = Math.min(100, Math.max(0, parseFloat(pct) || 0));
+     html += `<div style="display:flex; align-items:center; gap:4px; margin-top:1px;">`;
+     html += `<span style="background:${bgPill}; color:${fgPill}; padding:1px 6px; border-radius:4px; font-size:10.5px; font-weight:700;">${pct}%</span>`;
+     html += `</div>`;
+     html += `<div style="width:40px; height:3px; background:rgba(156,163,175,0.2); border-radius:3px; overflow:hidden; margin-top:2px;">`;
+     html += `<div style="width:${clampedPct}%; height:100%; background:${fgPill}; border-radius:3px;"></div>`;
+     html += `</div>`;
    }
-   html += '</div></td>';
+
+   if (varHtml) {
+       html += `<div style="margin-top:1px;">${varHtml}</div>`;
+   }
+   html += `</div></td>`;
    return html;
 };
 
@@ -1206,11 +1269,22 @@ window.loadHODQoQ = async function() {
 
 window._hodTh = function(label, isCurrent, suffix, hasVariance) {
   const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:110px;padding:12px 14px;text-align:right;';
+    + 'white-space:nowrap;min-width:130px;padding:10px 12px;text-align:right;';
   let html = '<th style="' + s + '">'
     + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
     + label
-    + (isCurrent && suffix ? '<br><span style="font-size:10px;opacity:0.7;font-weight:600">(' + suffix + ')</span>' : '')
+    + (isCurrent && suffix ? '<br><span style="font-size:9.5px;opacity:0.75;font-weight:700">(' + suffix + ')</span>' : '')
+    + '</th>';
+  return html;
+};
+
+window._custTh = function(label, isCurrent, suffix, hasVariance) {
+  const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
+    + 'white-space:nowrap;min-width:130px;padding:10px 12px;text-align:right;';
+  let html = '<th style="' + s + '">'
+    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + label
+    + (isCurrent && suffix ? '<br><span style="font-size:9.5px;opacity:0.75;font-weight:700">(' + suffix + ')</span>' : '')
     + '</th>';
   return html;
 };
@@ -1312,8 +1386,8 @@ window._loadHODByMonth = async function(tbody, thead) {
 
     thead.innerHTML = '<tr>'
       + '<th style="' + stickyN + '">#</th>'
-      + '<th style="' + stickyHOD + '">HOD Name</th>'
-      + '<th style="' + stickyST + '">State</th>'
+      + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'HOD\', \'loadHODQoQ\')">HOD Name ' + window._getSortIndicator('hodqoq', 'HOD') + '</th>'
+      + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
       + displayMonths.map(function(m, i) { 
           let sub = '';
           if (i === 0) sub = 'latest';
@@ -1329,7 +1403,7 @@ window._loadHODByMonth = async function(tbody, thead) {
     let htmlStr = '';
     sorted.forEach(function(r, i) {
       let html = '<td style="' + stickyRowN + '">' + (i+1) + '</td>'
-        + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + stickyRowHOD + ';color:var(--text-main)">' + r.HOD + '</td>'
+        + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + stickyRowHOD + ';color:var(--text-main)">' + window.esc(r.HOD) + '</td>'
         + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
         + displayMonths.map(function(m, mi) {
             const val = r[m] || 0;
@@ -1478,7 +1552,7 @@ window._loadHODByQuarter = async function(tbody, thead) {
   let htmlStr = '';
   sorted.forEach(function(r, i) {
     let html = '<td style="' + stickyRowN + '">' + (i + 1) + '</td>'
-      + '<td style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-main);' + stickyRowHOD + '">' + r.HOD + '</td>'
+      + '<td style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-main);' + stickyRowHOD + '">' + window.esc(r.HOD) + '</td>'
       + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
       + displayCols.map(function(c, mi) {
           const val = r[c.key] || 0;
@@ -1574,8 +1648,8 @@ window._loadHODByYear = async function(tbody, thead) {
 
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
-    + '<th style="' + stickyHOD + '">HOD Name</th>'
-    + '<th style="' + stickyST + '">State</th>'
+    + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'HOD\', \'loadHODQoQ\')">HOD Name ' + window._getSortIndicator('hodqoq', 'HOD') + '</th>'
+    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
     + displayFYs.map(function(fy, i) { 
         let sub = '';
         if (fy === curFY) sub = 'current';
@@ -1591,7 +1665,7 @@ window._loadHODByYear = async function(tbody, thead) {
   let htmlStr = '';
   sorted.forEach(function(r, i) {
     let html = '<td style="' + stickyRowN + '">' + (i+1) + '</td>'
-      + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + r.HOD + '</td>'
+      + '<td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + window.esc(r.HOD) + '</td>'
       + '<td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + r.STATE + '</td>'
       + displayFYs.map(function(fy, mi) {
           const val = r[fy] || 0, isCur = fy === curFY;
@@ -1719,7 +1793,7 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayMonths.map((m, i) => {
           let sub = '';
           if (i === 0) sub = 'latest';
@@ -1733,7 +1807,7 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
         + displayMonths.map((m, mi) => {
             const val = r[m] || 0;
             let prevVal;
@@ -1852,7 +1926,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayCols.map((c, i) => {
           let sub = '';
           if (c.current) sub = 'current';
@@ -1866,7 +1940,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
 
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
         + displayCols.map((c, mi) => {
             const val = r[c.key] || 0;
             let prevVal;
@@ -1921,7 +1995,7 @@ window._loadCustByYear = async function(tbody, thead, page) {
         displayFYs = offsetFYs;
     }
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD</th><th style="' + stickyC + '">Customer</th>'
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayFYs.map((fy, i) => {
           let sub = '';
           if (fy === curFY) sub = 'current';
@@ -1935,7 +2009,7 @@ window._loadCustByYear = async function(tbody, thead, page) {
     
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + r.ST + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + r.C + '">' + r.C + '</td>'
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
         + displayFYs.map((fy, mi) => {
             const val = r[fy] || 0;
             let prevVal;

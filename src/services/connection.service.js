@@ -77,18 +77,69 @@ function getActiveConnection() {
   return conn;
 }
 
-/** All connections + active id (for the UI). */
+/** All connections + active id. Internal use only — includes real keys. */
 function getAllConnections() {
   return _readDB();
 }
 
-/** Persist all connections + active id from the UI. */
+// ── Key masking ─────────────────────────────────────────────────────────────
+// The Supabase key is a service_role credential: it bypasses RLS and grants
+// full read/write on the project. It must never reach the browser, so the
+// Connections UI is served a mask instead. Any value that still looks like a
+// mask (or is blank) on save means "unchanged" and the stored key is kept.
+const MASK_CHAR = '•'; // •
+
+function _mask(key) {
+  if (!key) return '';
+  const tail = String(key).slice(-4);
+  return MASK_CHAR.repeat(8) + tail;
+}
+
+function _isMask(v) {
+  if (!v) return true;                       // blank => unchanged
+  return String(v).indexOf(MASK_CHAR) !== -1; // contains a bullet => still masked
+}
+
+/**
+ * All connections + active id, safe to send to the browser. The `key` field is
+ * replaced by a mask; `hasKey` tells the UI whether one is actually stored.
+ */
+function getAllConnectionsMasked() {
+  const db = _readDB();
+  return {
+    activeId: db.activeId,
+    connections: (db.connections || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      url: c.url,
+      key: _mask(c.key),
+      hasKey: !!c.key
+    }))
+  };
+}
+
+/**
+ * Persist all connections + active id from the UI. A connection whose submitted
+ * key is blank or still masked keeps whatever key is already stored for that id,
+ * so saving an unrelated field (name/url/active) never wipes the credential.
+ */
 function saveConnections(data) {
-  _writeDB({ activeId: data.activeId, connections: data.connections });
+  const existing = _readDB();
+  const byId = {};
+  (existing.connections || []).forEach((c) => { byId[c.id] = c; });
+
+  const merged = (data.connections || []).map((c) => {
+    const prev = byId[c.id];
+    const key = _isMask(c.key) ? (prev ? prev.key : '') : c.key;
+    return { id: c.id, name: c.name, url: c.url, key: key };
+  });
+
+  _writeDB({ activeId: data.activeId, connections: merged });
 }
 
 module.exports = {
   getActiveConnection,
   getAllConnections,
+  getAllConnectionsMasked,
   saveConnections
 };

@@ -20,8 +20,8 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=bb687539"/>
-  <link rel="stylesheet" href="/css/fms.min.css?v=fa29927b"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=5c6217d3"/>
+  <link rel="stylesheet" href="/css/fms.min.css?v=59cb02fc"/>
 </head>
 
 <body>
@@ -56,7 +56,7 @@
       <label class="login-lbl" for="login-username">Username</label>
       <input id="login-username" class="form-input login-inp" autocomplete="username" autocapitalize="off" placeholder="e.g. superadmin"/>
       <label class="login-lbl" for="login-password">Password</label>
-      <input id="login-password" type="password" class="form-input login-inp" autocomplete="current-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"/>
+      <input id="login-password" type="password" class="form-input login-inp" autocomplete="current-password" placeholder="••••••••"/>
       <button class="btn btn-primary" id="login-btn" type="submit" style="width:100%; justify-content:center; margin-top:18px;">Sign In</button>
     </form>
   </div>
@@ -91,24 +91,36 @@
           <span class="nav-label">Outstandings</span>
         </div>
 
-        <div class="nav-item" data-page="hodqoq" onclick="navigate('hodqoq')">
-          <span class="nav-icon"><i class="ph ph-users-three"></i></span>
-          <span class="nav-label">HOD Sales Performance</span>
+        <div class="nav-group-wrapper">
+          <div class="nav-group-btn" id="target-achv-group-btn" onclick="window.togglePopover(this, 'target-achv-submenu', event)">
+            <span class="nav-group-icon"><i class="ph ph-crosshair"></i></span>
+            <span class="nav-group-label">Target &amp; Achievement</span>
+            <span class="nav-chevron"><i class="ph ph-caret-right"></i></span>
+          </div>
+          <div class="nav-submenu" id="target-achv-submenu">
+            <div class="nav-item" data-page="hodtargets" onclick="navigate('hodtargets')">
+              <span class="nav-label">HOD Wise</span>
+            </div>
+            <div class="nav-item" data-page="targets" onclick="navigate('targets')">
+              <span class="nav-label">Executive Wise</span>
+            </div>
+          </div>
         </div>
 
-        <div class="nav-item" data-page="hodtargets" onclick="navigate('hodtargets')">
-          <span class="nav-icon"><i class="ph ph-crosshair"></i></span>
-          <span class="nav-label">HOD Targets & Achv.</span>
-        </div>
-
-        <div class="nav-item" data-page="targets" onclick="navigate('targets')">
-          <span class="nav-icon"><i class="ph ph-target"></i></span>
-          <span class="nav-label">Exec. Targets & Achv.</span>
-        </div>
-
-        <div class="nav-item" data-page="custqoq" onclick="navigate('custqoq')">
-          <span class="nav-icon"><i class="ph ph-user-list"></i></span>
-          <span class="nav-label">Customers Sales</span>
+        <div class="nav-group-wrapper">
+          <div class="nav-group-btn" id="sale-perf-group-btn" onclick="window.togglePopover(this, 'sale-perf-submenu', event)">
+            <span class="nav-group-icon"><i class="ph ph-chart-line-up"></i></span>
+            <span class="nav-group-label">Sale Performance</span>
+            <span class="nav-chevron"><i class="ph ph-caret-right"></i></span>
+          </div>
+          <div class="nav-submenu" id="sale-perf-submenu">
+            <div class="nav-item" data-page="hodqoq" onclick="navigate('hodqoq')">
+              <span class="nav-label">HOD Sales</span>
+            </div>
+            <div class="nav-item" data-page="custqoq" onclick="navigate('custqoq')">
+              <span class="nav-label">Customer Sales</span>
+            </div>
+          </div>
         </div>
 
         <div class="nav-group-wrapper">
@@ -193,8 +205,9 @@
           <i class="ph ph-sparkle"></i>
         </button>
 
-        <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
+        <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="position:relative;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
           <i class="ph ph-funnel"></i>
+          <span id="filter-active-dot" style="display:none;position:absolute;top:-1px;right:-1px;width:9px;height:9px;background:var(--brand-primary);border:2px solid var(--bg-surface);border-radius:50%;"></span>
         </button>
         <div class="theme-switch-container">
           <i class="ph ph-sun"></i>
@@ -396,6 +409,10 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
+            <div class="btn-group" id="density-toggles-hodtargets" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary btn-density-simple" title="Simple Mode: Actual + Badge" onclick="setTargetDensity('simple', this)">Simple</button>
+              <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
+            </div>
             <select id="hodtarget-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadHodTargets(1)"></select>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
               <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
@@ -447,6 +464,10 @@
               <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <div class="btn-group" id="density-toggles-targets" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary btn-density-simple" title="Simple Mode: Actual + Badge" onclick="setTargetDensity('simple', this)">Simple</button>
+              <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
             </div>
             <select id="target-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadTargets(1)"></select>
             <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('targets', 'Executive Targets')">
@@ -1167,7 +1188,7 @@
             <div id="tab-roles" class="settings-pane" style="display:none;">
               <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Role Simulator</div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
-                <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Test the dashboard exactly as other roles see it â€” without changing backend code. Data boundaries (HOD restrictions, zone filtering) are enforced live.</div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Test the dashboard exactly as other roles see it — without changing backend code. Data boundaries (HOD restrictions, zone filtering) are enforced live.</div>
                 <div style="display:flex;gap:10px;align-items:center;">
                   <select class="form-select" id="sim-role-select" style="flex:1;">
                     <option value="super_admin">Super Admin (Unrestricted)</option>
@@ -1201,12 +1222,16 @@
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;max-width:400px;">
                 <div style="font-weight:700;color:var(--text);font-size:12.5px;margin-bottom:10px;">Change My Password</div>
                 <div class="form-field">
-                  <label class="form-label">New Password</label>
-                  <input class="form-input" id="profile-new-password" type="password" placeholder="Enter new password"/>
+                  <label class="form-label" for="profile-current-password">Current Password</label>
+                  <input class="form-input" id="profile-current-password" type="password" autocomplete="current-password" placeholder="Enter current password"/>
                 </div>
                 <div class="form-field">
-                  <label class="form-label">Confirm Password</label>
-                  <input class="form-input" id="profile-confirm-password" type="password" placeholder="Confirm new password"/>
+                  <label class="form-label" for="profile-new-password">New Password</label>
+                  <input class="form-input" id="profile-new-password" type="password" autocomplete="new-password" placeholder="At least 8 characters"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label" for="profile-confirm-password">Confirm Password</label>
+                  <input class="form-input" id="profile-confirm-password" type="password" autocomplete="new-password" placeholder="Confirm new password"/>
                 </div>
                 <div style="margin-top:16px;">
                   <button class="btn btn-primary btn-sm" onclick="window.updateMyPassword()"><i class="ph ph-check"></i> Update Password</button>
@@ -1411,7 +1436,7 @@
       <div style="height:6px;background:var(--surface3);border-radius:99px;overflow:hidden;">
         <div id="block-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 0.4s ease;"></div>
       </div>
-      <div id="block-progress-label" style="text-align:center;font-size:13px;font-weight:500;color:var(--text2);margin-top:12px;">Initializing Systemâ€¦</div>
+      <div id="block-progress-label" style="text-align:center;font-size:13px;font-weight:500;color:var(--text2);margin-top:12px;">Initializing System…</div>
     </div>
   </div>
 </div>
@@ -1477,10 +1502,10 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=ed5a5527"></script>
-<script defer src="/js/javascript1.min.js?v=63f4f725"></script>
-<script defer src="/js/javascript2.min.js?v=076a61f9"></script>
-<script defer src="/js/fms.min.js?v=e9b8a378"></script>
+<script defer src="/js/javascript.min.js?v=5939ca71"></script>
+<script defer src="/js/javascript1.min.js?v=61a49726"></script>
+<script defer src="/js/javascript2.min.js?v=77b59407"></script>
+<script defer src="/js/fms.min.js?v=10850c38"></script>
 
 </body>
 

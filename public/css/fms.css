@@ -76,18 +76,23 @@
 .fms-scope .stat-l { font-size: 10.5px; color: var(--sub); font-weight: 700; white-space: nowrap; letter-spacing: .3px; text-transform: uppercase; }
 
 /* ── cards & table ── */
-.fms-scope .card { background: var(--card); border: 1px solid var(--border); border-top: 2px solid var(--brand-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); overflow: hidden; margin-bottom: 16px; transition: all 0.3s var(--transition-bounce); }
+#page-fmsoms.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+#page-fmsoms.active > #fms-host { display: flex; flex-direction: column; flex: 1 !important; min-height: 0; }
+.fms-scope .stats { flex-shrink: 0; }
+.fms-scope .card { background: var(--card); border: 1px solid var(--border); border-top: 2px solid var(--brand-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); overflow: hidden; margin-bottom: 0; transition: all 0.3s var(--transition-bounce); display: flex; flex-direction: column; flex: 1 !important; min-height: 0; }
+.fms-scope .dash-grid .card { flex: none !important; }
 .fms-scope .card:hover { box-shadow: var(--shadow-lg); }
-.fms-scope .tbl-top { padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface); }
+.fms-scope .tbl-top { padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
 .fms-scope .tbl-ttl { font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
 .fms-scope .tbl-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-.fms-scope .tbl-wrap { overflow: auto; }
+.fms-scope .tbl-wrap { flex: 1; min-height: 0; overflow: auto; max-height: none !important; }
+.fms-scope .fms-pg { flex-shrink: 0; }
 .fms-scope table { width: 100%; border-collapse: collapse; }
 .fms-scope thead th {
-  position: sticky; top: 0; z-index: 5; background: var(--accent); color: #fff;
+  position: sticky; top: 0; z-index: 5; background: var(--bg-elevated); color: var(--text-main);
   padding: 10px 12px; text-align: left; font-size: 10.5px; font-weight: 700;
   letter-spacing: .4px; text-transform: uppercase; white-space: nowrap;
-  border-right: 1px solid rgba(255,255,255,0.12);
+  border-bottom: 1px solid var(--border);
 }
 .fms-scope tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--sub); vertical-align: middle; }
 .fms-scope tbody tr.clickable { cursor: pointer; }
@@ -201,11 +206,142 @@
 .fms-scope .fms-bk { display:inline-flex; align-items:center; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:700; white-space:nowrap; }
 
 /* ── Orders table — matches the Dashboard's native table theme ── */
-.fms-scope table.fms-orders { font-size: 13.5px; }
-.fms-scope table.fms-orders thead th { background: var(--brand-primary); color: #fff; padding: 12px 18px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-right: none; }
-.fms-scope table.fms-orders tbody td { padding: 12px 18px; color: var(--text-sub); font-weight: 500; font-size: 13.5px; background: transparent; border-bottom: 1px dashed var(--border); }
-.fms-scope table.fms-orders tbody td:first-child { width: auto; color: var(--text-sub); font-size: 12px; font-weight: 500; padding: 12px 18px; }
+.fms-scope table.fms-orders { font-size: 12.5px; }
+.fms-scope table.fms-orders thead th { background: var(--bg-elevated); color: var(--text-main); padding: 8px 12px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.fms-scope table.fms-orders tbody td { padding: 7px 12px; color: var(--text-sub); font-weight: 500; font-size: 12.5px; background: transparent; border-bottom: 1px dashed var(--border); }
+.fms-scope table.fms-orders tbody td:first-child { width: auto; color: var(--text-sub); font-size: 11.5px; font-weight: 500; padding: 7px 12px; }
 .fms-scope table.fms-orders tbody tr:nth-child(even) td { background: transparent; }
 .fms-scope table.fms-orders tbody tr:last-child td { border-bottom: none; }
 .fms-scope table.fms-orders tbody tr:hover td { background: rgba(79,70,229,0.08); }
 .fms-scope table.fms-orders tbody tr:hover td:first-child { box-shadow: inset 4px 0 0 var(--brand-primary); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FMS Dashboard — layout, branch leaderboard, activity timeline
+
+   These classes are emitted by renderDashboard() in public/js/fms.js but were
+   never defined, so the page rendered as unstyled blocks: the branch name and
+   its order count collapsed together ("PANCHKULA-BRANCH164 orders"), the
+   stacked load bars were invisible, and the activity feed had no timeline.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── dashboard layout: analytics beside the activity feed ── */
+.fms-scope .dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .fms-scope .dash-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── branch leaderboard ── */
+/* name pinned left, count pinned right — this is the run-together fix */
+.fms-scope .lbl-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+/* track for the stacked factory/stock/transfer segments */
+.fms-scope .lbl-progress-bg {
+  display: flex;
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.fms-scope .lbl-progress-bg > div { transition: width .35s ease; }
+.fms-scope .lbl-progress-bg > div:first-child { border-radius: 999px 0 0 999px; }
+.fms-scope .lbl-progress-bg > div:last-child  { border-radius: 0 999px 999px 0; }
+
+/* ── order reference row (order detail modal) ── */
+.fms-scope .ref-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+/* ── live activity feed timeline ── */
+.fms-scope .tl-container { display: flex; flex-direction: column; }
+
+.fms-scope .tl-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 8px 10px 0;
+  border-radius: var(--radius-sm);
+  transition: background .18s ease;
+}
+.fms-scope .tl-item.clickable { cursor: pointer; }
+.fms-scope .tl-item.clickable:hover { background: var(--bg-hover); }
+
+/* connecting spine between consecutive events */
+.fms-scope .tl-item::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 36px;
+  bottom: -10px;
+  width: 1px;
+  background: var(--border);
+}
+.fms-scope .tl-item:last-child::before { display: none; }
+
+.fms-scope .tl-icon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+}
+
+.fms-scope .tl-content { flex: 1; min-width: 0; }
+
+.fms-scope .tl-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fms-scope .tl-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fms-scope .tl-time {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fms-scope .tl-desc {
+  font-size: 11.5px;
+  color: var(--sub);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

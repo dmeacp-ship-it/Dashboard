@@ -1035,8 +1035,14 @@ async function getSkuTypeMonthlySummary(f) {
   });
 }
 
-async function getExecutiveTargets(f) {
-  return cached('exec_targets_v4_' + _stableStringify(f), async function () {
+async function getExecutiveTargets(f, opts) {
+  // The router calls this as (scopedFilters, opts) but the signature only took
+  // `f`, so anything in `opts` was silently dropped. No caller sends opts today
+  // (the Targets page filters FY client-side), so this is defensive: accept it,
+  // and keep it in the cache key so a future opts-bearing caller can't read back
+  // another selection's cached result.
+  opts = opts || {};
+  return cached('exec_targets_v4_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
     let qs = '';
     const scope = (f && f._scope) || {};
     const parts = [];

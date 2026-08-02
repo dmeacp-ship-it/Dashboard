@@ -17,8 +17,16 @@ const CacheService = require('../src/services/cache.service.js');
 const SettingsService = require('../src/services/settings.service.js');
 const ConnectionService = require('../src/services/connection.service.js');
 const FmsService = require('../src/services/fms.service.js');
+const UsersService = require('../src/services/users.service.js');
+const RateLimit = require('../src/services/ratelimit.js');
 const { getSalesRowCount } = require('../src/services/supabase.js');
 const { ROLES } = require('../src/config.js');
+
+// Login throttle: 8 attempts per username+IP per 15 minutes. Cleared on a
+// successful sign-in so a legitimate user who mistypes isn't punished.
+const LOGIN_MAX_ATTEMPTS = 8;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const MIN_PASSWORD_LEN = 8;
 
 // ── Response envelopes (mirror _ok / _err) ──────────────────────────────────
 function _ok(data) { return { ok: true, data: data, ts: Date.now() }; }
@@ -26,6 +34,14 @@ function _err(msg) { return { ok: false, error: String(msg), ts: Date.now() }; }
 
 function _requireRole(profile, requiredRole) {
   if (profile.role !== requiredRole) throw new Error('ACCESS_DENIED: Action requires higher privileges.');
+}
+
+// Client errors carry an explicit status so the catch block doesn't report a
+// bad request or a failed sign-in as a 500.
+function _bad(msg, status) {
+  const e = new Error(msg);
+  e.status = status || 400;
+  return e;
 }
 
 // Applies role-based data scoping. super_admin & admin are unrestricted; hod is
@@ -75,7 +91,20 @@ module.exports = async function handler(req, res) {
     const action = req_.action;
 
     // ── Open endpoints ──────────────────────────────────────────────────────
-    if (action === 'login') { res.json(_ok(await AuthService.login(req_.username, req_.password))); return; }
+    if (action === 'login') {
+      const rlKey = 'login:' + String(req_.username || '').toLowerCase().trim() + ':' + RateLimit.clientIp(req);
+      const gate = RateLimit.hit(rlKey, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS);
+      if (!gate.allowed) {
+        res.setHeader('Retry-After', String(gate.retryAfterSec));
+        res.status(429).json(_err('Too many sign-in attempts. Try again in ' +
+          Math.ceil(gate.retryAfterSec / 60) + ' minute(s).'));
+        return;
+      }
+      const result = await AuthService.login(req_.username, req_.password);
+      RateLimit.reset(rlKey);
+      res.json(_ok(result));
+      return;
+    }
     if (action === 'logout') { res.json(_ok(await AuthService.logout())); return; }
     if (action === 'getProfile') { res.json(_ok(await AuthService.getProfile(req_.token))); return; }
     if (action === 'clearServerCache') {
@@ -97,8 +126,21 @@ module.exports = async function handler(req, res) {
     if (action === 'updateUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.updateUser(req_.profileId, req_.userData))); return; }
     if (action === 'deleteUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.deleteUser(req_.profileId))); return; }
     
-    // User self-serve:
-    if (action === 'updateMyPassword') { res.json(_ok(await AuthService.updateUser(userProfile.id, { password: req_.newPassword }))); return; }
+    // User self-serve. Requires the current password: a session token alone
+    // must not be enough to take permanent ownership of an account.
+    if (action === 'updateMyPassword') {
+      const newPw = String(req_.newPassword || '');
+      if (newPw.length < MIN_PASSWORD_LEN) {
+        throw _bad('New password must be at least ' + MIN_PASSWORD_LEN + ' characters.');
+      }
+      if (!req_.currentPassword) throw _bad('Enter your current password to change it.');
+      const ok = await UsersService.verifyCurrentPassword(userProfile.id, req_.currentPassword);
+      // 400, not 401: the frontend force-logs-out on any 401, and a mistyped
+      // current password must not eject the user out of the form.
+      if (!ok) throw _bad('Current password is incorrect.');
+      res.json(_ok(await AuthService.updateUser(userProfile.id, { password: newPw })));
+      return;
+    }
 
     // Admin-only: sync actions
     if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
@@ -108,7 +150,7 @@ module.exports = async function handler(req, res) {
     // Settings
     if (action === 'getSettings') { res.json(_ok(await SettingsService.getSettings())); return; }
     if (action === 'updateSettings') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SettingsService.updateSettings(req_.configValue))); return; }
-    if (action === 'getConnections') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await ConnectionService.getAllConnections())); return; }
+    if (action === 'getConnections') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await ConnectionService.getAllConnectionsMasked())); return; }
     if (action === 'updateConnections') { _requireRole(userProfile, ROLES.SUPER_ADMIN); await ConnectionService.saveConnections(req_.connectionData); res.json(_ok(true)); return; }
 
     // AI integrations
@@ -161,18 +203,26 @@ module.exports = async function handler(req, res) {
       getFmsDashboard: () => FmsService.getFmsDashboard(null),
       getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts, null),
       getFmsPartySummary: () => FmsService.getFmsPartySummary(null),
-      getFmsReconcile: () => FmsService.getFmsReconcile(null),
+      getFmsMonthWise: () => FmsService.getFmsMonthWise(null),
+      getFmsDelivery: () => FmsService.getFmsDelivery(null),
       getFmsPlantItems: () => FmsService.getFmsPlantItems(null)
     };
 
     if (!routes[action]) throw new Error('Unknown action routed: ' + action);
     res.json(_ok(await routes[action]()));
   } catch (err) {
-    console.error('[apiRouter ERROR] Action: ' + (req_ ? req_.action : 'Unknown') + ' | ' + (err && err.stack ? err.stack : err));
-    const m = err.message || '';
-    const status = m.indexOf('ACCESS_DENIED') === 0 ? 403
-      : (m.indexOf('AUTH_REQUIRED') === 0 || m.indexOf('SESSION') === 0) ? 401
-        : 500;
+    const m = (err && err.message) || '';
+    const status = (err && err.status) ? err.status
+      : m.indexOf('ACCESS_DENIED') === 0 ? 403
+        : (m.indexOf('AUTH_REQUIRED') === 0 || m.indexOf('SESSION') === 0) ? 401
+          : /^Invalid username or password\.$/.test(m) ? 401
+            : /^(Username and password are required|Account is disabled)/.test(m) ? 400
+              : 500;
+    // 401/403 are routine (expired token, wrong role) — log one line. Only a
+    // genuine 5xx warrants a stack trace.
+    const label = '[apiRouter ' + status + '] Action: ' + (req_ ? req_.action : 'Unknown');
+    if (status === 500) console.error(label + ' | ' + (err && err.stack ? err.stack : err));
+    else console.warn(label + ' | ' + m);
     res.status(status).json(_err(m || 'Internal server error'));
   }
 };
