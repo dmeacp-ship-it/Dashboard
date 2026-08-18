@@ -552,7 +552,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v3_' + _stableStringify(f), async function () {
+  return cached('kpis_v4_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
