@@ -194,7 +194,7 @@
 #fms-overlay .modal-foot { padding: 12px 22px; background: var(--bg-card); border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
 
 /* ── sidebar group active tint ── */
-#sidebar .nav-group-btn.fms-on { color: var(--brand-primary); }
+#sidebar .nav-group-btn.fms-on { color: var(--brand-text); }
 
 /* ── pagination (generic tables) ── */
 .fms-scope .fms-pg { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); flex-wrap: wrap; }

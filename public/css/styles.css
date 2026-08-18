@@ -31,11 +31,25 @@
   --brand-hover:       #6366f1;
   --brand-active:      #4338ca;
   --brand-muted:       rgba(79, 70, 229, 0.12);
-  --accent:            #4f46e5; 
-  --accent2:           #8b5cf6; 
-  --accent3:           #10b981; 
-  --accent4:           #f59e0b; 
-  --danger:            #ef4444; 
+  --accent:            #818cf8;
+  --accent2:           #8b5cf6;
+  --accent3:           #10b981;
+  --accent4:           #f59e0b;
+  --danger:            #f87171;
+
+  /* Text-on-surface variants of the brand colour.
+     --brand-primary is dual-use: it fills 35 backgrounds (where white text on
+     it measures ~5.4:1 and is fine) AND colours 45 pieces of text (where
+     #4f46e5 on the dark card measures only 2.33:1). It therefore cannot be
+     redefined per theme without breaking every button and gradient. Text uses
+     --brand-text instead, which is lightened on dark and left at full brand
+     strength on light. Measured: #818cf8 on --bg-card = 4.98:1. */
+  --brand-text:        #818cf8;
+  /* Sky blue used for informational figures. Passes on dark as-is; the light
+     theme overrides it because #38bdf8 on white is only 2.14:1. */
+  --info:              #38bdf8;
+  /* Focus ring, kept distinct so it can stay high-contrast in both themes. */
+  --focus-ring:        #a5b4fc;
 
   /* Legacy JS mappings */
   --text:              var(--text-main);
@@ -93,6 +107,18 @@
   --brand-muted:       rgba(79, 70, 229, 0.08);
   --surface-glass:     rgba(255,255,255,0.96);
   --popover-bg:        #ffffff;
+
+  /* Light-mode accessible variants. On white the dark-mode values are far too
+     pale: #f59e0b measured 2.05:1 and #ef4444 3.76:1, both below the 4.5:1
+     required for body text. These darker shades measure 5.05:1 and 4.85:1.
+     Indigo needs no adjustment here — #4f46e5 on white is already ~7.7:1. */
+  --accent:            #4f46e5;
+  --brand-text:        #4f46e5;
+  --accent3:           #15803d;   /* was #10b981 — 2.2:1 on white, now 5.0:1 */
+  --accent4:           #b45309;
+  --info:              #0369a1;   /* was #38bdf8 — 2.14:1 on white, now 5.9:1 */
+  --danger:            #dc2626;
+  --focus-ring:        #4338ca;
   
   --shadow-xs:         0 2px 4px rgba(0,0,0,0.03);
   --shadow-sm:         0 4px 10px rgba(0,0,0,0.05);
@@ -227,14 +253,14 @@ nav { padding: 2px 0; flex: 1; }
   white-space: nowrap;
 }
 .nav-item:hover, .nav-group-btn:hover { background: var(--bg-hover); color: var(--text-main); transform: translateX(2px); }
-.nav-item.active { color: var(--brand-primary); font-weight: 700; }
+.nav-item.active { color: var(--brand-text); font-weight: 700; }
 
 .nav-icon, .nav-group-icon { font-size: 18px; color: var(--text-muted); flex-shrink: 0; transition: transform var(--t-spring), color var(--t); }
 .nav-item:hover .nav-icon { color: var(--text-main); transform: scale(1.1); }
-.nav-item.active .nav-icon { color: var(--brand-primary); transform: scale(1.15); filter: none; }
+.nav-item.active .nav-icon { color: var(--brand-text); transform: scale(1.15); filter: none; }
 .nav-chevron { margin-left: auto; font-size: 14px; transition: transform var(--t-spring); }
 .nav-group-btn .nav-chevron { transform: rotate(-90deg); }
-.nav-group-btn.open .nav-chevron { transform: rotate(0deg); color: var(--brand-primary); }
+.nav-group-btn.open .nav-chevron { transform: rotate(0deg); color: var(--brand-text); }
 
 .nav-group-wrapper { position: relative; }
 .nav-submenu {
@@ -388,10 +414,10 @@ nav { padding: 2px 0; flex: 1; }
   transform: translateX(20px);
 }
 [data-theme="dark"] .theme-switch-container .ph-moon {
-  color: #10b981 !important;
+  color:var(--accent3) !important;
 }
 [data-theme="light"] .theme-switch-container .ph-sun {
-  color: var(--brand-primary) !important;
+  color: var(--brand-text) !important;
 }
 
 /* Loaders */
@@ -449,7 +475,7 @@ nav { padding: 2px 0; flex: 1; }
 .ms-caret {
   color: var(--text-muted); font-size: 12px; transition: transform 0.2s ease; margin-left: 4px;
 }
-.ms-wrap.open .ms-caret { transform: rotate(180deg); color: var(--brand-primary); }
+.ms-wrap.open .ms-caret { transform: rotate(180deg); color: var(--brand-text); }
 .ms-wrap.open .ms-display { background-color: var(--bg-hover); }
 
 .ms-dropdown {
@@ -499,6 +525,30 @@ nav { padding: 2px 0; flex: 1; }
 .btn-ghost { background: transparent; color: var(--text-muted); }
 .btn-ghost:hover { color: var(--text-main); background: var(--bg-hover); }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+/* Icon-only toolbar button. Square, so the four table-toolbar actions read as
+   a tight control cluster instead of four differently-sized pills.
+   34px matches the height of the search input they sit beside.
+
+   Every instance carries title + aria-label: dropping the visible text removes
+   the only cue for both sighted users (who now rely on the tooltip) and screen
+   readers (which would otherwise announce an unlabelled button). */
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+  border-radius: 10px;
+}
+.btn-icon i { font-size: 16px; line-height: 1; }
+.btn-icon.btn-ghost:hover { background: var(--bg-hover); color: var(--text-main); }
+
+/* No margin here on purpose. The toolbar row is already a flex container with
+   its own `gap`, so adding margins stacked on top of it (measured 14px between
+   icons, 20px from the search field). Letting the container's gap alone apply
+   keeps these consistent with every other control in the same row. */
 
 /* ── CONTENT & CARDS ── */
 #content {
@@ -566,7 +616,7 @@ nav { padding: 2px 0; flex: 1; }
 .chart-wrap-tall.is-loading::before {
     content: ''; position: absolute; top: calc(50% - 16px); left: calc(50% - 16px);
     width: 32px; height: 32px; border-radius: 50%;
-    border: 3px solid var(--bg-hover); border-top-color: var(--brand-primary);
+    border: 3px solid var(--bg-hover); border-top-color: var(--brand-text);
     animation: spinCW 0.8s linear infinite; z-index: 5;
 }
 
@@ -693,16 +743,12 @@ thead th {
   text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
   border: none !important;
   border-bottom: 1px solid var(--border) !important;
-  will-change: transform;
-  backface-visibility: hidden;
 }
-thead th.sticky-col, thead th[style*="sticky"] { 
+thead th.sticky-col, thead th[style*="sticky"] {
   position: sticky;
-  background: var(--bg-elevated) !important; color: var(--text-main) !important; 
+  background: var(--bg-elevated) !important; color: var(--text-main) !important;
   z-index: 15 !important;
   box-shadow: 4px 0 8px rgba(0,0,0,0.12) !important;
-  will-change: transform;
-  backface-visibility: hidden;
 }
 th.sortable-th {
   cursor: pointer !important;
@@ -724,8 +770,10 @@ tbody td.sticky-col, tbody td[style*="sticky"] {
   font-weight: 600 !important; 
   z-index: 5 !important;
   box-shadow: 4px 0 8px rgba(0,0,0,0.12) !important;
-  will-change: transform;
-  backface-visibility: hidden;
+  /* No will-change/backface-visibility here: this rule matches every sticky
+     cell, so on a large table it promoted a compositor layer per row. Sticky
+     positioning does not need the hint, and the GPU memory cost made scrolling
+     slower rather than faster. */
 }
 tbody tr:hover td.sticky-col, tbody tr:hover td[style*="sticky"] {
   background-color: var(--bg-hover) !important;
@@ -748,11 +796,22 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 .badge-purple { background: rgba(168,85,247,0.15);  color: #a855f7; border-color: rgba(168,85,247,0.2); }
 .badge-gray   { background: var(--bg-elevated);     color: var(--text-muted); border-color: var(--border); }
 
-[data-theme="light"] .badge-blue   { background: rgba(0,122,255,0.1);  color: #007aff; }
-[data-theme="light"] .badge-green  { background: rgba(52,199,89,0.1);  color: #34c759; }
-[data-theme="light"] .badge-red    { background: rgba(255,59,48,0.1);  color: #ff3b30; }
-[data-theme="light"] .badge-amber  { background: rgba(255,149,0,0.1);  color: #ff9500; }
-[data-theme="light"] .badge-purple { background: rgba(175,82,222,0.1); color: #af52de; }
+/* Light-mode badges. The previous values were iOS system colours, chosen for
+   vibrancy on a white background rather than legibility — measured against
+   their own tinted backgrounds they were 1.99:1 (green), 2.04:1 (amber),
+   3.2:1 (red) and 3.65:1 (blue), all under the 4.5:1 needed at this size.
+   These keep the same hues at a darker shade; all now measure above 5:1.
+   The tint backgrounds are unchanged, so the badges look the same at a
+   glance — only the label darkens. */
+[data-theme="light"] .badge-blue   { background: rgba(0,122,255,0.1);  color: #0369a1; }
+[data-theme="light"] .badge-green  { background: rgba(52,199,89,0.1);  color: #15803d; }
+[data-theme="light"] .badge-red    { background: rgba(255,59,48,0.1);  color: #b91c1c; }
+[data-theme="light"] .badge-amber  { background: rgba(255,149,0,0.1);  color: #b45309; }
+[data-theme="light"] .badge-purple { background: rgba(175,82,222,0.1); color: #7e22ce; }
+
+/* Same problem in the alert banners, which hardcode the dark-mode hexes. */
+[data-theme="light"] .alert-warn   { color: #b45309; }
+[data-theme="light"] .alert-danger { color: #b91c1c; }
 
 /* ── FORMS & INPUTS ── */
 .form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -820,7 +879,7 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 }
 .copilot-icon {
   width: 36px; height: 36px; border-radius: 10px;
-  background: var(--brand-muted); color: var(--brand-primary);
+  background: var(--brand-muted); color: var(--brand-text);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
 }
 .copilot-title { font-weight: 700; font-size: 15px; color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -877,7 +936,7 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 .modal-overlay.show .modal-box { transform: scale(1) translateY(0); }
 .settings-modal-box { max-width: 860px; text-align: left; padding: 24px; max-height: 90vh; overflow-y: auto; }
 
-.modal-icon-wrap { width: 56px; height: 56px; border-radius: 50%; background: var(--brand-muted); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+.modal-icon-wrap { width: 56px; height: 56px; border-radius: 50%; background: var(--brand-muted); color: var(--brand-text); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
 .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
 .modal-desc  { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 12px; justify-content: center; }
@@ -898,7 +957,7 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 }
 #row-tooltip.show { opacity: 1; transform: translateY(0) scale(1); }
 #row-tooltip .tt-title { 
-  font-size: 12px; font-weight: 800; color: var(--brand-primary); 
+  font-size: 12px; font-weight: 800; color: var(--brand-text); 
   text-transform: uppercase; letter-spacing: 0.08em; 
   margin-bottom: 8px; border-bottom: 1px solid var(--border); 
   padding-bottom: 6px; font-family: 'Plus Jakarta Sans'; 
@@ -921,7 +980,7 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 .toast i { font-size: 18px; }
 .toast.success { border-left: 4px solid var(--accent3); } .toast.success i { color: var(--accent3); }
 .toast.error   { border-left: 4px solid var(--danger);  } .toast.error   i { color: var(--danger);  }
-.toast.info    { border-left: 4px solid var(--brand-primary); } .toast.info i { color: var(--brand-primary); }
+.toast.info    { border-left: 4px solid var(--brand-primary); } .toast.info i { color: var(--brand-text); }
 
 /* ── ALERTS ── */
 .alert-warn  { background: rgba(245,158,11,0.12);  border: 1px solid rgba(245,158,11,0.3);  border-radius: 12px; padding: 12px 16px; font-size: 13px; font-weight: 600; color: #f59e0b; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -933,7 +992,7 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
 #loading-block.show { opacity: 1; pointer-events: auto; }
 .loader-panel { background: var(--popover-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 36px; display: flex; flex-direction: column; align-items: center; gap: 20px; min-width: 320px; box-shadow: 0 32px 64px -12px rgba(0,0,0,0.85); }
 [data-theme="light"] .loader-panel { border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
-.acp-spinner { width: 56px; height: 56px; border-radius: 50%; border: 4px solid var(--bg-hover); border-top-color: var(--brand-primary); border-right-color: var(--brand-hover); animation: spinCW 0.8s cubic-bezier(0.68,-0.55,0.265,1.55) infinite; }
+.acp-spinner { width: 56px; height: 56px; border-radius: 50%; border: 4px solid var(--bg-hover); border-top-color: var(--brand-text); border-right-color: var(--brand-hover); animation: spinCW 0.8s cubic-bezier(0.68,-0.55,0.265,1.55) infinite; }
 @keyframes spinCW { to { transform: rotate(360deg); } }
 
 /* ── AURORA BOOST (Vivid Glows) ── */
@@ -1145,6 +1204,12 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   transform-style: preserve-3d;
   position: relative;
 }
+/* Applied while the pointer is over the card. Dropping the transform
+   transition lets the tilt follow the cursor exactly; on mouseleave the class
+   comes off, so the card still eases back to rest. */
+.kpi-card.tilting {
+  transition: box-shadow 0.22s ease, border-color 0.22s ease !important;
+}
 .kpi-card::after {
   content: '';
   position: absolute;
@@ -1176,7 +1241,9 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
 }
 .stagger-row {
   animation: rowSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(var(--row-index, 0) * 0.03s);
+  /* Capped at 24: past roughly one screenful the cascade is below the fold, and
+     an uncapped delay left row 800 sitting at opacity 0 for 24 seconds. */
+  animation-delay: calc(min(var(--row-index, 0), 24) * 0.03s);
 }
 
 /* 4. Elastic AI Copilot Panel */
@@ -1236,4 +1303,80 @@ tr.row-selected-compare td {
 
 tr.row-selected-compare td.sticky-col, tr.row-selected-compare td[style*="sticky"] {
   background-color: rgba(79, 70, 229, 0.18) !important;
-}
+}
+/* ════════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — keyboard focus + reduced motion
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Visible keyboard focus ──────────────────────────────────────────────
+   Only one :focus rule existed before this (on form inputs), so 38 of 40
+   focusable elements gave a keyboard user no indication of position.
+   :focus-visible is used rather than :focus so mouse clicks don't leave a
+   ring behind — the indicator appears for keyboard and assistive tech only.
+   `outline` is used instead of box-shadow because it paints outside the
+   element's box and is not clipped by the sidebar's overflow. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Form fields keep their existing border+glow treatment; the ring is drawn
+   tight against it so the two don't read as two separate states. */
+.form-input:focus-visible,
+.form-select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+/* Nav rows and tabs are wide; a tight offset keeps the ring inside the rail
+   rather than overlapping the adjacent item. */
+.nav-item:focus-visible,
+.nav-group-btn:focus-visible,
+.settings-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Older engines without :focus-visible still get a ring rather than nothing. */
+@supports not selector(:focus-visible) {
+  a:focus, button:focus, input:focus, select:focus, textarea:focus,
+  [tabindex]:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────
+   The app animates hover lifts, the login card entrance, popovers and
+   spinners. Users who set "reduce motion" at the OS level were previously
+   shown all of it. Transitions are collapsed rather than removed so state
+   changes still register instantly instead of appearing broken.
+
+   Loading spinners are deliberately EXEMPT: a spinner is the only signal
+   that a slow Supabase query is still running, and freezing it would read
+   as a hung UI. It is kept, slowed, so motion remains minimal but present. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .spin,
+  .ph-spinner,
+  [class*="spinner"] {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Hover lifts translate content under the cursor; drop the movement but
+     keep the shadow so the affordance survives. */
+  .kpi-card:hover,
+  .stat:hover,
+  .table-card:hover {
+    transform: none !important;
+  }
+}

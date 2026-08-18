@@ -20,8 +20,8 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=5c6217d3"/>
-  <link rel="stylesheet" href="/css/fms.min.css?v=0c1c036a"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=3d0800b3"/>
+  <link rel="stylesheet" href="/css/fms.min.css?v=e2d94cfe"/>
 </head>
 
 <body>
@@ -323,15 +323,9 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
             <select id="hod-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadHODQoQ()"></select>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('hodqoq', 'HOD Performance')">
-              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('hodqoq', 'tbl-hodqoq-head', window.loadHODQoQ)">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-hodqoq-head', 'tbl-hodqoq-body', 'HOD_Performance')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('hodqoq', 'HOD Performance')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('hodqoq', 'tbl-hodqoq-head', window.loadHODQoQ)" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-hodqoq-head', 'tbl-hodqoq-body', 'HOD_Performance')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
@@ -361,15 +355,9 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
             <select id="cust-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadCustSale(window.custSalePage || 1)"></select>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('custqoq', 'Customer Wise Sale')">
-              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('custqoq', 'tbl-custqoq-head', function(){ window.loadCustSale(window.custSalePage||1); })">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-custqoq-head', 'tbl-custqoq-body', 'Customer_Wise_Sale')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('custqoq', 'Customer Wise Sale')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('custqoq', 'tbl-custqoq-head', function(){ window.loadCustSale(window.custSalePage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-custqoq-head', 'tbl-custqoq-body', 'Customer_Wise_Sale')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
@@ -414,18 +402,10 @@
               <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
             </div>
             <select id="hodtarget-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadHodTargets(1)"></select>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('hodtargets', 'HOD Targets')">
-              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('hodtargets', 'tbl-targets-hod-head', function(){ window.loadHodTargets(window.hodTargetPage||1); })">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-hod-head', 'tbl-targets-hod-body', 'HOD_Targets_Wise')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncTargets(event)">
-              <i class="ph ph-arrows-clockwise"></i> Sync
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('hodtargets', 'HOD Targets')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('hodtargets', 'tbl-targets-hod-head', function(){ window.loadHodTargets(window.hodTargetPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-targets-hod-head', 'tbl-targets-hod-body', 'HOD_Targets_Wise')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" style="color:var(--brand-primary);" onclick="actionSyncTargets(event)" title="Sync" aria-label="Sync"><i class="ph ph-arrows-clockwise"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
@@ -470,18 +450,10 @@
               <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
             </div>
             <select id="target-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadTargets(1)"></select>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openTableAI('targets', 'Executive Targets')">
-              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('targets', 'tbl-targets-head', function(){ window.loadTargets(window.targetPage||1); })">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-targets-head', 'tbl-targets-body', 'Executive_Targets')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncTargets(event)">
-              <i class="ph ph-arrows-clockwise"></i> Sync
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('targets', 'Executive Targets')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('targets', 'tbl-targets-head', function(){ window.loadTargets(window.targetPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-targets-head', 'tbl-targets-body', 'Executive_Targets')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" style="color:var(--brand-primary);" onclick="actionSyncTargets(event)" title="Sync" aria-label="Sync"><i class="ph ph-arrows-clockwise"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
@@ -509,18 +481,10 @@
               <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
               <input type="text" id="search-outstanding" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:240px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Customer or State..." onkeyup="handleSearch('outstanding')">
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('outstanding', 'Outstanding Summary')">
-              <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('outstanding', 'tbl-outstanding-head', function(){ window.loadOutstanding(window.outPage||1); })">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV('tbl-outstanding-head', 'tbl-outstanding-body', 'Outstanding_Summary')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px; color:var(--brand-primary);" onclick="actionSyncOutstanding(event)">
-              <i class="ph ph-arrows-clockwise"></i> Sync
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('outstanding', 'Outstanding Summary')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('outstanding', 'tbl-outstanding-head', function(){ window.loadOutstanding(window.outPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-outstanding-head', 'tbl-outstanding-body', 'Outstanding_Summary')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" style="color:var(--brand-primary);" onclick="actionSyncOutstanding(event)" title="Sync" aria-label="Sync"><i class="ph ph-arrows-clockwise"></i></button>
             <div style="font-size:11px;color:var(--text4);font-weight:600;margin-left:8px;" id="outstanding-sync-label"></div>
           </div>
           <div class="table-wrap">
@@ -553,15 +517,9 @@
                 <button class="btn btn-sm btn-ghost"   onclick="setCustSort('quantity',this)">By Qty</button>
                 <button class="btn btn-sm btn-ghost"   onclick="setCustSort('frequency',this)">By Freq</button>
               </div>
-              <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('customers', 'Top 80% Contributors')">
-                <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-              </button>
-              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('customers', 'tbl-customers-body', function(){ window.loadPareto(window.paretoPage||1); })">
-                <i class="ph ph-sort-ascending"></i> Sort
-              </button>
-              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-customers-body', 'Top_80_Accounts')">
-                <i class="ph ph-download-simple"></i> Export
-              </button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('customers', 'Top 80% Contributors')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('customers', 'tbl-customers-body', function(){ window.loadPareto(window.paretoPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-customers-body', 'Top_80_Accounts')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
             </div>
             <div class="table-wrap">
               <table>
@@ -590,15 +548,9 @@
                 <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Hibernating',this)">Hibernating</button>
                 <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Lost',this)">Lost</button>
               </div>
-              <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('rfm', 'RFM Matrix')">
-                <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-              </button>
-              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('rfm', 'tbl-rfm-body', function(){ window.loadRFM(window.rfmPage||1); })">
-                <i class="ph ph-sort-ascending"></i> Sort
-              </button>
-              <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-rfm-body', 'RFM_Matrix')">
-                <i class="ph ph-download-simple"></i> Export
-              </button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('rfm', 'RFM Matrix')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('rfm', 'tbl-rfm-body', function(){ window.loadRFM(window.rfmPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-rfm-body', 'RFM_Matrix')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
             </div>
             <div class="table-wrap">
               <table>
@@ -627,15 +579,9 @@
                     <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
                     <button class="btn btn-sm btn-ghost risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
                  </div>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('declining', 'Declining Accounts')">
-                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-                 </button>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="window.openSortModal('declining', 'tbl-declining-body', function(){ window.loadDeclining(window.decliningPage||1); })">
-                   <i class="ph ph-sort-ascending"></i> Sort
-                 </button>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-declining-body', 'Declining_Customers')">
-                   <i class="ph ph-download-simple"></i> Export
-                 </button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('declining', 'Declining Accounts')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('declining', 'tbl-declining-body', function(){ window.loadDeclining(window.decliningPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-declining-body', 'Declining_Customers')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
                </div>
                <div class="table-wrap">
                  <table>
@@ -666,12 +612,8 @@
                    <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(120,this)">120+ Days</button>
                    <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(180,this)">180+ Days</button>
                  </div>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('inactive', 'Inactive Accounts')">
-                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-                 </button>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-inactive-body', 'Inactive_Accounts')">
-                   <i class="ph ph-download-simple"></i> Export
-                 </button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('inactive', 'Inactive Accounts')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-inactive-body', 'Inactive_Accounts')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
                </div>
                <div class="table-wrap">
                  <table>
@@ -698,12 +640,8 @@
                     <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
                     <button class="btn btn-sm btn-primary risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
                  </div>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="openTableAI('losthv', 'Lost High-Volume')">
-                   <i class="ph ph-sparkle" style="color:var(--brand-primary)"></i> Ask AI
-                 </button>
-                 <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-losthv-body', 'Lost_High_Value')">
-                   <i class="ph ph-download-simple"></i> Export
-                 </button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('losthv', 'Lost High-Volume')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-losthv-body', 'Lost_High_Value')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
                </div>
                <div class="table-wrap">
                  <table>
@@ -742,12 +680,8 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="window.openSortModal('product', 'th-product-head', window.loadTimeWiseSales)">
-              <i class="ph ph-sort-ascending"></i> Sort
-            </button>
-            <button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="exportTableToCSV(null, 'tbl-product-body', 'TimeWise_Sales')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('product', 'th-product-head', window.loadTimeWiseSales)" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-product-body', 'TimeWise_Sales')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="min-width:800px;">
@@ -1261,9 +1195,7 @@
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
-            <button class="btn btn-sm btn-ghost" style="margin-left:8px;" onclick="exportTableToCSV(null, 'tbl-hodsku-body', 'HOD_x_SKU_Analysis')">
-              <i class="ph ph-download-simple"></i> Export
-            </button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-hodsku-body', 'HOD_x_SKU_Analysis')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="min-width:800px; border-collapse:separate;">
@@ -1502,10 +1434,10 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=5939ca71"></script>
-<script defer src="/js/javascript1.min.js?v=61a49726"></script>
-<script defer src="/js/javascript2.min.js?v=77b59407"></script>
-<script defer src="/js/fms.min.js?v=10850c38"></script>
+<script defer src="/js/javascript.min.js?v=97504cf6"></script>
+<script defer src="/js/javascript1.min.js?v=2ece62c4"></script>
+<script defer src="/js/javascript2.min.js?v=372646a4"></script>
+<script defer src="/js/fms.min.js?v=5605d69c"></script>
 
 </body>
 

@@ -182,8 +182,8 @@ window.loadHodTargets = async function(page = 1) {
         const kg = document.getElementById('hod-targets-kpi-grid');
         if (kg) {
             kg.innerHTML =
-              '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-primary)">'
-            + '<div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-primary)"><i class="ph ph-target"></i></div><div class="kpi-label">LATEST TARGET (' + latestPeriod.replace('_', ' ') + ')</div></div>'
+              '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-text)">'
+            + '<div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-target"></i></div><div class="kpi-label">LATEST TARGET (' + latestPeriod.replace('_', ' ') + ')</div></div>'
             + '<div class="kpi-value" style="font-size:24px;">' + window.fmt.num(totalTarget) + '</div>'
             + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">target assigned</div>'
             + '</div>'
@@ -366,7 +366,7 @@ window._renderCompareFloatingBar = function(type, count) {
     const titleText = type === 'hodtargets' ? 'HODs' : 'Executives';
     bar.innerHTML = `
         <div style="display:flex; align-items:center; gap:10px;">
-            <i class="ph ph-scales" style="font-size:18px; color:var(--brand-primary);"></i>
+            <i class="ph ph-scales" style="font-size:18px; color:var(--brand-text);"></i>
             <span style="font-weight:700; font-size:13px; color:var(--text-main);">${count} ${titleText} Selected</span>
         </div>
         <div style="display:flex; gap:8px;">
@@ -579,8 +579,8 @@ window.loadTargets = async function(page = 1) {
     const kpiGrid = document.getElementById('targets-kpi-grid');
     if (kpiGrid) {
        kpiGrid.innerHTML = 
-          '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-primary)">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-primary)"><i class="ph ph-target"></i></div><div class="kpi-label">LATEST TARGET (' + latestPeriod.replace('_', ' ') + ')</div></div>'
+          '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-text)">'
+        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-target"></i></div><div class="kpi-label">LATEST TARGET (' + latestPeriod.replace('_', ' ') + ')</div></div>'
         + '<div class="kpi-value" style="font-size:24px;">' + window.fmt.num(totalTarget) + '</div>'
         + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">target assigned</div>'
         + '</div>'
@@ -654,7 +654,7 @@ window.loadTargets = async function(page = 1) {
 };
 
 window._targetTh = function(label, isCurrent, suffix, hasVar) {
-  const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
+  const s = (isCurrent ? 'color:var(--brand-text);background:var(--brand-muted);' : '')
     + 'white-space:nowrap;min-width:130px;padding:8px 10px;font-size:11.5px;text-align:center;';
   let badgeHtml = '';
   if (suffix) {
@@ -663,7 +663,7 @@ window._targetTh = function(label, isCurrent, suffix, hasVar) {
     badgeHtml = '<br><span style="font-size:9px;font-weight:700;letter-spacing:0.04em;background:' + bg + ';color:' + fg + ';padding:2px 6px;border-radius:4px;display:inline-block;margin-top:3px;">' + suffix + '</span>';
   }
   return '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-text);margin-right:4px">●</span>' : '')
     + label
     + badgeHtml
     + '</th>';
@@ -786,7 +786,7 @@ window.openCompareModal = function(type) {
     // 1. KPI Cards Row
     html += `
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
-            <div class="kpi-card" style="--kpi-color:var(--brand-primary); padding:14px;">
+            <div class="kpi-card" style="--kpi-color:var(--brand-text); padding:14px;">
                 <div class="kpi-label">COMPARING</div>
                 <div class="kpi-value" style="font-size:22px;">${selectedRows.length} ${isHod ? 'HODs' : 'Executives'}</div>
                 <div class="kpi-sub">Period: ${latestPeriod.replace('_', ' ')}</div>
@@ -1268,10 +1268,10 @@ window.loadHODQoQ = async function() {
 };
 
 window._hodTh = function(label, isCurrent, suffix, hasVariance) {
-  const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
+  const s = (isCurrent ? 'color:var(--brand-text);background:var(--brand-muted);' : '')
     + 'white-space:nowrap;min-width:130px;padding:10px 12px;text-align:right;';
   let html = '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-text);margin-right:4px">●</span>' : '')
     + label
     + (isCurrent && suffix ? '<br><span style="font-size:9.5px;opacity:0.75;font-weight:700">(' + suffix + ')</span>' : '')
     + '</th>';
@@ -1279,10 +1279,10 @@ window._hodTh = function(label, isCurrent, suffix, hasVariance) {
 };
 
 window._custTh = function(label, isCurrent, suffix, hasVariance) {
-  const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
+  const s = (isCurrent ? 'color:var(--brand-text);background:var(--brand-muted);' : '')
     + 'white-space:nowrap;min-width:130px;padding:10px 12px;text-align:right;';
   let html = '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-text);margin-right:4px">●</span>' : '')
     + label
     + (isCurrent && suffix ? '<br><span style="font-size:9.5px;opacity:0.75;font-weight:700">(' + suffix + ')</span>' : '')
     + '</th>';
@@ -1455,15 +1455,16 @@ window._loadHODByQuarter = async function(tbody, thead) {
   });
 
   const cols = [];
-  const curQIdx = qNums.indexOf(curQ);
-  cols.push({ fy: curFY, q: curQ, key: curFY + '_' + curQ, label: curFY.replace('FY ','FY-') + ' ' + curQ, field: qField[curQ], current: true });
-  for (let qi = curQIdx - 1; qi >= 0; qi--) {
-    const q = qNums[qi];
-    cols.push({ fy: curFY, q: q, key: curFY + '_' + q, label: curFY.replace('FY ','FY-') + ' ' + q, field: qField[q], current: false });
-  }
-  sortedFYs.filter(function(fy) { return fy !== curFY; }).forEach(function(fy) {
-    ['Q4','Q3','Q2','Q1'].forEach(function(q) {
-      cols.push({ fy: fy, q: q, key: fy + '_' + q, label: fy.replace('FY ','FY-') + ' ' + q, field: qField[q], current: false });
+  sortedFYs.forEach(function(fy) {
+    ['Q4', 'Q3', 'Q2', 'Q1'].forEach(function(q) {
+      cols.push({
+        fy: fy,
+        q: q,
+        key: fy + '_' + q,
+        label: fy.replace('FY ', 'FY-') + ' ' + q,
+        field: qField[q],
+        current: (fy === curFY && q === 'Q4')
+      });
     });
   });
 
@@ -1724,10 +1725,10 @@ window.loadCustSale = async function(page = 1) {
 };
 
 window._custTh = function(label, isCurrent, suffix, hasVariance) {
-  const s = (isCurrent ? 'color:var(--brand-primary);background:var(--brand-muted);' : '')
+  const s = (isCurrent ? 'color:var(--brand-text);background:var(--brand-muted);' : '')
     + 'white-space:nowrap;min-width:110px;padding:12px 14px;text-align:right;';
   let html = '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-primary);margin-right:4px">●</span>' : '')
+    + (isCurrent ? '<span style="color:var(--brand-text);margin-right:4px">●</span>' : '')
     + label
     + (isCurrent && suffix ? '<br><span style="font-size:10px;opacity:0.7;font-weight:600">(' + suffix + ')</span>' : '')
     + '</th>';
@@ -1859,16 +1860,17 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       }
     });
 
-    const curQIdx = qNums.indexOf(curQ);
     const cols = [];
-    cols.push({ fy: curFY, q: curQ, key: curFY + '_' + curQ, label: curFY.replace('FY ','FY-') + ' ' + curQ, field: qField[curQ], current: true });
-    for (let qi = curQIdx - 1; qi >= 0; qi--) {
-      const q = qNums[qi];
-      cols.push({ fy: curFY, q, key: curFY + '_' + q, label: curFY.replace('FY ','FY-') + ' ' + q, field: qField[q], current: false });
-    }
-    sortedFYsList.filter(fy => fy !== curFY).forEach(fy => {
-      ['Q4','Q3','Q2','Q1'].forEach(q => {
-        cols.push({ fy, q, key: fy + '_' + q, label: fy.replace('FY ','FY-') + ' ' + q, field: qField[q], current: false });
+    sortedFYsList.forEach(function(fy) {
+      ['Q4', 'Q3', 'Q2', 'Q1'].forEach(function(q) {
+        cols.push({
+          fy: fy,
+          q: q,
+          key: fy + '_' + q,
+          label: fy.replace('FY ', 'FY-') + ' ' + q,
+          field: qField[q],
+          current: (fy === curFY && q === 'Q4')
+        });
       });
     });
 

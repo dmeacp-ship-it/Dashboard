@@ -45,8 +45,8 @@ window._getSortIndicator = function(tableId, field) {
   const r = rules.find(x => x.field === field);
   if (!r) return '<span style="opacity:0.35; margin-left:4px; font-size:10px; cursor:pointer;" title="Click to sort">↕</span>';
   return r.dir === 'asc' 
-    ? '<span style="color:var(--brand-primary); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Ascending (Click to switch to Descending)">↑</span>' 
-    : '<span style="color:var(--brand-primary); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Descending (Click to remove sort)">↓</span>';
+    ? '<span style="color:var(--brand-text); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Ascending (Click to switch to Descending)">↑</span>' 
+    : '<span style="color:var(--brand-text); margin-left:4px; font-weight:800; font-size:11px; cursor:pointer;" title="Sorted Descending (Click to remove sort)">↓</span>';
 };
 
 window.applyMultiSort = function(data, tableId) {
@@ -102,6 +102,93 @@ window.tableAIHistory = {};
 window.MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 window._kpiTooltips = [];
 window._appReady    = false;
+
+/* ── Keyboard accessibility ─────────────────────────────────────────────────
+   The sidebar, nav groups and settings tabs are <div onclick=...>. A <div> is
+   not focusable and has no implicit role, so before this every one of them was
+   mouse-only: a keyboard user could not reach any page, and screen readers
+   announced them as plain text.
+
+   Rather than rewriting the markup in four files (and missing the nav FMS
+   injects at runtime), this promotes them in place and activates them from a
+   single delegated handler, so anything added later is covered too.
+
+   Scope note: deliberately limited to navigation and controls. Table rows
+   (<tr onclick>) are excluded — a few hundred data rows would flood the tab
+   order and make the keyboard experience worse, not better. Tables stay
+   mouse/click-driven; their actions are all reachable elsewhere. */
+
+// Icon class -> accessible name, for buttons whose only child is an icon.
+var _A11Y_ICON_LABELS = {
+  'ph-list': 'Toggle sidebar',
+  'ph-x': 'Close',
+  'ph-caret-left': 'Previous',
+  'ph-caret-right': 'Next',
+  'ph-paper-plane-right': 'Send',
+  'ph-paper-plane-tilt': 'Send',
+  'ph-plus': 'Add',
+  'ph-trash': 'Delete',
+  'ph-pencil-simple': 'Edit',
+  'ph-floppy-disk': 'Save',
+  'ph-arrows-clockwise': 'Refresh',
+  'ph-funnel': 'Filters',
+  'ph-sparkle': 'AI assistant',
+  'ph-magnifying-glass': 'Search',
+  'ph-sign-out': 'Sign out',
+  'ph-gear': 'Settings',
+  'ph-download-simple': 'Download'
+};
+
+function _a11yAccessibleName(el) {
+  if (el.getAttribute('aria-label')) return null;              // already named
+  if ((el.textContent || '').trim()) return null;              // has visible text
+  var t = (el.getAttribute('title') || '').trim();
+  if (t) return t;                                             // title is a usable name
+  var icon = el.querySelector('i[class*="ph-"]');
+  if (!icon) return null;
+  var m = String(icon.className).match(/\bph-[a-z-]+/g) || [];
+  for (var i = 0; i < m.length; i++) {
+    if (m[i] !== 'ph-fill' && m[i] !== 'ph-bold' && _A11Y_ICON_LABELS[m[i]]) {
+      return _A11Y_ICON_LABELS[m[i]];
+    }
+  }
+  return null;
+}
+
+window._a11yEnhance = function(root) {
+  root = root || document;
+  if (!root.querySelectorAll) return;
+
+  // 1. Promote non-focusable clickables to real controls.
+  var NATIVE = { BUTTON: 1, A: 1, INPUT: 1, SELECT: 1, TEXTAREA: 1 };
+  root.querySelectorAll('div[onclick], span[onclick]').forEach(function(el) {
+    if (NATIVE[el.tagName]) return;
+    if (el.closest('table')) return;                 // see scope note above
+    if (el.hasAttribute('tabindex')) return;         // already handled
+    el.setAttribute('tabindex', '0');
+    if (!el.getAttribute('role')) el.setAttribute('role', 'button');
+  });
+
+  // 2. Give icon-only controls an accessible name.
+  root.querySelectorAll('button, [role="button"]').forEach(function(el) {
+    var name = _a11yAccessibleName(el);
+    if (name) el.setAttribute('aria-label', name);
+  });
+};
+
+// Enter / Space activate a promoted control, matching native button behaviour.
+// Native <button>/<a> are skipped — the browser already does this for them, and
+// handling it here would fire their onclick twice.
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  var el = e.target;
+  if (!el || !el.getAttribute) return;
+  if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.tagName === 'INPUT' ||
+      el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
+  if (el.getAttribute('role') !== 'button') return;
+  e.preventDefault();          // stop Space scrolling the page
+  el.click();
+});
 
 /* ── HTML escaping ──────────────────────────────────────────────────────────
    Every value that reaches the dashboard originates in a Google Sheet (customer
@@ -420,11 +507,18 @@ window.setHeaderProgress = function(pct, msg) {
 window._tt = null;
 window.initTooltip = function() { window._tt = document.getElementById('row-tooltip'); };
 
+// Tooltip size, measured once per content change. posTooltip runs on every
+// mousemove, and reading offsetWidth/offsetHeight there forced a layout per
+// event (measured 0.79ms each on an idle DOM, far worse over a live table).
+window._ttW = 280; window._ttH = 80;
+
 window.showRowTooltip = function(e, title, html) {
   if (!window._tt) return;
   document.getElementById('tt-title').innerHTML = title;
   document.getElementById('tt-body').innerHTML  = html;
   window._tt.classList.add('show');
+  window._ttW = window._tt.offsetWidth  || 280;
+  window._ttH = window._tt.offsetHeight || 80;
   window.posTooltip(e);
 };
 
@@ -433,16 +527,28 @@ window.hideRowTooltip = function() { if (window._tt) window._tt.classList.remove
 window.posTooltip = function(e) {
   if (!window._tt) return;
   let x = e.clientX + 14, y = e.clientY - 10;
-  const w = window._tt.offsetWidth || 280, h = window._tt.offsetHeight || 80;
+  const w = window._ttW, h = window._ttH;
   if (x + w > window.innerWidth  - 10) x = window.innerWidth  - w - 10;
   if (y + h > window.innerHeight - 10) y = window.innerHeight - h - 10;
   if (x < 10) x = 10; if (y < 10) y = 10;
   window._tt.style.left = x + 'px'; window._tt.style.top = y + 'px';
 };
 
-document.addEventListener('mousemove', function(e) {
-  if (window._tt && window._tt.classList.contains('show')) window.posTooltip(e);
-});
+// Coalesced to one reposition per frame; pointer events outrun the display.
+(function() {
+  var mx = 0, my = 0, frame = 0;
+  function flush() {
+    frame = 0;
+    if (window._tt && window._tt.classList.contains('show')) {
+      window.posTooltip({ clientX: mx, clientY: my });
+    }
+  }
+  document.addEventListener('mousemove', function(e) {
+    if (!window._tt || !window._tt.classList.contains('show')) return;
+    mx = e.clientX; my = e.clientY;
+    if (!frame) frame = requestAnimationFrame(flush);
+  }, { passive: true });
+})();
 
 window.getSortKey = function(r) {
   if (r['_SK'] && /^\d{4}-\d{2}/.test(r['_SK'])) return r['_SK'];
@@ -648,7 +754,7 @@ window.setConnectionActive = function(rowId) {
     
     const btnsDiv = row.querySelector('div:last-child');
     if (isThisRow) {
-      row.innerHTML += '<span style="position:absolute;top:12px;right:12px;background:var(--primary);color:white;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;" class="active-badge">ACTIVE</span>';
+      row.insertAdjacentHTML('beforeend', '<span style="position:absolute;top:12px;right:12px;background:var(--primary);color:white;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;" class="active-badge">ACTIVE</span>');
       const setBtn = btnsDiv.querySelector('button:not([style*="color:var(--danger)"])');
       if (setBtn) setBtn.remove();
       row.dataset.active = 'true';
@@ -1125,6 +1231,27 @@ window.exportTableToCSV = async function(theadId, tbodyId, filename) {
 window._expPage = function(key, page) { return window.App.exportAll === key ? 1 : page; };
 window._expSize = function(key) { return window.App.exportAll === key ? 100000 : 50; };
 
+/**
+ * Text of one table cell, for CSV export.
+ *
+ * textContent rather than innerText: innerText resolves style and layout for
+ * every cell it touches (measured 187ms vs 12ms across 2000 rows), and the
+ * export path deliberately inflates the table to every row first, so the cost
+ * lands exactly where the table is biggest.
+ *
+ * innerText did do one thing textContent does not: it rendered <br> as a line
+ * break, which the callers then folded to a space. Cells like
+ * "<b>Name</b><br><span>@user</span>" (users table, target badges, period
+ * headers) would otherwise export as "Name@user". Rare enough to be worth a
+ * fast path — the clone keeps entity decoding correct without touching layout.
+ */
+window._cellText = function(el) {
+  if (!el.getElementsByTagName('br').length) return el.textContent;
+  const copy = el.cloneNode(true);
+  copy.querySelectorAll('br').forEach(function(br) { br.replaceWith(' '); });
+  return copy.textContent;
+};
+
 window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
   const rows = [];
   if (theadId) {
@@ -1132,7 +1259,7 @@ window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
     if (thead) {
       const headers = [];
       thead.querySelectorAll('th').forEach(function(th) {
-        const txt = th.innerText.replace(/●/g, '').replace(/\n/g, ' ').trim().replace(/"/g, '""');
+        const txt = window._cellText(th).replace(/●/g, '').replace(/\s+/g, ' ').trim().replace(/"/g, '""');
         headers.push('"' + txt + '"');
       });
       if (headers.length) rows.push(headers.join(','));
@@ -1147,7 +1274,7 @@ window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
     if (!tds.length || (tds.length === 1 && tds[0].hasAttribute('colspan'))) return;
     const cells = [];
     tds.forEach(function(td) {
-      cells.push('"' + td.innerText.replace(/\n/g, ' ').trim().replace(/"/g, '""') + '"');
+      cells.push('"' + window._cellText(td).replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"');
     });
     rows.push(cells.join(','));
   });
@@ -1217,23 +1344,26 @@ window.submitCopilot = async function() {
   const chat  = document.getElementById('copilot-chat');
   const q     = input.value.trim();
   if (!q) return;
-  chat.innerHTML += `<div class="chat-msg user">${q}</div>`;
+  // insertAdjacentHTML, not `innerHTML +=`: the latter reparses the whole
+  // transcript on every turn, so each existing message was destroyed, rebuilt
+  // and replayed its entry animation.
+  chat.insertAdjacentHTML('beforeend', `<div class="chat-msg user">${q}</div>`);
   input.value = '';
   const loaderId = 'loader-' + Date.now();
-  chat.innerHTML += `<div id="${loaderId}" class="chat-msg ai"><i class="ph ph-spinner" style="animation:spinCW 1s linear infinite; margin-right:6px"></i> Thinking...</div>`;
+  chat.insertAdjacentHTML('beforeend', `<div id="${loaderId}" class="chat-msg ai"><i class="ph ph-spinner" style="animation:spinCW 1s linear infinite; margin-right:6px"></i> Thinking...</div>`);
   chat.scrollTop = chat.scrollHeight;
   try {
     const contextData       = window._getCopilotContext();
     contextData._history    = window.copilotHistory.slice(-10);
     const res = await window.api('askCopilot', { contextName: contextData.pageName, contextData: contextData, question: q });
     document.getElementById(loaderId).remove();
-    chat.innerHTML += `<div class="chat-msg ai">${window.formatAIResponse(res)}</div>`;
+    chat.insertAdjacentHTML('beforeend', `<div class="chat-msg ai">${window.formatAIResponse(res)}</div>`);
     window.copilotHistory.push({ role: 'user', content: q });
     window.copilotHistory.push({ role: 'ai',   content: res });
     if (window.copilotHistory.length > 20) window.copilotHistory = window.copilotHistory.slice(-20);
   } catch(e) {
     document.getElementById(loaderId).remove();
-    chat.innerHTML += `<div class="chat-msg ai" style="color:var(--danger)">Error: ${e.message}</div>`;
+    chat.insertAdjacentHTML('beforeend', `<div class="chat-msg ai" style="color:var(--danger)">Error: ${e.message}</div>`);
   }
   chat.scrollTop = chat.scrollHeight;
 };
@@ -1272,10 +1402,10 @@ window.submitTableAI = async function() {
   const chat  = document.getElementById('table-ai-chat');
   const q     = input.value.trim();
   if (!q || !window.App.currentTableAI) return;
-  chat.innerHTML += `<div class="chat-msg user">${q}</div>`;
+  chat.insertAdjacentHTML('beforeend', `<div class="chat-msg user">${q}</div>`);
   input.value = '';
   const loaderId = 'loader-tbl-' + Date.now();
-  chat.innerHTML += `<div id="${loaderId}" class="chat-msg ai"><i class="ph ph-spinner" style="animation:spinCW 1s linear infinite; margin-right:6px"></i> Scanning table data...</div>`;
+  chat.insertAdjacentHTML('beforeend', `<div id="${loaderId}" class="chat-msg ai"><i class="ph ph-spinner" style="animation:spinCW 1s linear infinite; margin-right:6px"></i> Scanning table data...</div>`);
   chat.scrollTop = chat.scrollHeight;
   try {
     const currentHistory = (window.tableAIHistory[window.App.currentTableAI] || []).slice(-10);
@@ -1283,7 +1413,7 @@ window.submitTableAI = async function() {
     const wrappedData    = JSON.stringify({ table: tableData, _history: currentHistory });
     const res = await window.api('askTable', { tableData: wrappedData, question: q });
     document.getElementById(loaderId).remove();
-    chat.innerHTML += `<div class="chat-msg ai">${window.formatAIResponse(res)}</div>`;
+    chat.insertAdjacentHTML('beforeend', `<div class="chat-msg ai">${window.formatAIResponse(res)}</div>`);
     if (!window.tableAIHistory[window.App.currentTableAI]) window.tableAIHistory[window.App.currentTableAI] = [];
     window.tableAIHistory[window.App.currentTableAI].push({ role: 'user', content: q });
     window.tableAIHistory[window.App.currentTableAI].push({ role: 'ai',   content: res });
@@ -1292,7 +1422,7 @@ window.submitTableAI = async function() {
     }
   } catch(e) {
     document.getElementById(loaderId).remove();
-    chat.innerHTML += `<div class="chat-msg ai" style="color:var(--danger)">Error: ${e.message}</div>`;
+    chat.insertAdjacentHTML('beforeend', `<div class="chat-msg ai" style="color:var(--danger)">Error: ${e.message}</div>`);
   }
   chat.scrollTop = chat.scrollHeight;
 };
@@ -2159,28 +2289,52 @@ window.initMicroInteractions = function() {
       if (card.classList.contains('tilt-enabled')) return;
       card.classList.add('tilt-enabled');
       
-      card.addEventListener('mousemove', e => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+      // The rect is read once per hover rather than once per mousemove, and the
+      // write is deferred to the next frame — pointers fire well above the
+      // display refresh rate, so the extra reads forced layout for pixels that
+      // were never painted.
+      let rect = null, frame = 0, mx = 0, my = 0;
+
+      const paint = () => {
+        frame = 0;
+        if (!rect) return;
+        const x = mx - rect.left;
+        const y = my - rect.top;
         const xc = rect.width / 2;
         const yc = rect.height / 2;
-        const dx = x - xc;
-        const dy = y - yc;
-        
+
         // Tilt rotation: max 4.5 degrees
-        const rx = -(dy / yc) * 4.5;
-        const ry = (dx / xc) * 4.5;
-        
-        card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+        const rx = -((y - yc) / yc) * 4.5;
+        const ry = ((x - xc) / xc) * 4.5;
+
+        // translateY(-5px) reproduces the .kpi-card:hover lift, which this
+        // inline transform would otherwise override and silently kill.
+        card.style.transform = `perspective(1000px) translateY(-5px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
         card.style.setProperty('--shine-x', `${(x / rect.width) * 100}%`);
         card.style.setProperty('--shine-y', `${(y / rect.height) * 100}%`);
+      };
+
+      card.addEventListener('mouseenter', () => {
+        rect = card.getBoundingClientRect();
+        // Suppresses the 0.22s transform transition so the tilt tracks the
+        // cursor 1:1 instead of chasing it a fifth of a second behind.
+        card.classList.add('tilting');
       });
-      
+
+      card.addEventListener('mousemove', e => {
+        mx = e.clientX; my = e.clientY;
+        if (!frame) frame = requestAnimationFrame(paint);
+      }, { passive: true });
+
       card.addEventListener('mouseleave', () => {
-        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
-        card.style.setProperty('--shine-x', '50%');
-        card.style.setProperty('--shine-y', '50%');
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+        rect = null;
+        // Dropping .tilting restores the transition, so clearing the inline
+        // transform glides the card back to rest instead of snapping.
+        card.classList.remove('tilting');
+        card.style.transform = '';
+        card.style.removeProperty('--shine-x');
+        card.style.removeProperty('--shine-y');
       });
     });
   };
@@ -2188,27 +2342,32 @@ window.initMicroInteractions = function() {
   initKpiTilt();
   
   // 3. MutationObserver to auto-inject stagger index to table rows and also re-init KPI tilts if page changes
+  //
+  // A row's stagger index is read off its previous sibling (O(1) per row). The
+  // previous version rebuilt Array.from(parent.children) and called indexOf()
+  // for every row, i.e. O(n^2) on the main thread: measured 388ms for 1000 rows
+  // and 1382ms for 2000, blocking paint on every render, filter and scroll
+  // chunk. Rows arrive in document order, so the predecessor is always tagged
+  // by the time we reach the next one.
+  const tagRow = row => {
+    const prev = row.previousElementSibling;
+    const prevIdx = prev ? prev.style.getPropertyValue('--row-index') : '';
+    row.style.setProperty('--row-index', prevIdx === '' ? 0 : parseInt(prevIdx, 10) + 1);
+    row.classList.add('stagger-row');
+  };
+
   const observer = new MutationObserver(mutations => {
     let checkKpis = false;
+    // While exporting, the table is inflated to every row purely so the CSV
+    // scraper can read it. Animating rows nobody will see is wasted work.
+    const exporting = !!(window.App && window.App.exportAll);
     mutations.forEach(mutation => {
       if (mutation.type === 'childList') {
         mutation.addedNodes.forEach(node => {
           if (node.tagName === 'TR') {
-            const parent = node.parentNode;
-            if (parent) {
-              const siblings = Array.from(parent.children);
-              node.style.setProperty('--row-index', siblings.indexOf(node));
-              node.classList.add('stagger-row');
-            }
+            if (!exporting && node.parentNode) tagRow(node);
           } else if (node.querySelectorAll) {
-            node.querySelectorAll('tbody tr').forEach(row => {
-              const parent = row.parentNode;
-              if (parent) {
-                const siblings = Array.from(parent.children);
-                row.style.setProperty('--row-index', siblings.indexOf(row));
-                row.classList.add('stagger-row');
-              }
-            });
+            if (!exporting) node.querySelectorAll('tbody tr').forEach(tagRow);
             if (node.querySelector('.kpi-card') || node.classList.contains('kpi-card')) {
               checkKpis = true;
             }
@@ -2216,7 +2375,7 @@ window.initMicroInteractions = function() {
         });
       }
     });
-    
+
     if (checkKpis) {
       initKpiTilt();
     }
@@ -2232,6 +2391,23 @@ window.addEventListener('DOMContentLoaded', function() {
   if (window.initTheme) window.initTheme();
   if (window.initTooltip) window.initTooltip();
   if (window.onRoleChange) window.onRoleChange();
+
+  // Make the existing markup keyboard-reachable, then keep doing so as pages,
+  // the FMS nav and modals get injected. Debounced because table renders emit
+  // a burst of mutations and the pass walks the subtree.
+  if (window._a11yEnhance) {
+    window._a11yEnhance(document);
+    var _a11yTimer = null;
+    new MutationObserver(function(muts) {
+      for (var i = 0; i < muts.length; i++) {
+        if (muts[i].addedNodes && muts[i].addedNodes.length) {
+          clearTimeout(_a11yTimer);
+          _a11yTimer = setTimeout(function() { window._a11yEnhance(document); }, 250);
+          return;
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
   // Gate the whole app behind login (validates any stored token first).
   if (window._initAuth) window._initAuth();
   

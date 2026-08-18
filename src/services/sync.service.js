@@ -154,22 +154,33 @@ function _computeRowHash(rowObj) {
   return [
     rowObj.branch_name || '',
     rowObj.sale_date || '',
-    rowObj.customer_code || '',
+    rowObj.bill_number_sap || rowObj.customer_code || '',
     rowObj.item_code || '',
     rowObj.batch || '',
+    rowObj.sales_type || '',
+    rowObj.sales_person || '',
     String(rowObj.quantity || 0),
     String(rowObj.net_revenue || 0),
-    String(rowObj.sq_ft || 0)
+    String(rowObj.total_sqm || 0)
   ].join('|');
 }
 
 async function _clearSupabaseTable() {
+  // 1. Try fast TRUNCATE RPC (instant 0.01s execution, zero lock timeout)
+  try {
+    const rpcRes = await _supaRest('/rest/v1/rpc/truncate_sales_data', 'post', {}, null);
+    if (rpcRes.code < 400) return;
+  } catch (e) {
+    // Fall back to REST delete if RPC does not exist yet
+  }
+
+  // 2. Fallback to REST delete
   const res = await _supaRest(
     '/rest/v1/' + SYNC_CONFIG.TABLE_NAME + '?row_hash=not.is.null',
     'delete', null, 'return=minimal'
   );
   if (res.code >= 400) {
-    throw new Error('Table clear failed HTTP ' + res.code + ': ' + res.text.slice(0, 250));
+    throw new Error('Table clear failed HTTP ' + res.code + ': ' + res.text.slice(0, 250) + '\nTIP: Run "TRUNCATE TABLE sales_data;" in Supabase SQL Editor, or apply db/migrations/05_schema_update_calculated_fields.sql.');
   }
 }
 
@@ -248,7 +259,7 @@ async function processAggregation(options) {
   const rowsToFetch = Math.min(SYNC_CONFIG.BATCH_SIZE, (totalRows + 2) - startRow);
   const data = sheet.rows.slice(startRow - 2, startRow - 2 + rowsToFetch);
 
-  const numericCols = ['quantity', 'net_revenue', 'revenue_with_gst', 'total_sqm', 'sq_ft', 'length_mm', 'width_mm'];
+  const numericCols = ['quantity', 'net_revenue', 'revenue_with_gst', 'total_sqm', 'sq_ft', 'project_pct', 'length_mm', 'width_mm'];
   const payload = [];
 
   for (let i = 0; i < data.length; i++) {
@@ -267,7 +278,7 @@ async function processAggregation(options) {
           } else if (val instanceof Date) {
             val = formatDateForSQL(val);
           } else if (numericCols.indexOf(sqlColumn) !== -1) {
-            const parsed = parseFloat(String(val).replace(/,/g, '').trim());
+            const parsed = parseFloat(String(val).replace(/[,%]/g, '').trim());
             val = isNaN(parsed) ? 0 : parsed;
           } else {
             val = String(val).trim();
@@ -281,9 +292,88 @@ async function processAggregation(options) {
     }
 
     if (hasData) {
+      // 1. Auto-calc SQ FT from TOTAL SQM if missing
+      if (rowObj.total_sqm !== null && rowObj.total_sqm !== undefined && (rowObj.sq_ft === null || rowObj.sq_ft === undefined)) {
+        rowObj.sq_ft = Math.round(rowObj.total_sqm * 10.7639104 * 10000) / 10000;
+      }
+
+      // 2. Auto-calc FY, Quarter, Month-Year from sale_date if available
+      if (rowObj.sale_date) {
+        const dMatch = String(rowObj.sale_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dMatch) {
+          const yr = parseInt(dMatch[1], 10);
+          const mo = parseInt(dMatch[2], 10);
+          const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+          const fyStr = mo >= 4
+            ? 'FY-' + String(yr).slice(2) + '-' + String(yr + 1).slice(2)
+            : 'FY-' + String(yr - 1).slice(2) + '-' + String(yr).slice(2);
+
+          const qtrSuffix = (mo >= 4 && mo <= 6) ? 'Q-1'
+            : (mo >= 7 && mo <= 9) ? 'Q-2'
+            : (mo >= 10 && mo <= 12) ? 'Q-3'
+            : 'Q-4';
+
+          if (!rowObj.fy_year) rowObj.fy_year = fyStr;
+          if (!rowObj.quarter) rowObj.quarter = fyStr + ' ' + qtrSuffix;
+          if (!rowObj.month_year) rowObj.month_year = mn[mo - 1] + '-' + String(yr).slice(2);
+        }
+      }
+
       if (!rowObj.fy_year) rowObj.fy_year = source.fy.replace(/\s/g, '-');
-      rowObj.row_hash = _computeRowHash(rowObj);
-      payload.push(rowObj);
+
+      // 3. Project % splitting logic:
+      // If PROJECT% is between 0 and 100 (e.g. 50%, 60%), split the sale into:
+      // A. Project portion (with PROJECT_SALES_PERSON and SALES_TYPE = 'Projects')
+      // B. Retail portion  (with original SALES_PERSON and SALES_TYPE = 'Retail')
+      let pPct = rowObj.project_pct;
+      if (typeof pPct === 'number' && !isNaN(pPct)) {
+        if (pPct > 0 && pPct <= 1) pPct = pPct * 100; // tolerate 0.5 -> 50
+      } else {
+        pPct = 0;
+      }
+
+      if (pPct > 0 && pPct < 100) {
+        const pRatio = pPct / 100;
+        const rRatio = (100 - pPct) / 100;
+
+        // Part A: Project portion
+        const projRow = Object.assign({}, rowObj);
+        projRow.sales_type = 'Projects';
+        if (rowObj.project_sales_person) {
+          projRow.sales_person = rowObj.project_sales_person;
+        }
+        projRow.quantity = Math.round((rowObj.quantity || 0) * pRatio * 10000) / 10000;
+        projRow.net_revenue = Math.round((rowObj.net_revenue || 0) * pRatio * 100) / 100;
+        projRow.revenue_with_gst = Math.round((rowObj.revenue_with_gst || 0) * pRatio * 100) / 100;
+        projRow.total_sqm = Math.round((rowObj.total_sqm || 0) * pRatio * 10000) / 10000;
+        projRow.sq_ft = Math.round((rowObj.sq_ft || 0) * pRatio * 10000) / 10000;
+        projRow.row_hash = _computeRowHash(projRow) + '|PROJ';
+        payload.push(projRow);
+
+        // Part B: Retail portion
+        const retailRow = Object.assign({}, rowObj);
+        retailRow.sales_type = rowObj.sales_type || 'Retail';
+        retailRow.quantity = Math.round((rowObj.quantity || 0) * rRatio * 10000) / 10000;
+        retailRow.net_revenue = Math.round((rowObj.net_revenue || 0) * rRatio * 100) / 100;
+        retailRow.revenue_with_gst = Math.round((rowObj.revenue_with_gst || 0) * rRatio * 100) / 100;
+        retailRow.total_sqm = Math.round((rowObj.total_sqm || 0) * rRatio * 10000) / 10000;
+        retailRow.sq_ft = Math.round((rowObj.sq_ft || 0) * rRatio * 10000) / 10000;
+        retailRow.row_hash = _computeRowHash(retailRow) + '|RET';
+        payload.push(retailRow);
+      } else if (pPct >= 100) {
+        const projRow = Object.assign({}, rowObj);
+        projRow.sales_type = 'Projects';
+        if (rowObj.project_sales_person) {
+          projRow.sales_person = rowObj.project_sales_person;
+        }
+        projRow.row_hash = _computeRowHash(projRow);
+        payload.push(projRow);
+      } else {
+        if (!rowObj.sales_type) rowObj.sales_type = 'Retail';
+        rowObj.row_hash = _computeRowHash(rowObj);
+        payload.push(rowObj);
+      }
     }
   }
 

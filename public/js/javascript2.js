@@ -190,7 +190,7 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
     periods.forEach(p => {
       const pData = r.periods[p];
       const total = pData.TOTAL;
-      html += `<td style="font-weight:800;color:var(--brand-primary);padding:10px 14px;border-left:2px solid var(--border)">${total > 0 ? window.fmt.num(total) : '-'}</td>`;
+      html += `<td style="font-weight:800;color:var(--brand-text);padding:10px 14px;border-left:2px solid var(--border)">${total > 0 ? window.fmt.num(total) : '-'}</td>`;
       
       skuTypes.forEach(sku => {
         const val = pData.skus[sku] || 0;
@@ -200,7 +200,7 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
             <div style="font-weight:700;font-size:13px;color:var(--text-main);">${window.fmt.num(val)}</div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
               <span style="font-size:11px;font-weight:600;color:var(--text-muted);">
-                <span style="color:var(--brand-primary)">●</span> ${pct}%
+                <span style="color:var(--brand-text)">●</span> ${pct}%
               </span>
             </div>
           </td>`;
@@ -263,8 +263,8 @@ window.loadOutstanding = async function() {
         <div class="kpi-card" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-currency-inr"></i></div><div class="kpi-label">Total Outstanding</div></div><div class="kpi-value" style="font-size:24px;">₹${window.fmt.short(totalOutstanding)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">${window.fmt.num(totalOutstanding)} absolute</div><div class="kpi-footer"><div class="kpi-sub">Current outstanding</div></div></div>
         <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-warning-circle"></i></div><div class="kpi-label">90+ Days Amount</div></div><div class="kpi-value" style="color:var(--danger);font-size:24px;">₹${window.fmt.short(total90Plus)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">${window.fmt.num(total90Plus)} absolute</div><div class="kpi-footer"><div class="kpi-sub kpi-delta down" style="padding:4px 10px">${totalOutstanding > 0 ? ((total90Plus / totalOutstanding) * 100).toFixed(1) + '% of total' : '—'}</div></div></div>
         <div class="kpi-card" style="--kpi-color:#f97316"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f97316"><i class="ph ph-clock-countdown"></i></div><div class="kpi-label">Above 45 Days</div></div><div class="kpi-value" style="color:#f97316;font-size:24px;">₹${window.fmt.short(totalAbove45)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">${window.fmt.num(totalAbove45)} absolute</div><div class="kpi-footer"><div class="kpi-sub">Overdue receivables</div></div></div>
-        <div class="kpi-card" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-check-circle"></i></div><div class="kpi-label">Below 45 Days</div></div><div class="kpi-value" style="color:#10b981;font-size:24px;">₹${window.fmt.short(totalBelow45)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">${window.fmt.num(totalBelow45)} absolute</div><div class="kpi-footer"><div class="kpi-sub">Within payment terms</div></div></div>
-        <div class="kpi-card" style="--kpi-color:var(--brand-primary)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-primary)"><i class="ph ph-users"></i></div><div class="kpi-label">Total Debtors</div></div><div class="kpi-value" style="font-size:24px;">${window.fmt.num(totalCustomers)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">customers</div><div class="kpi-footer"><div class="kpi-sub">Customers with outstanding</div></div></div>
+        <div class="kpi-card" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-check-circle"></i></div><div class="kpi-label">Below 45 Days</div></div><div class="kpi-value" style="color:var(--accent3);font-size:24px;">₹${window.fmt.short(totalBelow45)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">${window.fmt.num(totalBelow45)} absolute</div><div class="kpi-footer"><div class="kpi-sub">Within payment terms</div></div></div>
+        <div class="kpi-card" style="--kpi-color:var(--brand-text)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-users"></i></div><div class="kpi-label">Total Debtors</div></div><div class="kpi-value" style="font-size:24px;">${window.fmt.num(totalCustomers)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">customers</div><div class="kpi-footer"><div class="kpi-sub">Customers with outstanding</div></div></div>
         <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-warning"></i></div><div class="kpi-label">90+ Days Accounts</div></div><div class="kpi-value" style="font-size:24px;">${window.fmt.num(riskCustCount)}</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">customers in default</div><div class="kpi-footer"><div class="kpi-sub">High risk debtors</div></div></div>
       `;
     }
@@ -354,8 +354,8 @@ window.loadTopCustomers = async function(page = 1) {
     window._renderPagination(res, 'loadTopCustomers', 'pagination-customers');
     const kg = document.getElementById('customers-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-users"></i></div><div class="kpi-label">Top 80% Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.total) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT (80%)</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(res.paretoSqft || 0) + '</div></div>';
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent)"><i class="ph ph-users"></i></div><div class="kpi-label">Top 80% Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.total) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT (80%)</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(res.paretoSqft || 0) + '</div></div>';
     }
     if (window.tableSortRules['customers'] && window.tableSortRules['customers'].length > 0) {
       rows = window.applyMultiSort(rows, 'customers');
@@ -395,8 +395,8 @@ window.loadInactive = async function(page = 1) {
     const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
     const kg = document.getElementById('inactive-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#f59e0b"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f59e0b"><i class="ph ph-clock"></i></div><div class="kpi-label">Inactive Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-ruler"></i></div><div class="kpi-label">Lifetime SQ FT at Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>';
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-clock"></i></div><div class="kpi-label">Inactive Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-ruler"></i></div><div class="kpi-label">Lifetime SQ FT at Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>';
     }
     window.App.lastTableData['inactive'] = rows;
     if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No inactive customers found.'); return; }
@@ -424,7 +424,7 @@ window.loadDeclining = async function(page = 1) {
     const totalDrop = rows.reduce((s, r) => s + Math.abs((r['SQM CHANGE'] || 0) * 10.76391), 0);
     const kg = document.getElementById('declining-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-trend-down"></i></div><div class="kpi-label">Declining Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-trend-down"></i></div><div class="kpi-label">Declining Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#f97316"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f97316"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT Dropped</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalDrop) + '</div></div>';
     }
     if (window.tableSortRules['declining'] && window.tableSortRules['declining'].length > 0) {
@@ -456,7 +456,7 @@ window.loadLostHV = async function(page = 1) {
     const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
     const kg = document.getElementById('losthv-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-ruler"></i></div><div class="kpi-label">Lifetime SQ FT Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>';
     }
     window.App.lastTableData['losthv'] = rows;
@@ -465,7 +465,7 @@ window.loadLostHV = async function(page = 1) {
     let htmlStr = '';
     rows.forEach(function(r, i) {
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + (r['DAYS INACTIVE'] || 0) + 'd</td><td style="padding:6px 12px;"><span class="badge badge-purple">Top ' + (100 - (r['SQM PERCENTILE'] || 0)) + '%</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + (r['DAYS INACTIVE'] || 0) + 'd</td><td style="padding:6px 12px;"><span class="badge badge-purple">Top ' + (100 - (r['SQM PERCENTILE'] || 0)) + '%</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(7, e.message); }
@@ -487,10 +487,10 @@ window.loadRFM = async function(page = 1) {
     if(kg && dist) {
        let champ = 0, loyal = 0, risk = 0, lost = 0;
        dist.forEach(d => { if(d.segment === 'Champions') champ = d.count; if(d.segment === 'Loyal') loyal = d.count; if(d.segment === 'At Risk') risk = d.count; if(d.segment === 'Lost') lost = d.count; });
-       kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-crown"></i></div><div class="kpi-label">Champions</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(champ) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">high value, recent</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-users"></i></div><div class="kpi-label">Loyal</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(loyal) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">consistent buyers</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#f59e0b"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f59e0b"><i class="ph ph-warning-circle"></i></div><div class="kpi-label">At Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(risk) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">slipping away</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#ef4444"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ef4444"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(lost) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">churned customers</div></div>';
+       kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-crown"></i></div><div class="kpi-label">Champions</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(champ) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">high value, recent</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent)"><i class="ph ph-users"></i></div><div class="kpi-label">Loyal</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(loyal) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">consistent buyers</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-warning-circle"></i></div><div class="kpi-label">At Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(risk) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">slipping away</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(lost) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">churned customers</div></div>';
     }
     
     const res  = await window.api('getRFMData', { options: { segment: window.rfmSegFilter, page: window._expPage('rfm', page), pageSize: window._expSize('rfm'), search: window.searchQueries['rfm'] } });
@@ -607,7 +607,7 @@ window.loadTimeWiseSales = async function() {
     
     let trHead = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyCAT + '">' + rowLabel + '</th>';
     if (window.comparisonMode === 'none') {
-        trHead += '<th style="text-align:right; font-weight:800; color:var(--brand-primary); ' + stickyTOT + '">TOTAL (SQ FT)</th>';
+        trHead += '<th style="text-align:right; font-weight:800; color:var(--brand-text); ' + stickyTOT + '">TOTAL (SQ FT)</th>';
     }
     displayCols.forEach((c, i) => { 
         let sub = '';
@@ -628,7 +628,7 @@ window.loadTimeWiseSales = async function() {
     data.forEach((r, i) => {
       let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + (r.CATEGORY || 'Unknown') + '</td>';
       if (window.comparisonMode === 'none') {
-          tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-primary); ' + stickyRowTOT + '">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
+          tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-text); ' + stickyRowTOT + '">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
       }
       displayCols.forEach((c, mi) => {
          const val = r[c] || 0;
@@ -827,12 +827,12 @@ window.loadBrandFinish = async function() {
 
     if (kg) {
       kg.innerHTML = 
-          '<div class="kpi-card stagger-1" style="--kpi-color:#10b981"><div class="kpi-header-row"><div class="kpi-icon" style="color:#10b981"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
+          '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-receipt"></i></div><div class="kpi-label">Total Revenue</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.currency(totalRev) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#f59e0b"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f59e0b"><i class="ph ph-stack"></i></div><div class="kpi-label">Top Prod Type</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topProd + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-stack"></i></div><div class="kpi-label">Top Prod Type</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topProd + '</div></div>'
         + '<div class="kpi-card stagger-1" style="--kpi-color:#ec4899"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-paint-bucket"></i></div><div class="kpi-label">Top Finish</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topFinish + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#38bdf8"><div class="kpi-header-row"><div class="kpi-icon" style="color:#38bdf8"><i class="ph ph-line-segments"></i></div><div class="kpi-label">Top Thickness</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topThick + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#4f46e5"><div class="kpi-header-row"><div class="kpi-icon" style="color:#4f46e5"><i class="ph ph-star"></i></div><div class="kpi-label">Standard Mix</div></div><div class="kpi-value" style="font-size:24px;">' + stdMix + '</div></div>';
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent)"><i class="ph ph-line-segments"></i></div><div class="kpi-label">Top Thickness</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topThick + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-text)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-star"></i></div><div class="kpi-label">Standard Mix</div></div><div class="kpi-value" style="font-size:24px;">' + stdMix + '</div></div>';
     }
     
     window.App.catDataCache = { 'FINISH': finishes, 'THICKNESS TYPE': thicks, 'PRODUCT TYPE': prods, 'SKU TYPE': skus };
@@ -855,7 +855,7 @@ window.loadCategoricalPerformance = function() {
   let htmlStr = '';
   rows.forEach(function(r, i) {
     const share = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0';
-    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.esc(r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
+    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.esc(r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
   });
   tbody.innerHTML = htmlStr;
 };
@@ -949,7 +949,7 @@ window.loadProductType = async function() {
         const cell = dimData.find(d => d.SIZE === s && d.THICKNESS === t);
         const val = cell ? cell.TOTAL_SQFT : 0;
         rowTotal += val;
-        if (val > 0) rowHtml += '<td style="color:var(--brand-primary);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--border)">' + window.fmt.num(val) + '</td>';
+        if (val > 0) rowHtml += '<td style="color:var(--brand-text);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--border)">' + window.fmt.num(val) + '</td>';
         else rowHtml += '<td style="color:var(--text-sub);padding:8px 12px;border-bottom:1px solid var(--border)">-</td>';
       });
       rowHtml += '<td style="font-weight:800;background:var(--bg-elevated);padding:8px 12px;border-bottom:1px solid var(--border)">' + window.fmt.num(rowTotal) + '</td></tr>';
@@ -1002,15 +1002,16 @@ window.loadTopSKUs = async function(page = 1) {
     
     const bf = document.getElementById('sku-brand-filter');
     if (bf && brands.length && bf.children.length <= 1) { 
-      bf.innerHTML = '<button class="btn btn-sm ' + (window.skuBrandFilter === 'All' ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setSkuBrand(\'All\',this)">All</button>';
-      brands.forEach(function(b) { bf.innerHTML += '<button class="btn btn-sm ' + (window.skuBrandFilter === b ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setSkuBrand(\'' + b + '\',this)">' + b + '</button>'; });
+      var bfH = '<button class="btn btn-sm ' + (window.skuBrandFilter === 'All' ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setSkuBrand(\'All\',this)">All</button>';
+      brands.forEach(function(b) { bfH += '<button class="btn btn-sm ' + (window.skuBrandFilter === b ? 'btn-primary' : 'btn-ghost') + '" onclick="window.setSkuBrand(\'' + b + '\',this)">' + b + '</button>'; });
+      bf.innerHTML = bfH;
     }
     if (!rows.length) { tbody.innerHTML = window._emptyRow(11, 'No SKUs found.'); return; }
     
     let htmlStr = '';
     rows.forEach(function(r, i) {
       const skuBadge = (r.SKU_TYPE || '').indexOf('STANDARD') !== -1 ? 'badge-blue' : 'badge-gray'; const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:700;font-size:12.5px;color:var(--text-main);padding:6px 12px;">' + (r.ITEM_CODE || '-') + '</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;padding:6px 12px;">' + (r.ITEM_DESCRIPTION || '-') + '</td><td style="padding:6px 12px;">' + (r.BRAND || '-') + '</td><td style="padding:6px 12px;">' + (r.FINISH || '-') + '</td><td style="padding:6px 12px;">' + (r.SIZE || '-') + '</td><td style="padding:6px 12px;"><span class="badge ' + skuBadge + '">' + (r.SKU_TYPE || '-') + '</span></td><td style="font-weight:700;color:var(--brand-primary);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:700;font-size:12.5px;color:var(--text-main);padding:6px 12px;">' + (r.ITEM_CODE || '-') + '</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;padding:6px 12px;">' + (r.ITEM_DESCRIPTION || '-') + '</td><td style="padding:6px 12px;">' + (r.BRAND || '-') + '</td><td style="padding:6px 12px;">' + (r.FINISH || '-') + '</td><td style="padding:6px 12px;">' + (r.SIZE || '-') + '</td><td style="padding:6px 12px;"><span class="badge ' + skuBadge + '">' + (r.SKU_TYPE || '-') + '</span></td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(11, e.message); }
@@ -1089,7 +1090,7 @@ window._riskBar = function(n90, n120, n180) {
   const total = (n90 || 0) + (n120 || 0) + (n180 || 0);
   if (!total) return '<div class="kpi-footer"><div class="kpi-sub">No inactive customers</div></div>';
   const p90  = Math.round((n90  / total) * 100); const p120 = Math.round((n120 / total) * 100); const p180 = 100 - p90 - p120;
-  return '<div style="margin-top:auto"><div style="display:flex;gap:4px;height:8px;border-radius:100px;"><div style="width:' + p90  + '%;background:#f97316;border-radius:100px;"></div><div style="width:' + p120 + '%;background:#ef4444;border-radius:100px;"></div><div style="width:' + p180 + '%;background:#991b1b;border-radius:100px;"></div></div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span style="font-size:10px;color:#f97316;font-weight:700">● ' + n90  + ' <span style="color:var(--text-muted)">90d</span></span><span style="font-size:10px;color:#ef4444;font-weight:700">● ' + n120 + ' <span style="color:var(--text-muted)">120d</span></span><span style="font-size:10px;color:#fca5a5;font-weight:700">● ' + n180 + ' <span style="color:var(--text-muted)">180d+</span></span></div></div>';
+  return '<div style="margin-top:auto"><div style="display:flex;gap:4px;height:8px;border-radius:100px;"><div style="width:' + p90  + '%;background:#f97316;border-radius:100px;"></div><div style="width:' + p120 + '%;background:#ef4444;border-radius:100px;"></div><div style="width:' + p180 + '%;background:#991b1b;border-radius:100px;"></div></div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span style="font-size:10px;color:#f97316;font-weight:700">● ' + n90  + ' <span style="color:var(--text-muted)">90d</span></span><span style="font-size:10px;color:var(--danger);font-weight:700">● ' + n120 + ' <span style="color:var(--text-muted)">120d</span></span><span style="font-size:10px;color:#fca5a5;font-weight:700">● ' + n180 + ' <span style="color:var(--text-muted)">180d+</span></span></div></div>';
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1291,10 +1292,10 @@ window.renderKPIs = function(k, monthly) {
   kpiGrid.innerHTML =
 
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
-  `<div class="kpi-card" style="--kpi-color:#10b981;">
+  `<div class="kpi-card" style="--kpi-color:var(--accent3);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:#10b981;"><i class="ph ph-ruler"></i></div>
+        <div class="kpi-icon" style="color:var(--accent3);"><i class="ph ph-ruler"></i></div>
         <div class="kpi-label">YTD SQ FT (${currentFy})</div>
       </div>
       ${_dlt(ytdGrowth)}
@@ -1320,10 +1321,10 @@ window.renderKPIs = function(k, monthly) {
   </div>`
 
   // ── Card 2 — MTD SALE SQ FT ───────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
+  + `<div class="kpi-card" style="--kpi-color:var(--brand-text);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-calendar"></i></div>
+        <div class="kpi-icon" style="color:var(--brand-text);"><i class="ph ph-calendar"></i></div>
         <div class="kpi-label">MTD SALE SQ FT</div>
       </div>
       ${_dlt(k.momGrowth)}
@@ -1382,7 +1383,7 @@ window.renderKPIs = function(k, monthly) {
         <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
         <div class="kpi-label">TOTAL CUSTOMERS</div>
       </div>
-      <span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:#10b981;"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
+      <span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:var(--accent3);"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${custDonutSvg}
@@ -1400,10 +1401,10 @@ window.renderKPIs = function(k, monthly) {
   </div>`
 
   // ── Card 5 — 80% VOLUME CONTRIBUTORS ─────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:#f59e0b;">
+  + `<div class="kpi-card" style="--kpi-color:var(--accent4);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:#f59e0b;"><i class="ph ph-star"></i></div>
+        <div class="kpi-icon" style="color:var(--accent4);"><i class="ph ph-star"></i></div>
         <div class="kpi-label">80% VOLUME CONTRIBUTORS</div>
       </div>
     </div>
@@ -1411,7 +1412,7 @@ window.renderKPIs = function(k, monthly) {
     <div class="kpi-card-split-row" style="flex:1;">
       
       <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-primary); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-text); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
           <i class="ph ph-calendar-check"></i> THIS MONTH
         </div>
         <div style="font-size:26px; font-weight:800; color:${c80Cur>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
@@ -1421,7 +1422,7 @@ window.renderKPIs = function(k, monthly) {
           of <strong style="color:var(--text-main)">${window.fmt.num(c30)}</strong> active
         </div>
         <div style="margin-top:auto;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-primary); margin-bottom:4px;">
+          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
             <span>SHARE</span>
             <span>${c80Cur > 0 ? c80CurPct + '%' : '0%'}</span>
           </div>
@@ -1432,17 +1433,17 @@ window.renderKPIs = function(k, monthly) {
       </div>
 
       <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#f59e0b; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent4); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
           <i class="ph ph-chart-pie"></i> ALL TIME
         </div>
-        <div style="font-size:26px; font-weight:800; color:#f59e0b; line-height:1; margin-bottom:4px;">
+        <div style="font-size:26px; font-weight:800; color:var(--accent4); line-height:1; margin-bottom:4px;">
           ${window.fmt.num(c80All)}
         </div>
         <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
           of <strong style="color:var(--text-main)">${window.fmt.num(totalC)}</strong> total
         </div>
         <div style="margin-top:auto;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#f59e0b; margin-bottom:4px;">
+          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--accent4); margin-bottom:4px;">
             <span>SHARE</span>
             <span>${c80AllPct}%</span>
           </div>
@@ -1460,13 +1461,13 @@ window.renderKPIs = function(k, monthly) {
   </div>`
 
   // ── Card 6 — TOTAL OUTSTANDING ────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:#ef4444;">
+  + `<div class="kpi-card" style="--kpi-color:var(--danger);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:#ef4444;"><i class="ph ph-currency-inr"></i></div>
+        <div class="kpi-icon" style="color:var(--danger);"><i class="ph ph-currency-inr"></i></div>
         <div class="kpi-label">TOTAL OUTSTANDING</div>
       </div>
-      <span class="kpi-pill" style="background:rgba(239,68,68,0.12);color:#ef4444;"><i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors</span>
+      <span class="kpi-pill" style="background:rgba(239,68,68,0.12);color:var(--danger);"><i class="ph ph-users"></i>${window.fmt.num(k.totDebtors||0)} debtors</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
       ${osDonutSvg}
@@ -2075,14 +2076,18 @@ window.renderPivotTable = function() {
   function makeBar(v) { if(!v) return ''; var p=Math.min(100,v/heatMax*100); return '<div style="position:absolute;left:0;bottom:0;height:3px;width:'+p+'%;background:var(--brand-primary);border-radius:0 2px 0 0;opacity:0.5;"></div>'; }
 
   // Populate dropdowns
+  // Options are concatenated into one string and assigned once. Appending with
+  // `innerHTML +=` reparsed the whole (growing) <select> per option, which the
+  // nested cols x metrics loop below made quadratic.
   var sortSel=document.getElementById('pivot-sort-col'); var ps=sortSel.value;
-  sortSel.innerHTML='<option value="">Sort by...</option>';
-  rIdxs.forEach(function(r){sortSel.innerHTML+='<option value="row:'+r.name+'"'+(ps==='row:'+r.name?' selected':'')+'>'+r.name+'</option>';});
-  mIdxs.forEach(function(m){sortSel.innerHTML+='<option value="metric:'+m.name+':total"'+(ps==='metric:'+m.name+':total'?' selected':'')+'>'+m.name+' (Total)</option>';});
-  colsList.forEach(function(c){mIdxs.forEach(function(m){var v='metric:'+m.name+':'+c;sortSel.innerHTML+='<option value="'+v+'"'+(ps===v?' selected':'')+'>'+c+' > '+m.name+'</option>';});});
+  var sortH='<option value="">Sort by...</option>';
+  rIdxs.forEach(function(r){sortH+='<option value="row:'+r.name+'"'+(ps==='row:'+r.name?' selected':'')+'>'+r.name+'</option>';});
+  mIdxs.forEach(function(m){sortH+='<option value="metric:'+m.name+':total"'+(ps==='metric:'+m.name+':total'?' selected':'')+'>'+m.name+' (Total)</option>';});
+  colsList.forEach(function(c){mIdxs.forEach(function(m){var v='metric:'+m.name+':'+c;sortH+='<option value="'+v+'"'+(ps===v?' selected':'')+'>'+c+' > '+m.name+'</option>';});});
+  sortSel.innerHTML=sortH;
 
   var topNMS=document.getElementById('pivot-topn-metric');
-  if(topNMS){var pv=topNMS.value;topNMS.innerHTML='';mIdxs.forEach(function(m){topNMS.innerHTML+='<option value="'+m.name+'"'+(pv===m.name?' selected':'')+'>'+m.name+'</option>';});}
+  if(topNMS){var pv=topNMS.value;var tnH='';mIdxs.forEach(function(m){tnH+='<option value="'+m.name+'"'+(pv===m.name?' selected':'')+'>'+m.name+'</option>';});topNMS.innerHTML=tnH;}
 
   // Filter panels
   var allCols=Array.from(colsSet).sort();

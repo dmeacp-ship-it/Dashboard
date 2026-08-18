@@ -44,9 +44,15 @@ function _thick(r) { return _s(r, 'thickness') || '-'; }
 function _fy(r)    { return _s(r, 'fy_year'); }
 function _zone(r)  { return _s(r, 'zone') || STATE_TO_ZONE[_state(r)] || 'Unknown'; }
 function _state(r) { return _s(r, 'state') || 'Unknown'; }
+function _city(r)  { return _s(r, 'city') || 'Unknown'; }
 function _hod(r)   { return _s(r, 'hod_name') || 'Unknown'; }
+function _prevHod(r) { return _s(r, 'prev_hod_name') || '-'; }
 function _brand(r) { return _s(r, 'brand') || 'Unknown'; }
 function _finish(r){ return _s(r, 'finish') || 'Unknown'; }
+function _colorCode(r) { return _s(r, 'color_code') || '-'; }
+function _billNo(r) { return _s(r, 'bill_number_sap') || '-'; }
+function _projectPct(r) { return _num(_s(r, 'project_pct')); }
+function _projectSalesPerson(r) { return _s(r, 'project_sales_person') || '-'; }
 function _pt(r)    { return _s(r, 'product_type') || 'Unknown'; }
 function _sku(r)   { return _s(r, 'sku_type').toUpperCase(); }
 function _custName(r) { return _s(r, 'customer_name') || _s(r, 'customer_code'); }

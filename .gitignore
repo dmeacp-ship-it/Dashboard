@@ -10,3 +10,7 @@ npm-debug.log*
 *.log
 .DS_Store
 connections.json
+
+# local rollback snapshots
+backups/
+.backup-latest

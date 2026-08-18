@@ -20,6 +20,31 @@
   function inrShort(n) { return Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
   function debounce(fn, ms) { var t; return function () { var a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
 
+  /**
+   * Infinite-scroll handler for a scroll container: calls `more` when the
+   * viewport nears the bottom.
+   *
+   * Reading scrollTop/clientHeight/scrollHeight forces a layout, so the check
+   * is coalesced to one per frame and the listener registered as passive —
+   * scroll fires far more often than the display can paint.
+   */
+  function onNearBottom(el, px, more) {
+    if (!el) return;
+    var frame = 0;
+    // Replaces any previous handler, matching the `el.onscroll = fn` semantics
+    // these call sites relied on — re-rendering a tab must not stack listeners.
+    el.onscroll = null;
+    if (el._nbHandler) el.removeEventListener('scroll', el._nbHandler);
+    el._nbHandler = function () {
+      if (frame) return;
+      frame = requestAnimationFrame(function () {
+        frame = 0;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - px) more();
+      });
+    };
+    el.addEventListener('scroll', el._nbHandler, { passive: true });
+  }
+
   var _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   /**
    * Parses a sheet date. Handles D/M/YYYY, M/D/YYYY and ISO.
@@ -541,6 +566,7 @@
       '<div class="tbl-wrap" id="fms-ow" style="max-height:' + maxH + '"><table id="fms-ot" class="fms-orders"><thead><tr>' +
       '<th style="white-space:nowrap">Date</th>' +
       '<th style="white-space:nowrap">Sales Exec</th>' +
+      '<th style="white-space:nowrap">HOD</th>' +
       '<th style="white-space:nowrap">Order No</th>' +
       '<th style="min-width:170px">Dealer / Party</th>' +
       '<th style="white-space:nowrap">Order Ref</th>' +
@@ -552,7 +578,7 @@
       '</tr></thead><tbody id="fms-otb"></tbody></table></div></div>');
     applyOrdView(orders);
     var w = document.getElementById('fms-ow');
-    if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 120) moreRows(); };
+    onNearBottom(w, 120, moreRows);
     if (statsHtml) {
       requestAnimationFrame(function () {
         (host().querySelectorAll('#fms-stats .stat-n') || []).forEach(function (el) {
@@ -564,6 +590,26 @@
     }
   }
 
+  // An FMS order carries no HOD; the server derives it (see _resolveHod in
+  // fms.service.js). The tooltip states which source was used so a surprising
+  // value can be traced rather than guessed at.
+  var HOD_SRC = {
+    fy:       'Matched on customer, from this financial year’s latest sale',
+    snapshot: 'Matched on customer, from the customer master',
+    exec:     'Matched on sales executive (weaker — no customer match found)',
+    linked:   'Inherited from the linked branch order',
+    branch:   'Internal branch-to-branch movement — no customer HOD applies'
+  };
+  function hodCell(o) {
+    var h = o.hod ? String(o.hod).trim() : '';
+    if (!h) return '<span class="muted" title="No HOD could be matched for this order">—</span>';
+    var tip = HOD_SRC[o.hodSource] || '';
+    if (o.hodSource === 'branch') {
+      return '<span class="muted" style="font-size:11px;font-style:italic" title="' + esc(tip) + '">' + esc(h) + '</span>';
+    }
+    return '<span class="badge bdg" style="font-size:11px" title="' + esc(tip) + '">' + esc(h) + '</span>';
+  }
+
   function ordRow(o) {
     var st = String(o.status || '').trim().toLowerCase();
     var disp = Number(o.dispatchedQty) || 0;
@@ -573,6 +619,7 @@
     return '<tr class="clickable" data-s="' + esc(q(o.orderNo + o.seName + o.dealerName + o.branchName + o.orderRef + (o.hod || ''))) + '" data-stat="' + esc(st) + '" onclick="FMS.viewOrder(\'' + esc(o.orderNo) + '\')">' +
       '<td class="muted" style="white-space:nowrap;font-size:12px">' + _fmtDate(o.timestamp, false) + '</td>' +
       '<td style="white-space:nowrap">' + (o.seName ? '<span class="badge bdg" style="font-size:11px">' + esc(o.seName) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td style="white-space:nowrap">' + hodCell(o) + '</td>' +
       '<td style="white-space:nowrap"><strong class="accent" style="font-size:13px">' + esc(o.orderNo) + '</strong>' + (o.parentOrder ? '<div class="text-xs muted"><i class="ph ph-arrow-bend-down-right"></i> ' + esc(o.parentOrder) + '</div>' : '') + '</td>' +
       '<td style="max-width:210px"><div class="fw5" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" title="' + esc(o.dealerName) + '">' + (esc(o.dealerName) || '<span class="muted">—</span>') + '</div></td>' +
       '<td style="white-space:nowrap;font-size:12px">' + ref + '</td>' +
@@ -602,7 +649,10 @@
     s = q(s);
     var stat = (document.getElementById('fms-ostat') || {}).value || '';
     var filtered = FMS._ord.full.filter(function (o) {
-      var matchS = !s || q(o.orderNo + o.customerName + o.seName + o.dealerName + o.branchName).indexOf(s) !== -1;
+      // o.hod is included so the HOD column is searchable like every other
+      // visible column — the row's data-s attribute already carried it, but
+      // this filter builds its own string and was missing it.
+      var matchS = !s || q(o.orderNo + o.customerName + o.seName + o.dealerName + o.branchName + (o.hod || '')).indexOf(s) !== -1;
       var matchT = !stat || String(o.status || '').toLowerCase() === stat;
       return matchS && matchT;
     });
@@ -849,7 +899,7 @@
         '</tr></thead><tbody id="fms-lctb"></tbody></table></div></div>');
       lcApply();
       var w = document.getElementById('fms-lcwrap');
-      if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 200) lcMore(); };
+      onNearBottom(w, 200, lcMore);
     }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
   }
 
@@ -1091,7 +1141,7 @@
       '</tr></thead><tbody id="fms-pltb"></tbody></table></div></div>');
     plApplyView();
     var w = document.getElementById('fms-plw');
-    if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 120) plMore(); };
+    onNearBottom(w, 120, plMore);
   }
   function plRow(it) {
     var ref = it.orderRef ? '<span class="lnk accent" onclick="event.stopPropagation();FMS.viewOrder(\'' + esc(it.orderRef) + '\')">' + esc(it.orderRef) + '</span>' : '<span class="muted">—</span>';
@@ -1238,7 +1288,7 @@
         '<div style="padding:9px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">Item-wise across dispatched lines · fully delivered lines drop off after 180 days</div></div>');
       dlvApply();
       var w = document.getElementById('fms-dlvwrap');
-      if (w) w.onscroll = function () { if (w.scrollTop + w.clientHeight >= w.scrollHeight - 200) dlvMore(); };
+      onNearBottom(w, 200, dlvMore);
     }).catch(function (e) { setC(empt('ph-warning', 'Failed', e.message)); });
   }
 

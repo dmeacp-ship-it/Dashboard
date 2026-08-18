@@ -205,7 +205,8 @@ module.exports = async function handler(req, res) {
       getFmsPartySummary: () => FmsService.getFmsPartySummary(null),
       getFmsMonthWise: () => FmsService.getFmsMonthWise(null),
       getFmsDelivery: () => FmsService.getFmsDelivery(null),
-      getFmsPlantItems: () => FmsService.getFmsPlantItems(null)
+      getFmsPlantItems: () => FmsService.getFmsPlantItems(null),
+      getItems: () => FmsService.getItems()
     };
 
     if (!routes[action]) throw new Error('Unknown action routed: ' + action);
