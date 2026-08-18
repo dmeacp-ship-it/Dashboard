@@ -1460,6 +1460,61 @@ window.renderKPIs = function(k, monthly) {
     </div>
   </div>`
 
+  // ── Card 5b — RETAIL VS PROJECT SPLIT ─────────────────────────────────────
+  + `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-buildings"></i></div>
+        <div class="kpi-label">SALES TYPE SPLIT</div>
+      </div>
+      <span class="kpi-pill" style="background:var(--brand-muted);color:var(--brand-text);"><i class="ph ph-percent"></i>${window.fmt.num(k.totalSqft > 0 ? (k.retailSqft/k.totalSqft*100) : 0)}% retail</span>
+    </div>
+    
+    <div class="kpi-card-split-row" style="flex:1;">
+      
+      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-text); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+          <i class="ph ph-storefront"></i> RETAIL
+        </div>
+        <div style="font-size:26px; font-weight:800; color:${k.retailSqft>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
+          ${window.fmt.short(k.retailSqft)}
+        </div>
+        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
+          sqft
+        </div>
+        <div style="margin-top:auto;">
+          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
+            <span>SHARE</span>
+            <span>${k.totalSqft > 0 ? (k.retailSqft/k.totalSqft*100).toFixed(1) + '%' : '0%'}</span>
+          </div>
+          ${k.retailSqft > 0
+            ? _bar(k.retailSqft, Math.max(k.totalSqft,1), 'var(--brand-primary)', 4)
+            : `<div style="height:4px;background:var(--bg-hover);border-radius:100px;opacity:0.3;margin-top:3px;"></div>`}
+        </div>
+      </div>
+
+      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#8b5cf6; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+          <i class="ph ph-hard-hat"></i> PROJECTS
+        </div>
+        <div style="font-size:26px; font-weight:800; color:#8b5cf6; line-height:1; margin-bottom:4px;">
+          ${window.fmt.short(k.projectSqft)}
+        </div>
+        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
+          sqft
+        </div>
+        <div style="margin-top:auto;">
+          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#8b5cf6; margin-bottom:4px;">
+            <span>SHARE</span>
+            <span>${k.totalSqft > 0 ? (k.projectSqft/k.totalSqft*100).toFixed(1) + '%' : '0%'}</span>
+          </div>
+          ${_bar(k.projectSqft, Math.max(k.totalSqft,1), '#8b5cf6', 4)}
+        </div>
+      </div>
+
+    </div>
+  </div>`
+
   // ── Card 6 — TOTAL OUTSTANDING ────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:var(--danger);">
     <div class="kpi-header-row">

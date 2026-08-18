@@ -661,6 +661,18 @@ async function getKPIs(f) {
       }
     }
 
+    // Sales Type Split (Retail vs Projects)
+    let retailSqm = 0, projectSqm = 0;
+    try {
+      const splitRows = await _fetchAgg('vw_sales_type_agg', geoQ);
+      splitRows.filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+        if (r.sales_type === 'Projects') projectSqm += _sqm(r);
+        else retailSqm += _sqm(r);
+      });
+    } catch (e) {
+      // view doesn't exist yet, return 0s until user creates it
+    }
+
     // Outstanding
     const osRows = await _fetchOutstanding(f);
     let totOs = 0, totDebtors = 0, os90Amt = 0, os90Count = 0, os45Amt = 0, os45Count = 0, osBelow45Amt = 0, osBelow45Count = 0;
@@ -687,6 +699,8 @@ async function getKPIs(f) {
       totalCustomers: custs.length,
       activeCustomers: active,
       loyalCustomers: loyalC,
+      retailSqft: Math.round(retailSqm * 10.76391),
+      projectSqft: Math.round(projectSqm * 10.76391),
       cust30d: cust30d,
       cust60d: cust60d,
       cust90Plus: cust90Plus,
