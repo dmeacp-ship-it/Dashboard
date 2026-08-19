@@ -70,6 +70,8 @@ const COLUMN_MAP = Object.freeze({
   'PRODUCT TYPE':       'product_type',
   'STATE':              'state',
   'CITY':               'city',
+  'HOD_STATE':          'hod_state',
+  'HOD STATE':          'hod_state',
   'ZONE':               'zone',
   'HOD_NAME':           'hod_name',
   'HOD NAME':           'hod_name',
