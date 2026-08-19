@@ -35,7 +35,7 @@ function _s(r, col) {
 function _sqm(r)   { const v = _num(_s(r, 'total_sqm')); return v || _num(_s(r, 'sq_ft')) / 10.76391; }
 function _sqft(r)  { const v = _num(_s(r, 'sq_ft'));     return v || _num(_s(r, 'total_sqm')) * 10.76391; }
 function _txns(r)  { return _num(_s(r, 'txn_count') || _s(r, 'transaction_count')); }
-function _qty(r)   { return _num(_s(r, 'quantity')); }
+function _qty(r)   { return _num(_s(r, 'quantity')) || _num(_s(r, 'total_qty')); }
 function _days(r)  { return _num(_s(r, 'days_since_last_purchase')); }
 function _prev6(r) { return _num(_s(r, 'prev_6m_sqm')); }
 function _last6(r) { return _num(_s(r, 'last_6m_sqm')); }
@@ -552,7 +552,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v5_' + _stableStringify(f), async function () {
+  return cached('kpis_v6_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
