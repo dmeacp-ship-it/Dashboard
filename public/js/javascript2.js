@@ -1480,7 +1480,7 @@ window.renderKPIs = function(k, monthly) {
           ${window.fmt.short(k.retailSqft)}
         </div>
         <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
-          sqft
+          sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.retailQty || 0)}</span> qty
         </div>
         <div style="margin-top:auto;">
           <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
@@ -1501,7 +1501,7 @@ window.renderKPIs = function(k, monthly) {
           ${window.fmt.short(k.projectSqft)}
         </div>
         <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
-          sqft
+          sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.projectQty || 0)}</span> qty
         </div>
         <div style="margin-top:auto;">
           <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#8b5cf6; margin-bottom:4px;">

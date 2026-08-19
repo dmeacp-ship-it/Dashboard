@@ -552,7 +552,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v4_' + _stableStringify(f), async function () {
+  return cached('kpis_v5_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
@@ -663,11 +663,17 @@ async function getKPIs(f) {
 
     // Sales Type Split (Retail vs Projects)
     let retailSqm = 0, projectSqm = 0;
+    let retailQty = 0, projectQty = 0;
     try {
       const splitRows = await _fetchAgg('vw_sales_type_agg', geoQ);
       splitRows.filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
-        if (r.sales_type === 'Projects') projectSqm += _sqm(r);
-        else retailSqm += _sqm(r);
+        if (r.sales_type === 'Projects') {
+          projectSqm += _sqm(r);
+          projectQty += _qty(r);
+        } else {
+          retailSqm += _sqm(r);
+          retailQty += _qty(r);
+        }
       });
     } catch (e) {
       // view doesn't exist yet, return 0s until user creates it
@@ -701,6 +707,8 @@ async function getKPIs(f) {
       loyalCustomers: loyalC,
       retailSqft: Math.round(retailSqm * 10.76391),
       projectSqft: Math.round(projectSqm * 10.76391),
+      retailQty: retailQty,
+      projectQty: projectQty,
       cust30d: cust30d,
       cust60d: cust60d,
       cust90Plus: cust90Plus,
