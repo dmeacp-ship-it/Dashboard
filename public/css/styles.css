@@ -139,10 +139,18 @@ html, body {
   transition: background var(--t), color var(--t);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 100px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+/* Hide all default scrollbars globally while keeping full touch / wheel / trackpad scrolling */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: transparent !important; }
 
 h1, h2, h3, .page-title, .brand-name, .kpi-value, .chart-title, .table-title {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -559,15 +567,28 @@ nav { padding: 2px 0; flex: 1; }
   isolation: isolate;
   transform: translateZ(0);
   contain: layout style;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 [data-theme="light"] #content {
   box-shadow: inset 4px 4px 16px rgba(0,0,0,0.04);
 }
+#content::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+
 .page { display: none; gap: 16px; min-width: 0; }
 .page.active { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 #page-overview, #page-settings {
   overflow-y: auto;
-  padding-right: 4px;
+  overflow-x: hidden;
+  padding-top: 8px;
+  padding-right: 0px;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+#page-overview::-webkit-scrollbar, #page-settings::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Animation optimizations (First paint only) */
@@ -625,36 +646,29 @@ nav { padding: 2px 0; flex: 1; }
 
 /* ── KPI STRIP ── */
 .kpi-grid { 
-  display: flex; flex-wrap: nowrap; gap: 16px; overflow-x: auto; 
-  padding: 14px 10px 14px; margin: -16px -12px 8px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  padding: 6px 2px 2px 2px;
+  margin: 0 0 16px 0;
   transform: translateZ(0); 
-  position: sticky; top: 0; z-index: 15;
-  background: var(--bg-body);
-  scrollbar-width: thin; 
-  scrollbar-color: var(--border) transparent;
-  -webkit-overflow-scrolling: touch;
-}
-.kpi-grid::-webkit-scrollbar {
-  height: 4px;
-}
-.kpi-grid::-webkit-scrollbar-track {
+  position: relative;
+  z-index: 5;
   background: transparent;
 }
-.kpi-grid::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 10px;
-}
-.kpi-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+.kpi-grid::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .kpi-card {
   flex: 1;
-  min-width: 200px;
+  min-width: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-top: 2px solid var(--kpi-color, var(--brand-primary));
-  border-radius: var(--radius-lg); padding: 12px 16px;
+  border-radius: var(--radius-lg); padding: 12px 14px;
   position: relative;
   box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column; justify-content: flex-start; gap: 4px;
@@ -664,11 +678,12 @@ nav { padding: 2px 0; flex: 1; }
 }
 /* Dashboard Main KPI Cards Overrides */
 #kpi-grid .kpi-card {
-  aspect-ratio: 1 / 1;
-  min-width: 240px;
-  padding: 16px;
+  min-width: 0;
+  padding: 14px;
   overflow: hidden;
   gap: 0;
+  display: flex;
+  flex-direction: column;
 }
 /* The pill never wraps below the label: the header is a fixed-height row and
    the pill is vertically centred in it, so it lands at the same y-position on
@@ -947,20 +962,20 @@ tbody td:first-child { color: var(--text-muted); font-size: 11.5px; font-weight:
   position: fixed; z-index: 99999;
   background: var(--surface-glass); 
   border: 1px solid var(--border-hover);
-  border-radius: 16px; padding: 14px 18px;
-  font-size: 13.5px; font-weight: 500; color: var(--text-main);
-  line-height: 1.5; min-width: 240px; max-width: 360px; pointer-events: none;
-  opacity: 0; transform: translateY(8px) scale(0.96);
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.25);
-  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(79, 70, 229, 0.2);
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-radius: 10px; padding: 7px 12px;
+  font-size: 11.5px; font-weight: 500; color: var(--text-main);
+  line-height: 1.35; min-width: 140px; max-width: 280px; pointer-events: none;
+  opacity: 0; transform: translateY(6px) scale(0.97);
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.25);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(79, 70, 229, 0.15);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
 #row-tooltip.show { opacity: 1; transform: translateY(0) scale(1); }
 #row-tooltip .tt-title { 
-  font-size: 12px; font-weight: 800; color: var(--brand-text); 
-  text-transform: uppercase; letter-spacing: 0.08em; 
-  margin-bottom: 8px; border-bottom: 1px solid var(--border); 
-  padding-bottom: 6px; font-family: 'Plus Jakarta Sans'; 
+  font-size: 11px; font-weight: 800; color: var(--brand-text); 
+  text-transform: uppercase; letter-spacing: 0.05em; 
+  margin-bottom: 4px; border-bottom: 1px solid var(--border); 
+  padding-bottom: 3px; font-family: 'Plus Jakarta Sans'; 
   display: flex; align-items: center; justify-content: space-between;
 }
 
@@ -1025,6 +1040,13 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
 @keyframes au-drift2 { 0%{transform:translate(0,0) scale(1);} 33%{transform:translate(-4%,-3%) scale(1.04);} 66%{transform:translate(2%,-1%) scale(0.98);} 100%{transform:translate(0,0) scale(1);} }
 
 /* ── RESPONSIVE ── */
+@media (max-width: 1400px) {
+  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 1200px) {
+  .chart-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
+}
 @media (max-width: 1024px) {
   .chart-grid { grid-template-columns: 1fr; }
 }
@@ -1039,10 +1061,12 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   #content { padding: 12px 16px; gap: 12px; }
   #header { padding: 0 12px; }
   .kpi-grid {
-    margin: -12px -16px 8px !important;
-    padding: 24px 16px 12px !important;
-    position: sticky !important;
-    top: -12px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin: 0 0 12px 0 !important;
+    padding: 0 !important;
+    position: relative !important;
+    top: auto !important;
   }
   
   #close-sidebar { display: flex !important; }

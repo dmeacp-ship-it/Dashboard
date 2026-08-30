@@ -1526,8 +1526,10 @@ window._doNavigate = function(pageId) {
   const scrollablePages = ['overview', 'product', 'producttype'];
   if (scrollablePages.includes(pageId)) {
       contentEl.style.overflowY = 'auto';
+      contentEl.style.overflowX = 'hidden';
   } else {
       contentEl.style.overflowY = 'hidden';
+      contentEl.style.overflowX = 'hidden';
   }
 
   const filterPanel = document.getElementById('filter-panel');
@@ -2298,6 +2300,7 @@ window._bootDashboard = async function() {
   }
   
   try {
+    if (window.clearApiCache) window.clearApiCache();
     const fOpts = await window.api('getFilterOptions');
     if (typeof window.populateFilters === 'function') window.populateFilters(fOpts || {});
     
@@ -2329,12 +2332,23 @@ window._bootDashboard = async function() {
       window.App.customReports = settings.CUSTOM_REPORTS;
     }
     
-    window.App.data.overview = { kpis: kpis, monthly: overview.monthly, states: overview.states };
+    window.App.data.overview = { kpis: kpis, monthly: overview.monthly, states: overview.states, zones: overview.zones };
     
     if (typeof window.renderKPIs === 'function') window.renderKPIs(kpis || {}, overview.monthly || []);
     if (typeof window.renderMonthlyChart === 'function') window.renderMonthlyChart(overview.monthly || []);
-    if (typeof window.renderStateChart === 'function') window.renderStateChart(overview.states || []);
+    if (typeof window.renderZoneContributionOverview === 'function') window.renderZoneContributionOverview(overview.zones || [], overview.monthly || []);
     if (typeof window.renderQoQChart === 'function') window.renderQoQChart(overview.monthly || []);
+    
+    const targetWrap = document.getElementById('overview-target-wrap');
+    if (targetWrap) {
+      targetWrap.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;gap:6px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:24px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i><span>Loading Target Performance...</span></div>';
+    }
+    window.api('getTargetVsAchievement').then(targets => {
+      if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
+      if (typeof window.renderTargetAchievementOverview === 'function') window.renderTargetAchievementOverview(targets || []);
+    }).catch(() => {
+      if (targetWrap) targetWrap.innerHTML = '<div style="color:var(--text-muted);font-size:11.5px;text-align:center;">Failed to load targets</div>';
+    });
     
     const el = document.getElementById('last-updated-val');
     if (el && kpis && kpis.lastUpdated) {

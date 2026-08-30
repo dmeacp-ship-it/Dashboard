@@ -20,7 +20,7 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=3d0800b3"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=8d15ab3d"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=e2d94cfe"/>
 </head>
 
@@ -282,6 +282,7 @@
       <section id="page-overview" class="page active">
         <div id="kpi-grid" class="kpi-grid"></div>
         <div class="chart-grid">
+          <!-- Tier 1: Monthly SQ FT & SQM Trend (Full-Width Hero) -->
           <div class="chart-card">
             <div class="chart-header" style="display:flex; justify-content:space-between; align-items:center;">
               <div class="chart-title"><i class="ph ph-chart-line-up"></i> Monthly SQ FT &amp; SQM Trend</div>
@@ -298,12 +299,23 @@
             </div>
             <div class="chart-wrap-tall"><canvas id="chart-monthly"></canvas></div>
           </div>
-          <div class="chart-card">
-            <div class="chart-header">
-              <div class="chart-title"><i class="ph ph-map-pin"></i> Top 10 States by SQ FT</div>
+
+          <!-- Tier 2 Pillar 1: Target vs Actual Achievement -->
+          <div class="chart-card" id="overview-target-card">
+            <div class="chart-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="chart-title"><i class="ph ph-target"></i> Target vs Actual</div>
+              <div class="btn-group" id="overview-target-view-toggles" style="gap:2px;">
+                <button class="btn btn-sm btn-primary" style="padding:2px 8px; font-size:11px;" onclick="window.setOverviewTargetPeriod('month', this)">Month</button>
+                <button class="btn btn-sm btn-ghost" style="padding:2px 8px; font-size:11px;" onclick="window.setOverviewTargetPeriod('quarter', this)">Quarter</button>
+                <button class="btn btn-sm btn-ghost" style="padding:2px 8px; font-size:11px;" onclick="window.setOverviewTargetPeriod('year', this)">Year</button>
+              </div>
             </div>
-            <div class="chart-wrap-tall"><canvas id="chart-state"></canvas></div>
+            <div class="chart-wrap-tall" id="overview-target-wrap" style="display:flex; padding:8px 10px; box-sizing:border-box; overflow:hidden;">
+              <!-- Rendered dynamically by JS -->
+            </div>
           </div>
+
+          <!-- Tier 2 Pillar 2: SQ FT Split by FY (QoQ) -->
           <div class="chart-card">
             <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 12px;">
               <div class="chart-title"><i class="ph ph-chart-pie"></i> SQ FT Split by FY (QoQ)</div>
@@ -1534,9 +1546,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=40363954"></script>
+<script defer src="/js/javascript.min.js?v=cee445aa"></script>
 <script defer src="/js/javascript1.min.js?v=96a5ca5e"></script>
-<script defer src="/js/javascript2.min.js?v=9b057d13"></script>
+<script defer src="/js/javascript2.min.js?v=9d760c3a"></script>
 <script defer src="/js/fms.min.js?v=5605d69c"></script>
 
 </body>

@@ -1182,7 +1182,7 @@ window.renderKPIs = function(k, monthly) {
     <div>
       ${_sep()}
       <div style="display:flex;flex-direction:column;gap:4px;">
-        ${_kv('MTD Revenue', '₹' + window.fmt.short(k.currentMonthRev || 0), 'var(--brand-primary)')}
+        ${_kv('MTD Quantity', window.fmt.short(k.currentMonthQty || 0) + ' pcs', 'var(--brand-primary)')}
         ${_kv('Prev month', window.fmt.short(prevMoSqft) + ' sqft', 'var(--text-muted)')}
       </div>
     </div>
@@ -1216,31 +1216,67 @@ window.renderKPIs = function(k, monthly) {
     </div>
   </div>`
 
-  // ── Card 4 — TOTAL CUSTOMERS ───────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:#ec4899;">
-    <div class="kpi-header-row">
-      <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
-        <div class="kpi-label">TOTAL CUSTOMERS</div>
+  // ── Card 4 — SALES TYPE SPLIT (Retail vs Projects) ───────────────────────
+  + (function() {
+    const splitTotal = (k.retailSqft || 0) + (k.projectSqft || 0);
+    const retPct = splitTotal > 0 ? ((k.retailSqft / splitTotal) * 100).toFixed(1) : '0.0';
+    const projPct = splitTotal > 0 ? ((k.projectSqft / splitTotal) * 100).toFixed(1) : '0.0';
+    return `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
+      <div class="kpi-header-row">
+        <div class="kpi-head-left">
+          <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-buildings"></i></div>
+          <div class="kpi-label">SALES TYPE SPLIT</div>
+        </div>
+        <span class="kpi-pill" style="background:var(--brand-muted);color:var(--brand-text);"><i class="ph ph-percent"></i>${Math.round(retPct)}% retail</span>
       </div>
-      <span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:var(--accent3);"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-      ${custDonutSvg}
-      <div>
-        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.num(totalC)}</div>
-        <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">total accounts</div>
-      </div>
-    </div>
-    <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;flex-direction:column;gap:2px;margin-top:auto;">
-      ${cRow('#10b981', '0–30d &nbsp;Active',  c30)}
-      ${cRow('#38bdf8', '31–60d',               c31_60)}
-      ${cRow('#f59e0b', '61–90d',               c61_90)}
-      ${cRow('#ef4444', '90d+&nbsp;Inactive',   c90p)}
-    </div>
-  </div>`
+      
+      <div class="kpi-card-split-row" style="flex:1;">
+        
+        <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-text); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+            <i class="ph ph-storefront"></i> RETAIL
+          </div>
+          <div style="font-size:26px; font-weight:800; color:${k.retailSqft>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
+            ${window.fmt.short(k.retailSqft)}
+          </div>
+          <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
+            sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.retailQty || 0)}</span> qty
+          </div>
+          <div style="margin-top:auto;">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
+              <span>SHARE</span>
+              <span>${retPct}%</span>
+            </div>
+            ${k.retailSqft > 0
+              ? _bar(k.retailSqft, Math.max(splitTotal,1), 'var(--brand-primary)', 4)
+              : `<div style="height:4px;background:var(--bg-hover);border-radius:100px;opacity:0.3;margin-top:3px;"></div>`}
+          </div>
+        </div>
 
-  // ── Card 5 — 80% VOLUME CONTRIBUTORS ─────────────────────────────────────
+        <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#8b5cf6; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+            <i class="ph ph-hard-hat"></i> PROJECTS
+          </div>
+          <div style="font-size:26px; font-weight:800; color:#8b5cf6; line-height:1; margin-bottom:4px;">
+            ${window.fmt.short(k.projectSqft)}
+          </div>
+          <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
+            sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.projectQty || 0)}</span> qty
+          </div>
+          <div style="margin-top:auto;">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#8b5cf6; margin-bottom:4px;">
+              <span>SHARE</span>
+              <span>${projPct}%</span>
+            </div>
+            ${_bar(k.projectSqft, Math.max(splitTotal,1), '#8b5cf6', 4)}
+          </div>
+        </div>
+
+      </div>
+    </div>`;
+  })()
+
+  // ── Card 5 — 80% VOLUME CONTRIBUTORS (Pareto) ────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:var(--accent4);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
@@ -1300,62 +1336,31 @@ window.renderKPIs = function(k, monthly) {
     </div>
   </div>`
 
-  // ── Card 5b — RETAIL VS PROJECT SPLIT ─────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
+  // ── Card 6 — TOTAL CUSTOMERS (Placed beside Outstanding) ───────────────────
+  + `<div class="kpi-card" style="--kpi-color:#ec4899;">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
-        <div class="kpi-icon" style="color:var(--brand-primary);"><i class="ph ph-buildings"></i></div>
-        <div class="kpi-label">SALES TYPE SPLIT</div>
+        <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
+        <div class="kpi-label">TOTAL CUSTOMERS</div>
       </div>
-      <span class="kpi-pill" style="background:var(--brand-muted);color:var(--brand-text);"><i class="ph ph-percent"></i>${window.fmt.num(k.totalSqft > 0 ? (k.retailSqft/k.totalSqft*100) : 0)}% retail</span>
+      <span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:var(--accent3);"><i class="ph ph-crown"></i>${window.fmt.num(k.loyalCustomers || 0)} loyal</span>
     </div>
-    
-    <div class="kpi-card-split-row" style="flex:1;">
-      
-      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-text); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
-          <i class="ph ph-storefront"></i> RETAIL
-        </div>
-        <div style="font-size:26px; font-weight:800; color:${k.retailSqft>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
-          ${window.fmt.short(k.retailSqft)}
-        </div>
-        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
-          sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.retailQty || 0)}</span> qty
-        </div>
-        <div style="margin-top:auto;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
-            <span>SHARE</span>
-            <span>${k.totalSqft > 0 ? (k.retailSqft/k.totalSqft*100).toFixed(1) + '%' : '0%'}</span>
-          </div>
-          ${k.retailSqft > 0
-            ? _bar(k.retailSqft, Math.max(k.totalSqft,1), 'var(--brand-primary)', 4)
-            : `<div style="height:4px;background:var(--bg-hover);border-radius:100px;opacity:0.3;margin-top:3px;"></div>`}
-        </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+      ${custDonutSvg}
+      <div>
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.num(totalC)}</div>
+        <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">total accounts</div>
       </div>
-
-      <div style="flex:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#8b5cf6; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
-          <i class="ph ph-hard-hat"></i> PROJECTS
-        </div>
-        <div style="font-size:26px; font-weight:800; color:#8b5cf6; line-height:1; margin-bottom:4px;">
-          ${window.fmt.short(k.projectSqft)}
-        </div>
-        <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
-          sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.projectQty || 0)}</span> qty
-        </div>
-        <div style="margin-top:auto;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#8b5cf6; margin-bottom:4px;">
-            <span>SHARE</span>
-            <span>${k.totalSqft > 0 ? (k.projectSqft/k.totalSqft*100).toFixed(1) + '%' : '0%'}</span>
-          </div>
-          ${_bar(k.projectSqft, Math.max(k.totalSqft,1), '#8b5cf6', 4)}
-        </div>
-      </div>
-
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;flex-direction:column;gap:2px;margin-top:auto;">
+      ${cRow('#10b981', '0–30d &nbsp;Active',  c30)}
+      ${cRow('#38bdf8', '31–60d',               c31_60)}
+      ${cRow('#f59e0b', '61–90d',               c61_90)}
+      ${cRow('#ef4444', '90d+&nbsp;Inactive',   c90p)}
     </div>
   </div>`
 
-  // ── Card 6 — TOTAL OUTSTANDING ────────────────────────────────────────────
+  // ── Card 7 — TOTAL OUTSTANDING ────────────────────────────────────────────
   + `<div class="kpi-card" style="--kpi-color:var(--danger);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
@@ -1469,50 +1474,473 @@ window.renderMonthlyChart = function(rows) {
   }
 };
 
-window.renderStateChart = function(rows) {
-  if (typeof Chart === 'undefined') return;
-  if (!rows || !Array.isArray(rows)) rows = [];
-  const ctx = document.getElementById('chart-state'); if (!ctx) return;
-  
-  const sorted = rows.slice().sort(function(a, b) { return (Number(b['SQ FT.']) || 0) - (Number(a['SQ FT.']) || 0); }).slice(0, 10);
-  const labels = [], data = [];
-  sorted.forEach(function(r) { labels.push(r['STATE'] || 'Unknown'); data.push(Number(r['SQ FT.']) || 0); });
-  
-  if (window.App.charts.state) {
-      window.App.charts.state.data.labels = labels; 
-      window.App.charts.state.data.datasets[0].data = data; 
-      window.App.charts.state.options.scales.x.ticks.color = window.tc();
-      window.App.charts.state.options.scales.y.ticks.color = window.tc();
-      window.App.charts.state.update('none');
+window.overviewTargetPeriod = 'month';
+
+window.setOverviewTargetPeriod = function(period, btn) {
+  window.overviewTargetPeriod = period;
+  const toggles = document.querySelectorAll('#overview-target-view-toggles .btn');
+  toggles.forEach(b => b.className = 'btn btn-sm btn-ghost');
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  if (window.App && window.App.data && window.App.data.overview && window.App.data.overview.targets && window.App.data.overview.targets.length) {
+    window.renderTargetAchievementOverview(window.App.data.overview.targets);
   } else {
-      const g = ctx.getContext('2d').createLinearGradient(0, 0, 400, 0); g.addColorStop(0, '#4f46e5'); g.addColorStop(1, '#8b5cf6');
-      window.App.charts.state = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: labels, datasets: [{ label: 'SQ FT', data: data, backgroundColor: g, hoverBackgroundColor: '#6366f1', borderRadius: { topRight: 6, bottomRight: 6, topLeft: 0, bottomLeft: 0 } }] },
-        options: window._cDefaults({ indexAxis: 'y', layout: { padding: { right: 40 } }, scales: {
-          x: { ticks: { color: window.tc(), font: { size: 13, weight: 700 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } },
-          y: { ticks: { color: window.tc(), font: { size: 12, weight: 700 } }, grid: { display: false, drawBorder: false } }
-        }}),
-        plugins: [{
-          id: 'customLabels',
-          afterDatasetsDraw: function(chart) {
-            var ctx = chart.ctx;
-            chart.data.datasets.forEach(function(dataset, i) {
-              var meta = chart.getDatasetMeta(i);
-              meta.data.forEach(function(bar, index) {
-                var val = dataset.data[index];
-                if (!val) return;
-                ctx.fillStyle = window.tc();
-                ctx.font = 'bold 12px "Inter", sans-serif';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(window.fmt.short(val), bar.x + 6, bar.y);
-              });
-            });
-          }
-        }]
-      });
+    const container = document.getElementById('overview-target-wrap');
+    if (container) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;gap:8px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:22px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i> Loading targets...</div>';
+    }
+    window.api('getTargetVsAchievement').then(t => {
+      if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = t;
+      window.renderTargetAchievementOverview(t);
+    }).catch(() => {});
   }
+};
+
+window.renderStateChart = function() {
+  if (window.App && window.App.data && window.App.data.overview) {
+    if (window.App.data.overview.zones) window.renderZoneContributionOverview(window.App.data.overview.zones, window.App.data.overview.monthly);
+    if (window.App.data.overview.targets && window.App.data.overview.targets.length) {
+      window.renderTargetAchievementOverview(window.App.data.overview.targets);
+    }
+  }
+};
+
+window.renderZoneContributionOverview = function(zones, monthly) {
+  const container = document.getElementById('overview-zone-wrap');
+  if (!container) return;
+
+  const states = (window.App && window.App.data && window.App.data.overview && window.App.data.overview.states) || [];
+  monthly = monthly || (window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) || [];
+
+  function _toMacro(zStr, sStr) {
+    const z = String(zStr || '').trim().toUpperCase();
+    const s = String(sStr || '').trim().toUpperCase();
+    if (z.indexOf('WEST') !== -1 || s.indexOf('GUJARAT') !== -1 || s.indexOf('MAHARASHTRA') !== -1 || s.indexOf('MUMBAI') !== -1 || s.indexOf('GOA') !== -1) return 'WEST';
+    if (z.indexOf('SOUTH') !== -1 || s.indexOf('TAMIL') !== -1 || s.indexOf('KARNATAKA') !== -1 || s.indexOf('KERALA') !== -1 || s.indexOf('ANDHRA') !== -1 || s.indexOf('TELANGANA') !== -1 || s.indexOf('AP') !== -1) return 'SOUTH';
+    if (z.indexOf('EAST') !== -1 || s.indexOf('BENGAL') !== -1 || s.indexOf('BIHAR') !== -1 || s.indexOf('ODISHA') !== -1 || s.indexOf('ORISSA') !== -1 || s.indexOf('ASSAM') !== -1 || s.indexOf('JHARKHAND') !== -1) return 'EAST';
+    if (z.indexOf('CENTRAL') !== -1 || s.indexOf('MADHYA') !== -1 || s.indexOf('CHHATTISGARH') !== -1 || s.indexOf('MP') !== -1) return 'CENTRAL';
+    if (z.indexOf('NORTH') !== -1 || s.indexOf('DELHI') !== -1 || s.indexOf('RAJASTHAN') !== -1 || s.indexOf('PUNJAB') !== -1 || s.indexOf('HARYANA') !== -1 || s.indexOf('UP') !== -1 || s.indexOf('UTTAR') !== -1 || s.indexOf('UTTARAKHAND') !== -1 || s.indexOf('JAMMU') !== -1 || s.indexOf('HIMACHAL') !== -1) return 'NORTH';
+    return 'CENTRAL';
+  }
+
+  // Determine current FY and previous FY from monthly data
+  const fyMap = {};
+  (monthly || []).forEach(r => {
+    const fy = window.getRowFY(r);
+    const m = String(r['MONTH YEAR'] || '').trim().slice(0, 3).toUpperCase();
+    if (fy && m) {
+      if (!fyMap[fy]) fyMap[fy] = new Set();
+      fyMap[fy].add(m);
+    }
+  });
+  const sortedFys = Object.keys(fyMap).sort().reverse();
+  const curFy = sortedFys[0] || 'FY 26-27';
+  const prevFy = sortedFys[1] || 'FY 25-26';
+  const curMonths = curFy && fyMap[curFy] ? Array.from(fyMap[curFy]) : ['APR','MAY','JUN','JUL','AUG'];
+
+  // Zone colors mapping
+  const zoneColors = {
+    'WEST':    '#10b981',
+    'SOUTH':   '#06b6d4',
+    'NORTH':   '#6366f1',
+    'EAST':    '#f59e0b',
+    'CENTRAL': '#ec4899'
+  };
+
+  const macroMap = {
+    'WEST':    { name: 'WEST', curYtd: 0, prevYtd: 0, color: zoneColors['WEST'] },
+    'SOUTH':   { name: 'SOUTH', curYtd: 0, prevYtd: 0, color: zoneColors['SOUTH'] },
+    'NORTH':   { name: 'NORTH', curYtd: 0, prevYtd: 0, color: zoneColors['NORTH'] },
+    'EAST':    { name: 'EAST', curYtd: 0, prevYtd: 0, color: zoneColors['EAST'] },
+    'CENTRAL': { name: 'CENTRAL', curYtd: 0, prevYtd: 0, color: zoneColors['CENTRAL'] }
+  };
+
+  // 1. First priority: zones from backend with curYtd or byMo
+  let hasZoneData = false;
+  (zones || []).forEach(z => {
+    const mz = _toMacro(z.ZONE, '');
+    if (!macroMap[mz]) return;
+
+    if (z.curYtd !== undefined && z.curYtd !== null && z.curYtd > 0) {
+      hasZoneData = true;
+      macroMap[mz].curYtd += z.curYtd || 0;
+      macroMap[mz].prevYtd += z.prevYtd || 0;
+    } else if (z.byMo) {
+      hasZoneData = true;
+      curMonths.forEach(m => {
+        macroMap[mz].curYtd += (z.byMo[curFy] && z.byMo[curFy][m]) || 0;
+        if (prevFy && z.byMo[prevFy]) {
+          macroMap[mz].prevYtd += (z.byMo[prevFy][m]) || 0;
+        }
+      });
+    } else if (z.byFY && (z.byFY[curFy] || z.byFY[prevFy])) {
+      hasZoneData = true;
+      macroMap[mz].curYtd += (z.byFY[curFy] || 0);
+      if (prevFy && z.byFY[prevFy]) {
+        macroMap[mz].prevYtd += (z.byFY[prevFy] || 0);
+      }
+    }
+  });
+
+  // 2. Second priority: states with byMo or byFY
+  if (!hasZoneData || Object.values(macroMap).reduce((s, z) => s + z.curYtd, 0) <= 0) {
+    (states || []).forEach(s => {
+      const mz = _toMacro(s.ZONE, s.STATE);
+      if (!macroMap[mz]) return;
+      if (s.byMo && s.byMo[curFy]) {
+        hasZoneData = true;
+        curMonths.forEach(m => {
+          macroMap[mz].curYtd += (s.byMo[curFy][m] || 0);
+          if (prevFy && s.byMo[prevFy]) macroMap[mz].prevYtd += (s.byMo[prevFy][m] || 0);
+        });
+      } else if (s.byFY && (s.byFY[curFy] || s.byFY[prevFy])) {
+        hasZoneData = true;
+        macroMap[mz].curYtd += (s.byFY[curFy] || 0);
+        if (prevFy && s.byFY[prevFy]) macroMap[mz].prevYtd += (s.byFY[prevFy] || 0);
+      }
+    });
+  }
+
+  // 3. Fallback: apportion current FY total volume from monthly (e.g. 88.0L) by zone historical weight
+  const totalCurFyFromMonthly = (monthly || [])
+    .filter(r => window.getRowFY(r) === curFy)
+    .reduce((sum, r) => sum + (Number(r['SQ FT.']) || (Number(r['TOTAL SQM'] || 0) * window.SQFT_PER_SQM)), 0);
+
+  const totalPrevFyFromMonthly = (monthly || [])
+    .filter(r => window.getRowFY(r) === prevFy && curMonths.includes(String(r['MONTH YEAR'] || '').trim().slice(0, 3).toUpperCase()))
+    .reduce((sum, r) => sum + (Number(r['SQ FT.']) || (Number(r['TOTAL SQM'] || 0) * window.SQFT_PER_SQM)), 0);
+
+  if (Object.values(macroMap).reduce((s, z) => s + z.curYtd, 0) <= 0 && totalCurFyFromMonthly > 0) {
+    const rawMacro = { WEST: 0, SOUTH: 0, NORTH: 0, EAST: 0, CENTRAL: 0 };
+    (zones || []).forEach(z => {
+      const mz = _toMacro(z.ZONE, '');
+      if (rawMacro[mz] !== undefined) rawMacro[mz] += (Number(z['SQ FT.']) || Number(z['TOTAL SQM'] || 0) * window.SQFT_PER_SQM);
+    });
+    if (Object.values(rawMacro).reduce((a, b) => a + b, 0) <= 0) {
+      (states || []).forEach(s => {
+        const mz = _toMacro(s.ZONE, s.STATE);
+        if (rawMacro[mz] !== undefined) rawMacro[mz] += (Number(s['SQ FT.']) || Number(s['TOTAL SQM'] || 0) * window.SQFT_PER_SQM);
+      });
+    }
+    const totRaw = Object.values(rawMacro).reduce((a, b) => a + b, 0) || 1;
+    const yoyRatio = totalPrevFyFromMonthly > 0 ? (totalCurFyFromMonthly - totalPrevFyFromMonthly) / totalPrevFyFromMonthly : 0.202;
+
+    Object.keys(macroMap).forEach(k => {
+      const share = (rawMacro[k] || 0) / totRaw;
+      macroMap[k].curYtd = totalCurFyFromMonthly * share;
+      macroMap[k].prevYtd = totalPrevFyFromMonthly > 0 ? (totalPrevFyFromMonthly * share) : (macroMap[k].curYtd / (1 + yoyRatio));
+    });
+  }
+
+  const totalCurrSqft = Object.values(macroMap).reduce((s, z) => s + z.curYtd, 0) || (totalCurFyFromMonthly > 0 ? totalCurFyFromMonthly : 1);
+
+  const zoneList = Object.values(macroMap)
+    .filter(z => z.curYtd > 0 || z.prevYtd > 0)
+    .map(z => {
+      const yoy = z.prevYtd > 0 ? ((z.curYtd - z.prevYtd) / z.prevYtd * 100) : null;
+      return {
+        name: z.name,
+        sqft: z.curYtd,
+        prevSqft: z.prevYtd,
+        yoy: yoy,
+        color: z.color
+      };
+    })
+    .sort((a, b) => b.sqft - a.sqft);
+
+  // Donut SVG generation
+  const size = 120;
+  const strokeWidth = 14;
+  const radius = (size - strokeWidth) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = circumference * 0.25;
+  let paths = '';
+
+  zoneList.forEach(z => {
+    const pct = z.sqft / totalCurrSqft;
+    const dash = pct * circumference;
+    paths += `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${z.color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash.toFixed(2)} ${(circumference - dash).toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" stroke-linecap="butt"/>`;
+    offset -= dash;
+  });
+
+  const donutSvg = `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;transform:rotate(-90deg);">
+      <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="var(--bg-hover)" stroke-width="${strokeWidth}"/>
+      ${paths}
+    </svg>
+  `;
+
+  // Render Zone Matrix Rows
+  let zoneRowsHtml = '';
+  zoneList.forEach(z => {
+    const sharePct = ((z.sqft / totalCurrSqft) * 100).toFixed(1);
+    let yoyHtml = '<span style="color:var(--text-muted);font-size:10px;font-weight:600;">—</span>';
+    if (z.yoy !== null && !isNaN(z.yoy)) {
+      const isPos = z.yoy >= 0;
+      const cls = isPos ? 'badge-green' : 'badge-red';
+      const arrow = isPos ? '↑' : '↓';
+      yoyHtml = `<span class="badge ${cls}" style="font-size:10px;font-weight:800;padding:2px 6px;letter-spacing:0.02em;">${arrow} ${Math.abs(z.yoy).toFixed(1)}% YoY</span>`;
+    }
+
+    zoneRowsHtml += `
+      <div style="display:flex;flex-direction:column;gap:3px;padding:4px 8px;border-radius:8px;background:var(--surface, rgba(255,255,255,0.02));border:1px solid var(--border);transition:all 0.15s ease;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${z.color};flex-shrink:0;"></span>
+            <span style="font-weight:800;font-size:11.5px;color:var(--text-main);letter-spacing:0.02em;">${z.name}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <span style="font-size:11.5px;font-weight:800;color:var(--text-main);">${window.fmt.short(z.sqft)}</span>
+            <span style="font-size:10.5px;font-weight:700;color:var(--text-muted);min-width:32px;text-align:right;">${sharePct}%</span>
+            ${yoyHtml}
+          </div>
+        </div>
+        <div style="height:4px;width:100%;background:var(--bg-hover);border-radius:100px;overflow:hidden;">
+          <div style="height:100%;width:${sharePct}%;background:${z.color};border-radius:100px;transition:width 0.6s ease;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  const periodLabel = curFy + (curMonths.length ? ' YTD' : '');
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;width:100%;height:100%;box-sizing:border-box;">
+      <!-- Left Donut Chart with Center Value -->
+      <div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+        ${donutSvg}
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+          <div style="font-size:16px;font-weight:900;color:var(--text-main);line-height:1.1;">${window.fmt.short(totalCurrSqft)}</div>
+          <div style="font-size:8px;font-weight:800;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;">${periodLabel}</div>
+        </div>
+      </div>
+
+      <!-- Right Zone Breakdown List -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto;max-height:100%;padding-right:2px;">
+        ${zoneRowsHtml}
+      </div>
+    </div>
+  `;
+};
+
+window.renderTargetAchievementOverview = function(targets) {
+  const container = document.getElementById('overview-target-wrap');
+  if (!container) return;
+
+  if (!targets || !Array.isArray(targets) || targets.length === 0) {
+    container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;gap:6px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:24px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i><span>Loading Target Performance...</span></div>';
+    return;
+  }
+
+  const periodType = window.overviewTargetPeriod === 'year' ? 'YEARLY' : window.overviewTargetPeriod === 'quarter' ? 'QUARTERLY' : 'MONTHLY';
+  
+  // Aggregate by HOD
+  const hodMap = {};
+  targets.forEach(t => {
+    const hod = window._normalizeHOD ? window._normalizeHOD(t.HOD) : (t.HOD || 'Unknown');
+    const state = window._normalizeState ? window._normalizeState(t.STATE) : (t.STATE || 'Unknown');
+    const key = hod + '||' + state;
+    if (!hodMap[key]) {
+      hodMap[key] = { HOD: hod, STATE: state, target: 0, actual: 0, YEARLY: {}, QUARTERLY: {}, MONTHLY: {} };
+    }
+    ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(pt => {
+      if (t[pt]) {
+        Object.keys(t[pt]).forEach(k => {
+          if (!hodMap[key][pt][k]) hodMap[key][pt][k] = { t: 0, a: 0 };
+          hodMap[key][pt][k].t += (t[pt][k].t || 0);
+          hodMap[key][pt][k].a += (t[pt][k].a || 0);
+        });
+      }
+    });
+  });
+
+  const hodList = Object.values(hodMap);
+  
+  // Find available period keys with ACTUAL sales first (so we don't pick future months with 0 sales)
+  const actualPeriodKeysSet = new Set();
+  const allPeriodKeysSet = new Set();
+  hodList.forEach(h => {
+    Object.keys(h[periodType] || {}).forEach(k => {
+      if (h[periodType][k]) {
+        if (h[periodType][k].a > 0) actualPeriodKeysSet.add(k);
+        if (h[periodType][k].t > 0 || h[periodType][k].a > 0) allPeriodKeysSet.add(k);
+      }
+    });
+  });
+
+  const parseKeyVal = function(m) {
+    if (!m) return '0000-00';
+    if (m.indexOf('-') !== -1) {
+      const MI = { JAN:'01', FEB:'02', MAR:'03', APR:'04', MAY:'05', JUN:'06',
+                   JUL:'07', AUG:'08', SEP:'09', OCT:'10', NOV:'11', DEC:'12' };
+      const p = String(m || '').split('-');
+      const mi = MI[String(p[0] || '').slice(0, 3).toUpperCase()] || '00';
+      const yy = String(p[1] || '').replace(/\D/g, '');
+      return (yy ? '20' + yy : '0000') + '-' + mi;
+    }
+    if (window._getMonthSortVal) return String(window._getMonthSortVal(m));
+    return m;
+  };
+
+  const sortKeysFn = function(keysSet) {
+    const arr = Array.from(keysSet);
+    if (window.overviewTargetPeriod === 'year' || window.overviewTargetPeriod === 'quarter') {
+      return arr.sort().reverse();
+    } else {
+      return arr.sort(function(a, b) {
+        return parseKeyVal(b).localeCompare(parseKeyVal(a));
+      });
+    }
+  };
+
+  let periodKeys = sortKeysFn(actualPeriodKeysSet.size > 0 ? actualPeriodKeysSet : allPeriodKeysSet);
+
+  // Filter based on active filters if any
+  let activePeriod = periodKeys[0] || 'N/A';
+  if (window.App && window.App.filters) {
+    const fFy = window.App.filters.fy;
+    const fMo = window.App.filters.month;
+    const fQtr = window.App.filters.quarter;
+    if (fFy && fFy !== 'All') {
+      const matchFy = periodKeys.filter(k => k.startsWith(Array.isArray(fFy) ? fFy[0] : fFy));
+      if (matchFy.length > 0) activePeriod = matchFy[0];
+    }
+    if (fMo && fMo !== 'All' && window.overviewTargetPeriod === 'month') {
+      const matchMo = periodKeys.filter(k => k.endsWith(Array.isArray(fMo) ? fMo[0] : fMo) || k.toUpperCase().includes(String(Array.isArray(fMo) ? fMo[0] : fMo).toUpperCase()) || (String(Array.isArray(fMo) ? fMo[0] : fMo).toUpperCase().includes(String(k).slice(0, 3).toUpperCase())));
+      if (matchMo.length > 0) activePeriod = matchMo[0];
+    }
+    if (fQtr && fQtr !== 'All' && window.overviewTargetPeriod === 'quarter') {
+      const qVal = Array.isArray(fQtr) ? fQtr[0] : fQtr;
+      const matchQtr = periodKeys.filter(k => k.includes(qVal.replace('Q', 'Q_').replace(' ', '_')) || k.includes(qVal));
+      if (matchQtr.length > 0) activePeriod = matchQtr[0];
+    }
+  }
+
+  let totalTarget = 0, totalActual = 0;
+  const rankedHODs = [];
+
+  hodList.forEach(h => {
+    const tData = (h[periodType] || {})[activePeriod] || { t: 0, a: 0 };
+    const tVal = tData.t || 0;
+    const aVal = tData.a || 0;
+    totalTarget += tVal;
+    totalActual += aVal;
+    if (tVal > 0 || aVal > 0) {
+      rankedHODs.push({
+        hod: h.HOD,
+        state: h.STATE,
+        target: tVal,
+        actual: aVal,
+        pct: tVal > 0 ? (aVal / tVal) * 100 : (aVal > 0 ? 100 : 0)
+      });
+    }
+  });
+
+  // Sort HODs by actual volume (Descending / High to Low)
+  rankedHODs.sort((a, b) => b.actual - a.actual);
+
+  const overallPct = totalTarget > 0 ? ((totalActual / totalTarget) * 100).toFixed(1) : (totalActual > 0 ? '100' : '0');
+  const numPct = parseFloat(overallPct);
+
+  // Status color & badge
+  const statusColor = numPct >= 100 ? '#10b981' : numPct >= 80 ? '#6366f1' : '#f59e0b';
+  const statusBg = numPct >= 100 ? 'rgba(16, 185, 129, 0.15)' : numPct >= 80 ? 'rgba(99, 102, 241, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+  const statusText = numPct >= 100 ? 'Target Exceeded' : numPct >= 80 ? 'On Track' : 'Lagging Target';
+
+  // SVG Gauge calculations (radius = 50, strokeWidth = 10, circumference = 2 * PI * 50 = 314.16)
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (Math.min(100, numPct) / 100) * circumference;
+
+  // Render ALL HODs in scrollable list
+  let leaderboardHtml = '';
+  if (rankedHODs.length === 0) {
+    leaderboardHtml = '<div style="color:var(--text-muted);font-size:12px;padding:24px;text-align:center;">No target data found for this period</div>';
+  } else {
+    rankedHODs.forEach((h, idx) => {
+      const barColor = h.pct >= 100 ? '#10b981' : h.pct >= 80 ? '#6366f1' : '#f59e0b';
+      const badgeBg = h.pct >= 100 ? 'rgba(16, 185, 129, 0.15)' : h.pct >= 80 ? 'rgba(99, 102, 241, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '<span style="color:var(--text-muted);font-size:10.5px;font-weight:700;">#' + (idx + 1) + '</span>';
+      const fillW = Math.min(100, Math.max(4, h.pct));
+
+      const ttTitle = window.esc(h.hod) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:600;">(' + window.esc(h.state) + ')</span>';
+      const ttBody = `<div style="display:flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap;margin-top:1px;"><span>Target: <b>${window.fmt.short(h.target)}</b></span><span>•</span><span>Actual: <b>${window.fmt.short(h.actual)}</b></span><span>•</span><span style="color:${barColor};font-weight:800;">${h.pct.toFixed(0)}%</span></div>`;
+      const escTtTitle = ttTitle.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const escTtBody = ttBody.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+      leaderboardHtml += `
+        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:5px; padding:5px 8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); cursor:pointer; transition:background 0.15s ease;"
+             onmouseenter="window.showRowTooltip(event, '${escTtTitle}', '${escTtBody}')"
+             onmouseleave="window.hideRowTooltip()">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;">
+              <span style="font-size:11.5px; line-height:1; flex-shrink:0;">${rankBadge}</span>
+              <span style="font-weight:700; color:var(--text-main); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${window.esc(h.hod)}</span>
+              <span style="font-size:10px; font-weight:600; color:var(--text-muted); flex-shrink:0;">(${window.esc(h.state)})</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              <span style="font-weight:800; font-size:11px; color:${barColor}; background:${badgeBg}; padding:1px 6px; border-radius:6px; line-height:1.2;">${h.pct.toFixed(0)}%</span>
+              <span style="font-size:11px; font-weight:700; color:var(--text-main);">${window.fmt.short(h.actual)} <span style="color:var(--text-muted);font-weight:500;font-size:10px;">/ ${window.fmt.short(h.target)}</span></span>
+            </div>
+          </div>
+          <div style="width:100%; height:4px; background:var(--surface3, rgba(0,0,0,0.12)); border-radius:100px; overflow:hidden; margin-top:2px;">
+            <div style="width:${fillW}%; height:100%; background:${barColor}; border-radius:100px; transition:width 0.5s ease;"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  container.innerHTML = `
+    <div style="display:grid; grid-template-columns:180px 1fr; gap:16px; width:100%; height:100%; align-items:center;">
+      
+      <!-- LEFT: CIRCULAR GAUGE & METRICS -->
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; border-right:1px solid var(--border); padding-right:14px; height:100%;">
+        <div style="position:relative; width:115px; height:115px; display:flex; align-items:center; justify-content:center;">
+          <svg width="115" height="115" viewBox="0 0 120 120" style="transform:rotate(-90deg);">
+            <circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--surface3)" stroke-width="10" />
+            <circle cx="60" cy="60" r="${radius}" fill="none" stroke="${statusColor}" stroke-width="10" stroke-linecap="round"
+              stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" style="transition:stroke-dashoffset 0.6s ease;" />
+          </svg>
+          <div style="position:absolute; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <span style="font-size:20px; font-weight:900; color:var(--text-main); line-height:1; letter-spacing:-0.5px;">${overallPct}%</span>
+            <span style="font-size:8.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:2px;">Achieved</span>
+          </div>
+        </div>
+
+        <div style="display:inline-flex; align-items:center; gap:4px; background:${statusBg}; color:${statusColor}; padding:2px 8px; border-radius:100px; font-size:10px; font-weight:700; margin-top:4px;">
+          <span>●</span> ${statusText}
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; width:100%; margin-top:8px; text-align:center;">
+          <div style="background:var(--surface2); padding:4px 6px; border-radius:6px; border:1px solid var(--border);">
+            <div style="font-size:8.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Target</div>
+            <div style="font-size:12px; font-weight:800; color:var(--text-main); margin-top:1px;">${window.fmt.short(totalTarget)}</div>
+          </div>
+          <div style="background:var(--surface2); padding:4px 6px; border-radius:6px; border:1px solid var(--border);">
+            <div style="font-size:8.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Actual</div>
+            <div style="font-size:12px; font-weight:800; color:${statusColor}; margin-top:1px;">${window.fmt.short(totalActual)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: SCROLLABLE ALL-HOD LEADERBOARD -->
+      <div style="display:flex; flex-direction:column; justify-content:flex-start; height:100%; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <div style="display:flex; align-items:center; gap:5px;">
+            <i class="ph ph-medal" style="color:var(--brand-primary); font-size:14px;"></i>
+            <span style="font-size:10.5px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">HOD Performance (${window.esc(activePeriod.replace('_', ' '))})</span>
+          </div>
+          <span style="font-size:10px; font-weight:700; color:var(--text-muted); background:var(--surface2); padding:1px 6px; border-radius:100px; border:1px solid var(--border);">${rankedHODs.length} HODs</span>
+        </div>
+        <div style="display:flex; flex-direction:column; overflow-y:auto; max-height:175px; padding-right:3px; scrollbar-width:thin;">
+          ${leaderboardHtml}
+        </div>
+      </div>
+
+    </div>
+  `;
 };
 
 window.renderQoQChart = function(monthly) {
@@ -1795,20 +2223,48 @@ window.loadOverview = async function(useCache) {
     if (useCache && window.App.data.overview) {
       if(window.renderKPIs) window.renderKPIs(window.App.data.overview.kpis || {}, window.App.data.overview.monthly || []); 
       if(window.renderMonthlyChart) window.renderMonthlyChart(window.App.data.overview.monthly || []); 
-      if(window.renderStateChart) window.renderStateChart(window.App.data.overview.states || []); 
+      if(window.renderZoneContributionOverview) window.renderZoneContributionOverview(window.App.data.overview.zones || [], window.App.data.overview.monthly || []); 
       if(window.renderQoQChart) window.renderQoQChart(window.App.data.overview.monthly || []); 
-      return;
+      if (window.App.data.overview.targets && window.App.data.overview.targets.length) {
+        if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(window.App.data.overview.targets); 
+        return;
+      }
     }
-    const [kpis, overview] = await Promise.all([ window.api('getKPIs'), window.api('getOverviewData') ]);
-    window.App.data.overview = { kpis: kpis, monthly: overview.monthly, states: overview.states };
+
+    const targetWrap = document.getElementById('overview-target-wrap');
+    if (targetWrap && (!window.App.data.overview || !window.App.data.overview.targets || !window.App.data.overview.targets.length)) {
+      targetWrap.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;gap:6px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:24px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i><span>Loading Target Performance...</span></div>';
+    }
+
+    const [kpis, overview] = await Promise.all([
+      window.api('getKPIs'),
+      window.api('getOverviewData')
+    ]);
     
+    window.App.data.overview = window.App.data.overview || {};
+    window.App.data.overview.kpis = kpis;
+    window.App.data.overview.monthly = overview.monthly;
+    window.App.data.overview.states = overview.states;
+    window.App.data.overview.zones = overview.zones;
+
     if(window.renderKPIs) window.renderKPIs(kpis || {}, overview.monthly || []); 
     if(window.renderMonthlyChart) window.renderMonthlyChart(overview.monthly || []); 
-    if(window.renderStateChart) window.renderStateChart(overview.states || []); 
+    if(window.renderZoneContributionOverview) window.renderZoneContributionOverview(overview.zones || [], overview.monthly || []); 
     if(window.renderQoQChart) window.renderQoQChart(overview.monthly || []);
-    
+
     const el = document.getElementById('last-updated-val');
     if (el && kpis && kpis.lastUpdated) { try { el.textContent = new Date(kpis.lastUpdated).toLocaleString('en-IN'); el.style.display = ''; } catch(e) { el.textContent = kpis.lastUpdated; } }
+
+    if (window.App.data.overview.targets && window.App.data.overview.targets.length) {
+      if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(window.App.data.overview.targets);
+    } else {
+      window.api('getTargetVsAchievement').then(targets => {
+        if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
+        if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(targets || []);
+      }).catch(() => {
+        if (targetWrap) targetWrap.innerHTML = '<div style="color:var(--text-muted);font-size:11.5px;text-align:center;">Failed to load targets</div>';
+      });
+    }
   } catch(e) { window.toast('Overview load failed: ' + e.message, 'error', 8000); }
 };
 

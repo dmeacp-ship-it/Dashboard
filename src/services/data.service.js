@@ -706,7 +706,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v6_' + _stableStringify(f), async function () {
+  return cached('kpis_v9_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
@@ -719,8 +719,8 @@ async function getKPIs(f) {
     const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' });
 
     geo.filter(function (r) { return _rowMatches(r, fGeo); }).forEach(function (r) {
-      const sqm = _sqm(r); const rev = _rev(r);
-      const m = _mo(r); if (m) mMap[m] = { sqm: (mMap[m] ? mMap[m].sqm + sqm : sqm), rev: (mMap[m] ? mMap[m].rev + rev : rev) };
+      const sqm = _sqm(r); const rev = _rev(r); const qty = _qty(r);
+      const m = _mo(r); if (m) mMap[m] = { sqm: (mMap[m] ? mMap[m].sqm + sqm : sqm), rev: (mMap[m] ? mMap[m].rev + rev : rev), qty: (mMap[m] ? mMap[m].qty + qty : qty) };
       const fy = _robustFy(r); if (fy) fyMap[fy] = { sqm: (fyMap[fy] ? fyMap[fy].sqm + sqm : sqm), rev: (fyMap[fy] ? fyMap[fy].rev + rev : rev) };
     });
 
@@ -735,6 +735,7 @@ async function getKPIs(f) {
     const curRev = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].rev : 0);
     const prevRev = (mMap[sortedM[cIdx + 1]] ? mMap[sortedM[cIdx + 1]].rev : 0);
     const momRevG = prevRev ? ((curRev - prevRev) / prevRev * 100) : 0;
+    const curQty = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].qty : 0);
 
     const sortedF = Object.keys(fyMap).filter(function (k) { return k && k.indexOf('FY ') === 0; }).sort(function (a, b) { return b.localeCompare(a); });
     const curF = (f && f.fy && f.fy !== 'All' && !Array.isArray(f.fy)) ? _normFy(f.fy) : sortedF[0];
@@ -891,6 +892,7 @@ async function getKPIs(f) {
       currentMonthSqft: Math.round(curSqft),
       prevMonthSqft: Math.round(prevSqft),
       currentMonthRev: Math.round(curRev),
+      currentMonthQty: Math.round(curQty),
       last6MonthsTrend: last6MoTrend,
       momGrowth: +momG.toFixed(1),
       momRevGrowth: +momRevG.toFixed(1),
@@ -902,31 +904,90 @@ async function getKPIs(f) {
   });
 }
 
+function _toMacroZone(zStr, sStr) {
+  const z = String(zStr || '').trim().toUpperCase();
+  const s = String(sStr || '').trim().toUpperCase();
+  if (z.indexOf('WEST') !== -1 || s.indexOf('GUJARAT') !== -1 || s.indexOf('MAHARASHTRA') !== -1 || s.indexOf('MUMBAI') !== -1 || s.indexOf('GOA') !== -1) return 'WEST';
+  if (z.indexOf('SOUTH') !== -1 || s.indexOf('TAMIL') !== -1 || s.indexOf('KARNATAKA') !== -1 || s.indexOf('KERALA') !== -1 || s.indexOf('ANDHRA') !== -1 || s.indexOf('TELANGANA') !== -1 || s.indexOf('AP') !== -1) return 'SOUTH';
+  if (z.indexOf('EAST') !== -1 || s.indexOf('BENGAL') !== -1 || s.indexOf('BIHAR') !== -1 || s.indexOf('ODISHA') !== -1 || s.indexOf('ORISSA') !== -1 || s.indexOf('ASSAM') !== -1 || s.indexOf('JHARKHAND') !== -1) return 'EAST';
+  if (z.indexOf('CENTRAL') !== -1 || s.indexOf('MADHYA') !== -1 || s.indexOf('CHHATTISGARH') !== -1 || s.indexOf('MP') !== -1) return 'CENTRAL';
+  if (z.indexOf('NORTH') !== -1 || s.indexOf('DELHI') !== -1 || s.indexOf('RAJASTHAN') !== -1 || s.indexOf('PUNJAB') !== -1 || s.indexOf('HARYANA') !== -1 || s.indexOf('UP') !== -1 || s.indexOf('UTTAR') !== -1 || s.indexOf('UTTARAKHAND') !== -1 || s.indexOf('JAMMU') !== -1 || s.indexOf('HIMACHAL') !== -1) return 'NORTH';
+  return 'CENTRAL';
+}
+
 async function getOverviewData(f) {
-  return cached('overview_batched_' + _stableStringify(f), async function () {
-    const widestQ = _q(f, ['month']);
+  return cached('overview_batched_v5_' + _stableStringify(f), async function () {
+    const widestQ = _q(f, ['month', 'fy']);
     const rows = await _fetchAgg('vw_monthly_agg', widestQ);
 
     const fForMonthly = Object.assign({}, f, { month: 'All' });
     const fForState = Object.assign({}, f, { state: 'All' });
+    const fForZone = Object.assign({}, f, { zone: 'All', state: 'All' });
 
     const monthlyMap = {};
     const stateMap = {};
+    const zoneMap = {};
+
+    const allFys = new Set();
+    const fyMonths = {};
 
     rows.forEach(function (r) {
+      const fy = _robustFy(r);
+      const m = _mo(r);
+      const sq = _sqm(r);
+      const rev = _rev(r);
+
+      if (fy) {
+        allFys.add(fy);
+        if (m) {
+          const mPrefix = m.slice(0, 3).toUpperCase();
+          if (!fyMonths[fy]) fyMonths[fy] = new Set();
+          fyMonths[fy].add(mPrefix);
+        }
+      }
+
       if (_rowMatches(r, fForMonthly)) {
-        const m = _mo(r); if (!m) return;
-        if (!monthlyMap[m]) monthlyMap[m] = { 'MONTH YEAR': m, 'FY YEAR': _robustFy(r), 'QUARTER': _qtr(r), 'TOTAL SQM': 0, 'NET REVENUE': 0 };
-        monthlyMap[m]['TOTAL SQM'] += _sqm(r);
-        monthlyMap[m]['NET REVENUE'] += _rev(r);
+        if (m) {
+          if (!monthlyMap[m]) monthlyMap[m] = { 'MONTH YEAR': m, 'FY YEAR': fy, 'QUARTER': _qtr(r), 'TOTAL SQM': 0, 'NET REVENUE': 0 };
+          monthlyMap[m]['TOTAL SQM'] += sq;
+          monthlyMap[m]['NET REVENUE'] += rev;
+        }
       }
       if (_rowMatches(r, fForState)) {
         const s = _state(r);
-        if (!stateMap[s]) stateMap[s] = { STATE: s, ZONE: _zone(r), 'TOTAL SQM': 0, 'NET REVENUE': 0 };
-        stateMap[s]['TOTAL SQM'] += _sqm(r);
-        stateMap[s]['NET REVENUE'] += _rev(r);
+        if (!stateMap[s]) stateMap[s] = { STATE: s, ZONE: _toMacroZone(_zone(r), s), 'TOTAL SQM': 0, 'NET REVENUE': 0, byFY: {}, byMo: {} };
+        stateMap[s]['TOTAL SQM'] += sq;
+        stateMap[s]['NET REVENUE'] += rev;
+        if (fy) {
+          stateMap[s].byFY[fy] = (stateMap[s].byFY[fy] || 0) + (sq * SQFT_PER_SQM);
+          if (m) {
+            if (!stateMap[s].byMo[fy]) stateMap[s].byMo[fy] = {};
+            const mPrefix = m.slice(0, 3).toUpperCase();
+            stateMap[s].byMo[fy][mPrefix] = (stateMap[s].byMo[fy][mPrefix] || 0) + (sq * SQFT_PER_SQM);
+          }
+        }
+      }
+      if (_rowMatches(r, fForZone)) {
+        const z = _toMacroZone(_zone(r), _state(r));
+        if (!zoneMap[z]) zoneMap[z] = { ZONE: z, 'TOTAL SQM': 0, 'NET REVENUE': 0, byFY: {}, byMo: {} };
+        zoneMap[z]['TOTAL SQM'] += sq;
+        zoneMap[z]['NET REVENUE'] += rev;
+        if (fy) {
+          zoneMap[z].byFY[fy] = (zoneMap[z].byFY[fy] || 0) + (sq * SQFT_PER_SQM);
+          if (m) {
+            if (!zoneMap[z].byMo[fy]) zoneMap[z].byMo[fy] = {};
+            const mPrefix = m.slice(0, 3).toUpperCase();
+            zoneMap[z].byMo[fy][mPrefix] = (zoneMap[z].byMo[fy][mPrefix] || 0) + (sq * SQFT_PER_SQM);
+          }
+        }
       }
     });
+
+    const sortedFys = Array.from(allFys).filter(function(k) { return k && k.indexOf('FY ') === 0; }).sort().reverse();
+    const curFy = (f && f.fy && f.fy !== 'All' && !Array.isArray(f.fy)) ? _normFy(f.fy) : (sortedFys[0] || 'FY 26-27');
+    const fIdx = Math.max(0, sortedFys.indexOf(curFy));
+    const prevFy = sortedFys[fIdx + 1] || null;
+    const elapsedMonths = (curFy && fyMonths[curFy]) ? Array.from(fyMonths[curFy]) : ['APR', 'MAY', 'JUN', 'JUL', 'AUG'];
 
     const monthly = Object.values(monthlyMap).map(function (r) {
       r['SORT KEY'] = r['_SK'] = _mSk(r['MONTH YEAR']);
@@ -940,7 +1001,24 @@ async function getOverviewData(f) {
       .map(function (r) { return Object.assign({}, r, { 'SQ FT.': r['TOTAL SQM'] * SQFT_PER_SQM }); })
       .sort(function (a, b) { return b['TOTAL SQM'] - a['TOTAL SQM']; });
 
-    return { monthly: monthly, states: states };
+    const zones = Object.values(zoneMap).map(function (r) {
+      r['SQ FT.'] = r['TOTAL SQM'] * SQFT_PER_SQM;
+      let cYtd = 0, pYtd = 0;
+      elapsedMonths.forEach(function(m) {
+        cYtd += (r.byMo && r.byMo[curFy] && r.byMo[curFy][m]) || 0;
+        if (prevFy) {
+          pYtd += (r.byMo && r.byMo[prevFy] && r.byMo[prevFy][m]) || 0;
+        }
+      });
+      r.curYtd = cYtd;
+      r.prevYtd = pYtd;
+      r.yoy = pYtd > 0 ? ((cYtd - pYtd) / pYtd * 100) : null;
+      r.curFy = curFy;
+      r.prevFy = prevFy;
+      return r;
+    }).sort(function (a, b) { return (b.curYtd || b['TOTAL SQM']) - (a.curYtd || a['TOTAL SQM']); });
+
+    return { monthly: monthly, states: states, zones: zones, curFy: curFy, prevFy: prevFy };
   });
 }
 
