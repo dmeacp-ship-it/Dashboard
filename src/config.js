@@ -88,6 +88,22 @@ const COLUMN_MAP = Object.freeze({
 });
 
 /* ------------------------------------------------------------------ */
+/*  Units                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Square feet per square metre.
+ *
+ * The source sheets carry TOTAL_SQM only -- every sq ft figure in the app is
+ * derived from it, both at sync time (sales_data.sq_ft) and again at display
+ * time. This is the single definition; do not inline the number. The exact
+ * value is 10.7639104167..., but the business standard here is 10.764 and the
+ * database trigger (db/migrations/11_align_sqft_factor.sql) uses the same
+ * constant so stored and recomputed values agree.
+ */
+const SQFT_PER_SQM = 10.764;
+
+/* ------------------------------------------------------------------ */
 /*  Database tables                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -225,6 +241,7 @@ function getSupabaseKey() {
 
 module.exports = {
   CONFIG,
+  SQFT_PER_SQM,
   SOURCE_SHEETS,
   COLUMN_MAP,
   DB_TABLES,

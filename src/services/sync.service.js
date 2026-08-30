@@ -25,7 +25,7 @@ const {
   CONFIG, DB_TABLES, COLUMN_MAP, SYNC_CONFIG,
   OUTSTANDING_CONFIG, OUTSTANDING_COLUMN_MAP,
   TARGET_CONFIG, TARGET_COLUMN_MAP,
-  getSupabaseUrl, getSupabaseKey
+  getSupabaseUrl, getSupabaseKey, SQFT_PER_SQM
 } = require('../config');
 const SettingsService = require('./settings.service');
 
@@ -192,6 +192,10 @@ async function _finishSync() {
 
   // 2. Invalidate server-side cache.
   invalidateAll();
+  // A sync is the only thing that changes the HOD -> territory mapping, so
+  // rebuild it now instead of waiting out its TTL. Required lazily:
+  // data.service already requires this module at load time.
+  try { await require('./data.service').loadHodStates(true); } catch (e) { /* best effort */ }
 
   // 3. Report final row count.
   let rowCount = '?';
@@ -266,6 +270,14 @@ async function processAggregation(options) {
     const row = data[i];
     const rowObj = {};
     let hasData = false;
+    // Stable address of this row in its source sheet. It is appended to every
+    // row_hash below because the content hash alone is not unique: one invoice
+    // can legitimately carry the same item twice (same branch, date, bill,
+    // item, batch, salesperson, qty, revenue and sqm), and with
+    // resolution=ignore-duplicates those repeats were being dropped on ingest
+    // -- e.g. NEPAL landed as 6430.10 sqm against 7010.60 in the sheet.
+    // No content-derived key can separate such rows; only position can.
+    const srcRef = String(source.id).slice(-8) + ':' + (startRow + i);
 
     for (let j = 0; j < headers.length; j++) {
       const headerName = String(headers[j]).trim();
@@ -294,7 +306,7 @@ async function processAggregation(options) {
     if (hasData) {
       // 1. Auto-calc SQ FT from TOTAL SQM if missing
       if (rowObj.total_sqm !== null && rowObj.total_sqm !== undefined && (rowObj.sq_ft === null || rowObj.sq_ft === undefined)) {
-        rowObj.sq_ft = Math.round(rowObj.total_sqm * 10.7639104 * 10000) / 10000;
+        rowObj.sq_ft = Math.round(rowObj.total_sqm * SQFT_PER_SQM * 10000) / 10000;
       }
 
       // 2. Auto-calc FY, Quarter, Month-Year from sale_date if available
@@ -348,7 +360,7 @@ async function processAggregation(options) {
         projRow.revenue_with_gst = Math.round((rowObj.revenue_with_gst || 0) * pRatio * 100) / 100;
         projRow.total_sqm = Math.round((rowObj.total_sqm || 0) * pRatio * 10000) / 10000;
         projRow.sq_ft = Math.round((rowObj.sq_ft || 0) * pRatio * 10000) / 10000;
-        projRow.row_hash = _computeRowHash(projRow) + '|PROJ';
+        projRow.row_hash = _computeRowHash(projRow) + '|' + srcRef + '|PROJ';
         payload.push(projRow);
 
         // Part B: Retail portion
@@ -359,7 +371,7 @@ async function processAggregation(options) {
         retailRow.revenue_with_gst = Math.round((rowObj.revenue_with_gst || 0) * rRatio * 100) / 100;
         retailRow.total_sqm = Math.round((rowObj.total_sqm || 0) * rRatio * 10000) / 10000;
         retailRow.sq_ft = Math.round((rowObj.sq_ft || 0) * rRatio * 10000) / 10000;
-        retailRow.row_hash = _computeRowHash(retailRow) + '|RET';
+        retailRow.row_hash = _computeRowHash(retailRow) + '|' + srcRef + '|RET';
         payload.push(retailRow);
       } else if (pPct >= 100) {
         const projRow = Object.assign({}, rowObj);
@@ -367,11 +379,11 @@ async function processAggregation(options) {
         if (rowObj.project_sales_person) {
           projRow.sales_person = rowObj.project_sales_person;
         }
-        projRow.row_hash = _computeRowHash(projRow);
+        projRow.row_hash = _computeRowHash(projRow) + '|' + srcRef;
         payload.push(projRow);
       } else {
         if (!rowObj.sales_type) rowObj.sales_type = 'Retail';
-        rowObj.row_hash = _computeRowHash(rowObj);
+        rowObj.row_hash = _computeRowHash(rowObj) + '|' + srcRef;
         payload.push(rowObj);
       }
     }

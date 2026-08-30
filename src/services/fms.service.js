@@ -18,6 +18,7 @@
  */
 
 const { google } = require('googleapis');
+const { SQFT_PER_SQM } = require('../config');
 let _supa = null;
 function _supaFetch() { if (!_supa) _supa = require('./supabase').supaFetch; return _supa; }
 
@@ -614,7 +615,7 @@ async function getFmsPlantItems(scope) {
       dispatched: dispatched,
       remaining: remaining,
       sqm: sqm,
-      sqft: sqm * 10.7639,
+      sqft: sqm * SQFT_PER_SQM,
       weight: sqm * _itemWeightPerSqm(code),
       prodStatus: prodStatus,
       qcStatus: qcStatus,
@@ -733,7 +734,7 @@ async function getFmsPartySummary(scope) {
     const qty = _num(r[qtyIdx]), dispQty = _num(r[dispIdx]), rem = Math.max(0, qty - dispQty);
     map[oNo].remainingQty += rem;
     const sqm = _num(r[sqmIdx]);
-    const sqft = sqm > 0 ? sqm * 10.7639 : (_num(r[lenIdx]) * _num(r[widIdx]) * rem / 1000000) * 10.7639;
+    const sqft = sqm > 0 ? sqm * SQFT_PER_SQM : (_num(r[lenIdx]) * _num(r[widIdx]) * rem / 1000000) * SQFT_PER_SQM;
     map[oNo].remainingSqFt += sqft;
   });
 
@@ -772,8 +773,8 @@ async function getFmsMonthWise(scope) {
     if (!doMap[oNo]) doMap[oNo] = { recvQty: 0, recvSq: 0, dispQty: 0, dispSq: 0 };
     const qty = _num(r[qtyIdx]), dQty = _num(r[dQtyIdx]), sqm = _num(r[sqmIdx]);
     const sqftPerItem = sqm > 0
-      ? (sqm * 10.7639) / (qty || 1)
-      : (_num(r[lenIdx]) * _num(r[widIdx]) / 1000000) * 10.7639;
+      ? (sqm * SQFT_PER_SQM) / (qty || 1)
+      : (_num(r[lenIdx]) * _num(r[widIdx]) / 1000000) * SQFT_PER_SQM;
     doMap[oNo].recvQty += qty;
     doMap[oNo].recvSq += sqftPerItem * qty;
     doMap[oNo].dispQty += dQty;

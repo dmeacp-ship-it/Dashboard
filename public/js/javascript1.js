@@ -248,32 +248,6 @@ window.hodCompareActive = false;
 window.selectedTargetCompareRows = new Set();
 window.targetCompareActive = false;
 
-window.toggleHodTargetCompare = function() {
-    window.hodCompareActive = !window.hodCompareActive;
-    const btn = document.getElementById('btn-compare-hodtargets');
-    if (btn) {
-        btn.className = window.hodCompareActive ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-ghost';
-    }
-    if (!window.hodCompareActive) {
-        window.selectedHodCompareRows.clear();
-    }
-    window._updateHodCompareBadge();
-    window.loadHodTargets(window.hodTargetPage || 1);
-};
-
-window.toggleTargetCompare = function() {
-    window.targetCompareActive = !window.targetCompareActive;
-    const btn = document.getElementById('btn-compare-targets');
-    if (btn) {
-        btn.className = window.targetCompareActive ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-ghost';
-    }
-    if (!window.targetCompareActive) {
-        window.selectedTargetCompareRows.clear();
-    }
-    window._updateTargetCompareBadge();
-    window.loadTargets(window.targetPage || 1);
-};
-
 window.toggleHodSelection = function(key, checked) {
     if (checked) {
         window.selectedHodCompareRows.add(key);
@@ -307,31 +281,6 @@ window._updateHodCompareBadge = function() {
         badge.style.display = (window.hodCompareActive && count > 0) ? 'inline-flex' : 'none';
     }
     window._renderCompareFloatingBar('hodtargets', count);
-};
-
-window.toggleTargetSelection = function(key, checked) {
-    if (checked) {
-        window.selectedTargetCompareRows.add(key);
-    } else {
-        window.selectedTargetCompareRows.delete(key);
-    }
-    window._updateTargetCompareBadge();
-    const rowEl = document.querySelector(`tr[data-target-key="${encodeURIComponent(key)}"]`);
-    if (rowEl) {
-        if (checked) rowEl.classList.add('row-selected-compare');
-        else rowEl.classList.remove('row-selected-compare');
-    }
-};
-
-window.toggleAllTargetSelection = function(checked) {
-    const tableData = window.App.lastTableData['targets'] || [];
-    tableData.forEach(r => {
-        const key = (r.EMPLOYEE || '') + '||' + (r.HOD || '') + '||' + (r.STATE || '');
-        if (checked) window.selectedTargetCompareRows.add(key);
-        else window.selectedTargetCompareRows.delete(key);
-    });
-    window._updateTargetCompareBadge();
-    window.loadTargets(window.targetPage || 1);
 };
 
 window._updateTargetCompareBadge = function() {
@@ -406,7 +355,7 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
 
     thead.innerHTML = '<tr>'
         + '<th style="' + stickyN + '">' + (isCompare ? '<input type="checkbox" class="ms-checkbox" ' + (allSelected ? 'checked' : '') + ' onchange="window.toggleAllHodSelection(this.checked)">' : '#') + '</th>'
-        + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodtargets\', \'STATE\', \'loadHodTargets\')">State ' + window._getSortIndicator('hodtargets', 'STATE') + '</th>'
+        + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodtargets\', \'STATE\', \'loadHodTargets\')">HOD State ' + window._getSortIndicator('hodtargets', 'STATE') + '</th>'
         + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodtargets\', \'HOD\', \'loadHodTargets\')">HOD Name ' + window._getSortIndicator('hodtargets', 'HOD') + '</th>'
         + displayCols.map((c, i) => {
             let sub = '';
@@ -683,7 +632,7 @@ window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dat
 
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
-    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'STATE\', \'loadTargets\')">State ' + window._getSortIndicator('targets', 'STATE') + '</th>'
+    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'STATE\', \'loadTargets\')">HOD State ' + window._getSortIndicator('targets', 'STATE') + '</th>'
     + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'HOD\', \'loadTargets\')">HOD Name ' + window._getSortIndicator('targets', 'HOD') + '</th>'
     + '<th style="' + stickyEMP + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'EMPLOYEE\', \'loadTargets\')">Executive Name ' + window._getSortIndicator('targets', 'EMPLOYEE') + '</th>'
     + displayCols.map(function(c, i) {
@@ -927,11 +876,6 @@ window.openCompareModal = function(type) {
 
     body.innerHTML = html;
     modal.classList.add('show');
-};
-
-window.closeCompareModal = function() {
-    const modal = document.getElementById('compare-modal');
-    if (modal) modal.classList.remove('show');
 };
 
 window.targetDensityMode = 'simple';
@@ -1387,7 +1331,7 @@ window._loadHODByMonth = async function(tbody, thead) {
     thead.innerHTML = '<tr>'
       + '<th style="' + stickyN + '">#</th>'
       + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'HOD\', \'loadHODQoQ\')">HOD Name ' + window._getSortIndicator('hodqoq', 'HOD') + '</th>'
-      + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
+      + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">HOD State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
       + displayMonths.map(function(m, i) { 
           let sub = '';
           if (i === 0) sub = 'latest';
@@ -1454,7 +1398,7 @@ window._loadHODByQuarter = async function(tbody, thead) {
       }
   });
 
-  const cols = [];
+  let cols = [];
   sortedFYs.forEach(function(fy) {
     ['Q4', 'Q3', 'Q2', 'Q1'].forEach(function(q) {
       cols.push({
@@ -1463,7 +1407,9 @@ window._loadHODByQuarter = async function(tbody, thead) {
         key: fy + '_' + q,
         label: fy.replace('FY ', 'FY-') + ' ' + q,
         field: qField[q],
-        current: (fy === curFY && q === 'Q4')
+        // The quarter we are actually in, not a hardcoded Q4 -- otherwise the
+        // latest FY's Q4 is labelled "current" all year while sitting empty.
+        current: (fy === curFY && q === curQ)
       });
     });
   });
@@ -1490,7 +1436,16 @@ window._loadHODByQuarter = async function(tbody, thead) {
   }).sort(function(a, b) {
     return (b[cols[0].key] || 0) - (a[cols[0].key] || 0);
   });
-  
+
+  // Quarters that have not happened yet are all zeros in every row; showing
+  // them just pads the table with empty columns. The current quarter is always
+  // kept so it stays visible before its first sale lands.
+  cols = cols.filter(function(c) {
+    return c.current || sorted.some(function(r) { return (r[c.key] || 0) !== 0; });
+  });
+  if (!cols.length) cols = [{ key: curFY + '_' + curQ, label: curFY.replace('FY ', 'FY-') + ' ' + curQ, current: true }];
+  sorted.sort(function(a, b) { return (b[cols[0].key] || 0) - (a[cols[0].key] || 0); });
+
   // Apply Advanced Multi-level Sorting
   if (window.tableSortRules['hodqoq'] && window.tableSortRules['hodqoq'].length > 0) {
     sorted = window.applyMultiSort(sorted, 'hodqoq');
@@ -1537,7 +1492,7 @@ window._loadHODByQuarter = async function(tbody, thead) {
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
     + '<th style="' + stickyHOD + '">HOD Name</th>'
-    + '<th style="' + stickyST + '">State</th>'
+    + '<th style="' + stickyST + '">HOD State</th>'
     + displayCols.map(function(c, i) { 
         let sub = '';
         if (c.current) sub = 'current';
@@ -1650,7 +1605,7 @@ window._loadHODByYear = async function(tbody, thead) {
   thead.innerHTML = '<tr>'
     + '<th style="' + stickyN + '">#</th>'
     + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'HOD\', \'loadHODQoQ\')">HOD Name ' + window._getSortIndicator('hodqoq', 'HOD') + '</th>'
-    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
+    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'hodqoq\', \'STATE\', \'loadHODQoQ\')">HOD State ' + window._getSortIndicator('hodqoq', 'STATE') + '</th>'
     + displayFYs.map(function(fy, i) { 
         let sub = '';
         if (fy === curFY) sub = 'current';
@@ -1794,7 +1749,7 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">HOD State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayMonths.map((m, i) => {
           let sub = '';
           if (i === 0) sub = 'latest';
@@ -1860,7 +1815,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       }
     });
 
-    const cols = [];
+    let cols = [];
     sortedFYsList.forEach(function(fy) {
       ['Q4', 'Q3', 'Q2', 'Q1'].forEach(function(q) {
         cols.push({
@@ -1869,7 +1824,9 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
           key: fy + '_' + q,
           label: fy.replace('FY ', 'FY-') + ' ' + q,
           field: qField[q],
-          current: (fy === curFY && q === 'Q4')
+          // curQ, not a hardcoded Q4: the latest FY's Q4 is empty until the
+          // year actually reaches it.
+          current: (fy === curFY && q === curQ)
         });
       });
     });
@@ -1891,6 +1848,14 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
       });
       return entry;
     }).sort((a, b) => (b[cols[0].key] || 0) - (a[cols[0].key] || 0));
+
+    // Drop quarters that have not happened yet (all zeros everywhere), keeping
+    // the current one so it stays visible before its first sale.
+    cols = cols.filter(function (c) {
+      return c.current || sorted.some(function (r) { return (r[c.key] || 0) !== 0; });
+    });
+    if (!cols.length) cols = [{ key: curFY + '_' + curQ, label: curFY.replace('FY ', 'FY-') + ' ' + curQ, current: true }];
+    sorted.sort((a, b) => (b[cols[0].key] || 0) - (a[cols[0].key] || 0));
 
     if (window.tableSortRules['custqoq'] && window.tableSortRules['custqoq'].length > 0) {
       sorted = window.applyMultiSort(sorted, 'custqoq');
@@ -1928,7 +1893,7 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
     const displayRows = sorted.slice((page-1)*ps, page*ps);
     window.App.lastTableData['custqoq'] = displayRows;
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">HOD State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayCols.map((c, i) => {
           let sub = '';
           if (c.current) sub = 'current';
@@ -1997,7 +1962,18 @@ window._loadCustByYear = async function(tbody, thead, page) {
         displayFYs = offsetFYs;
     }
 
-    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
+    // Drop rows empty on both compared periods, same as the month/quarter views.
+    if (window.comparisonMode !== 'none' && displayFYs.length >= 2) {
+        sorted = sorted.filter(r => Math.abs(parseFloat(r[displayFYs[0]]) || 0) > 0.001 || Math.abs(parseFloat(r[displayFYs[1]]) || 0) > 0.001);
+    }
+
+    const exportAll = window.App.exportAll === 'custqoq';
+    const ps = exportAll ? (sorted.length || 1) : 50, totalPages = Math.ceil(sorted.length / ps) || 1;
+    if (exportAll) page = 1;
+    const displayRows = sorted.slice((page-1)*ps, page*ps);
+    window.App.lastTableData['custqoq'] = displayRows;
+
+    thead.innerHTML = '<tr><th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'ST\', \'loadCustSale\')">HOD State ' + window._getSortIndicator('custqoq', 'ST') + '</th><th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'HOD\', \'loadCustSale\')">HOD ' + window._getSortIndicator('custqoq', 'HOD') + '</th><th style="' + stickyC + '" class="sortable-th" onclick="window.toggleHeaderSort(\'custqoq\', \'C\', \'loadCustSale\')">Customer ' + window._getSortIndicator('custqoq', 'C') + '</th>'
       + displayFYs.map((fy, i) => {
           let sub = '';
           if (fy === curFY) sub = 'current';
@@ -2007,7 +1983,7 @@ window._loadCustByYear = async function(tbody, thead, page) {
           return window._custTh(fy, fy === curFY, sub, hasVar);
       }).join('') + '</tr>';
 
-    if (!displayRows.length) { tbody.innerHTML = window._emptyRow(displayFYs.length + 3); return; }
+    if (!sorted.length) { tbody.innerHTML = window._emptyRow(displayFYs.length + 3, 'No data.'); return; }
     
     let html = '';
     displayRows.forEach(r => {
@@ -2025,3 +2001,354 @@ window._loadCustByYear = async function(tbody, thead, page) {
     window._renderPagination({ page: page, totalPages: totalPages, total: sorted.length }, 'setCustSalePage', 'pagination-custqoq');
   } catch(e) { tbody.innerHTML = window._errorRow(6, e.message); }
 };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Person-wise sale tables (Executive / Project)
+   ──────────────────────────────────────────────────────────────────────────
+   Both tables are identical apart from the page they live on and the API they
+   call, so they are built once here from a config rather than copied. Each
+   gets the same three period modes, comparison behaviour and scroll-to-load
+   behaviour as the HOD and customer tables above.
+
+   The entity is stored on each row as `C` so the shared _custTh / _custTd /
+   applyMultiSort helpers and the sort modal keep working unchanged.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// Rows appended per scroll batch.
+window.PERSON_CHUNK = 50;
+
+window._personTables = {};
+
+window._makePersonTable = function (cfg) {
+  // cfg: { key, label, api, loader, pageSel }
+  const K = cfg.key;                       // e.g. 'execqoq'
+  const compSel = cfg.key.replace('qoq', '') + '-comp-period';
+  // 'quarter' is the default period, matching the other sale tables.
+  const state = { more: null, page: 1, view: 'quarter' };
+  window._personTables[K] = state;
+
+  const sticky = function () {
+    return {
+      ST:  'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);min-width:100px;padding:8px 12px;',
+      HOD: 'position:sticky;left:100px;top:0;z-index:15;background:var(--brand-primary);min-width:120px;padding:8px 12px;',
+      E:   'position:sticky;left:220px;top:0;z-index:15;background:var(--brand-primary);min-width:180px;max-width:180px;border-right:1px solid rgba(255,255,255,0.2);padding:8px 12px;',
+      rST:  'position:sticky;left:0;z-index:5;background:var(--bg-card);min-width:100px;padding:6px 12px;',
+      rHOD: 'position:sticky;left:100px;z-index:5;background:var(--bg-card);min-width:120px;padding:6px 12px;',
+      rE:   'position:sticky;left:220px;z-index:5;background:var(--bg-card);min-width:180px;max-width:180px;border-right:1px solid var(--border);padding:6px 12px;'
+    };
+  };
+
+  const head = function (sk, cols, labelOf, isCurrentOf) {
+    const th = function (styleKey, sortKey, label) {
+      return '<th style="' + sk[styleKey] + '" class="sortable-th" onclick="window.toggleHeaderSort(&#39;'
+        + K + '&#39;, &#39;' + sortKey + '&#39;, &#39;' + cfg.loader + '&#39;)">' + label + ' '
+        + window._getSortIndicator(K, sortKey) + '</th>';
+    };
+    return '<tr>' + th('ST', 'ST', 'HOD State') + th('HOD', 'HOD', 'HOD') + th('E', 'C', cfg.label)
+      + cols.map(function (c, i) {
+          const cur = isCurrentOf(c, i);
+          let sub = '';
+          if (cur) sub = 'current';
+          else if (window.comparisonMode === 'pop') sub = 'prev';
+          else if (window.comparisonMode === 'yoy' && i > 0) sub = i + ' yr ago';
+          const hasVar = (window.comparisonMode !== 'none' && i + 1 < cols.length);
+          return window._custTh(labelOf(c), cur, sub, hasVar);
+        }).join('') + '</tr>';
+  };
+
+  const body = function (sk, rows, cols, keyOf, isCurrentOf) {
+    let html = '';
+    rows.forEach(function (r) {
+      html += '<tr><td style="' + sk.rST + '">' + window.esc(r.ST) + '</td>'
+        + '<td style="' + sk.rHOD + '">' + window.esc(r.HOD) + '</td>'
+        + '<td style="' + sk.rE + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'
+        + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
+        + cols.map(function (c, mi) {
+            const val = r[keyOf(c)] || 0;
+            let prevVal;
+            if (window.comparisonMode !== 'none' && (mi + 1 < cols.length)) {
+              prevVal = r[keyOf(cols[mi + 1])] || 0;
+            }
+            return window._custTd(val, isCurrentOf(c, mi), prevVal);
+          }).join('') + '</tr>';
+    });
+    return html;
+  };
+
+  const status = function (shown, total) {
+    const el = document.getElementById('pagination-' + K);
+    if (!el) return;
+    if (!total) { el.innerHTML = ''; return; }
+    el.innerHTML =
+      '<div style="display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 16px;'
+      + 'border-top:1px solid var(--border);background:var(--bg-surface);font-size:11.5px;'
+      + 'font-weight:600;color:var(--text-muted)">'
+      + (shown >= total
+          ? 'All ' + total + ' rows loaded'
+          : '<i class="ph ph-arrow-down" style="font-size:13px"></i> Showing ' + shown + ' of ' + total
+            + ' <span style="opacity:0.6">— scroll for more</span>')
+      + '</div>';
+  };
+
+  // Shared tail: multi-sort, comparison trimming, then progressive render.
+  const render = function (tbody, thead, sorted, cols, keyOf, labelOf, isCurrentOf) {
+    if (window.tableSortRules[K] && window.tableSortRules[K].length > 0) {
+      sorted = window.applyMultiSort(sorted, K);
+    }
+    if (window.comparisonMode !== 'none' && cols.length >= 2) {
+      sorted = sorted.filter(function (r) {
+        return Math.abs(parseFloat(r[keyOf(cols[0])]) || 0) > 0.001
+            || Math.abs(parseFloat(r[keyOf(cols[1])]) || 0) > 0.001;
+      });
+    }
+
+    const sk = sticky();
+    thead.innerHTML = head(sk, cols, labelOf, isCurrentOf);
+
+    // The CSV/AI scrapers read the rendered DOM, so an export pass has to emit
+    // every row up front rather than waiting for a scroll that never happens.
+    const exportAll = window.App.exportAll === K;
+    window.App.lastTableData[K] = sorted;
+
+    if (!sorted.length) {
+      tbody.innerHTML = window._emptyRow(cols.length + 3, 'No data.');
+      state.more = null;
+      status(0, 0);
+      return;
+    }
+
+    const wrap = document.querySelector(cfg.pageSel + ' .table-wrap');
+    let shown = 0;
+    const renderMore = function () {
+      if (shown >= sorted.length) return false;
+      const next = exportAll ? sorted.length : Math.min(shown + window.PERSON_CHUNK, sorted.length);
+      tbody.insertAdjacentHTML('beforeend', body(sk, sorted.slice(shown, next), cols, keyOf, isCurrentOf));
+      shown = next;
+      status(shown, sorted.length);
+      return true;
+    };
+
+    tbody.innerHTML = '';
+    renderMore();
+    state.more = renderMore;
+
+    if (wrap) {
+      wrap.scrollTop = 0;
+      // Keep filling while the rows do not yet overflow the container -- with
+      // no scrollbar there is nothing to scroll, so the next batch could never
+      // be requested.
+      let guard = 0;
+      while (!exportAll && guard++ < 40 && shown < sorted.length
+             && wrap.scrollHeight <= wrap.clientHeight) {
+        if (!renderMore()) break;
+      }
+      if (!wrap.dataset.personScrollBound) {
+        wrap.dataset.personScrollBound = '1';
+        wrap.addEventListener('scroll', function () {
+          if (!state.more) return;
+          // 300px of runway so the next batch is in place before the bottom.
+          if (wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 300) state.more();
+        }, { passive: true });
+      }
+    }
+  };
+
+  const byMonth = async function (tbody, thead) {
+    const months = (window.App.filterOptions.month || []).filter(function (m) { return m !== 'All'; });
+    if (!months.length) { tbody.innerHTML = window._emptyRow(4, 'No month data.'); return; }
+    const recent = months.slice().reverse();
+
+    const rows = await window.api(cfg.api + 'MonthlySummary', {
+      filters: Object.assign({}, window.App.filters, { fy: 'All', quarter: 'All' })
+    });
+    const sq = (window.searchQueries[K] || '').toLowerCase();
+    const map = {};
+    rows.forEach(function (r) {
+      const key = r.STATE + '||' + r.HOD + '||' + r.EXECUTIVE;
+      if (sq && key.toLowerCase().indexOf(sq) === -1) return;
+      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.EXECUTIVE };
+      if (recent.indexOf(r.MONTH) !== -1) map[key][r.MONTH] = r.TOTAL_SQFT;
+    });
+
+    const sorted = Object.values(map).sort(function (a, b) { return (b[recent[0]] || 0) - (a[recent[0]] || 0); });
+
+    const baseIdx = window._getCompBaseIndex(compSel, 'month', recent);
+    const offsetRecent = recent.slice(baseIdx);
+    let displayMonths = offsetRecent;
+    if (window.comparisonMode === 'pop') {
+      displayMonths = offsetRecent.slice(0, 2);
+    } else if (window.comparisonMode === 'yoy') {
+      displayMonths = [];
+      let currM = offsetRecent[0];
+      while (currM && recent.indexOf(currM) !== -1) {
+        displayMonths.push(currM);
+        currM = currM.replace(/\d+$/, function (yr) { return parseInt(yr, 10) - 1; });
+      }
+    }
+
+    const latest = offsetRecent[0];
+    render(tbody, thead, sorted, displayMonths,
+      function (m) { return m; }, function (m) { return m; },
+      function (m) { return m === latest; });
+  };
+
+  const byQuarter = async function (tbody, thead) {
+    const allFYs = (window.App.filterOptions.fy || []).filter(function (f) { return f !== 'All'; });
+    if (!allFYs.length) { tbody.innerHTML = window._emptyRow(6, 'No FY data available.'); return; }
+
+    const sortedFYs = allFYs.slice().sort().reverse();
+    const curFY = window._currentFY();
+    const curQ = window._currentQuarter();
+    const qField = { Q1: 'Q1_SQFT', Q2: 'Q2_SQFT', Q3: 'Q3_SQFT', Q4: 'Q4_SQFT' };
+
+    // Quarters are only meaningful inside a financial year -- Q1..Q4 summed
+    // across every FY is not a number anyone wants. So this reads the per-FY
+    // summary and emits FY-qualified columns, newest FY first.
+    const dataList = await window.api(cfg.api + 'AllFYSummary');
+    const sq = (window.searchQueries[K] || '').toLowerCase();
+
+    const fyData = {};
+    sortedFYs.forEach(function (fy) { fyData[fy] = {}; });
+    dataList.forEach(function (r) {
+      if (!fyData[r.FY]) return;
+      const k = r.STATE + '||' + r.HOD + '||' + r.EXECUTIVE;
+      const bucket = fyData[r.FY];
+      if (!bucket[k]) {
+        bucket[k] = { ST: r.STATE, HOD: r.HOD, C: r.EXECUTIVE,
+          Q1_SQFT: r.Q1_SQFT || 0, Q2_SQFT: r.Q2_SQFT || 0, Q3_SQFT: r.Q3_SQFT || 0, Q4_SQFT: r.Q4_SQFT || 0 };
+      } else {
+        ['Q1_SQFT', 'Q2_SQFT', 'Q3_SQFT', 'Q4_SQFT'].forEach(function (f) {
+          bucket[k][f] = (bucket[k][f] || 0) + (r[f] || 0);
+        });
+      }
+    });
+
+    let cols = [];
+    sortedFYs.forEach(function (fy) {
+      ['Q4', 'Q3', 'Q2', 'Q1'].forEach(function (q) {
+        cols.push({
+          fy: fy, q: q, key: fy + '_' + q,
+          label: fy.replace('FY ', 'FY-') + ' ' + q,
+          field: qField[q],
+          current: (fy === curFY && q === curQ)
+        });
+      });
+    });
+
+    const allKeys = {};
+    sortedFYs.forEach(function (fy) {
+      Object.keys(fyData[fy]).forEach(function (k) {
+        if (sq && k.toLowerCase().indexOf(sq) === -1) return;
+        if (!allKeys[k]) allKeys[k] = fyData[fy][k];
+      });
+    });
+
+    let sorted = Object.keys(allKeys).map(function (k) {
+      const src = allKeys[k];
+      const entry = { ST: src.ST, HOD: src.HOD, C: src.C };
+      cols.forEach(function (c) {
+        const row = fyData[c.fy][k];
+        entry[c.key] = row ? (row[c.field] || 0) : 0;
+      });
+      return entry;
+    });
+
+    // A quarter that has not happened yet is all zeros in every row; dropping
+    // those keeps the table to periods that actually occurred. The current
+    // quarter is always kept so it stays visible before its first sale.
+    cols = cols.filter(function (c) {
+      return c.current || sorted.some(function (r) { return (r[c.key] || 0) !== 0; });
+    });
+    if (!cols.length) cols = [{ key: curFY + '_' + curQ, label: curFY.replace('FY ', 'FY-') + ' ' + curQ, current: true }];
+
+    sorted.sort(function (a, b) { return (b[cols[0].key] || 0) - (a[cols[0].key] || 0); });
+
+    const baseIdx = window._getCompBaseIndex(compSel, 'quarter', cols, function (c) { return c.key; });
+    cols = cols.slice(baseIdx);
+    if (window.comparisonMode === 'pop' && cols.length >= 2) cols = cols.slice(0, 2);
+
+    render(tbody, thead, sorted, cols,
+      function (c) { return c.key; }, function (c) { return c.label; },
+      function (c) { return !!c.current; });
+  };
+
+  const byYear = async function (tbody, thead) {
+    const allFYs = (window.App.filterOptions.fy || []).filter(function (f) { return f !== 'All'; })
+      .slice().sort().reverse();
+    const curFY = allFYs[0];
+
+    const dataList = await window.api(cfg.api + 'AllFYSummary');
+    const sq = (window.searchQueries[K] || '').toLowerCase();
+    const map = {};
+    dataList.forEach(function (r) {
+      const key = r.STATE + '||' + r.HOD + '||' + r.EXECUTIVE;
+      if (sq && key.toLowerCase().indexOf(sq) === -1) return;
+      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.EXECUTIVE };
+      map[key][r.FY] = r.TOTAL_SQFT;
+    });
+
+    const sorted = Object.values(map).sort(function (a, b) { return (b[curFY] || 0) - (a[curFY] || 0); });
+
+    const baseIdx = window._getCompBaseIndex(compSel, 'year', allFYs);
+    let displayFYs = allFYs.slice(baseIdx);
+    if (window.comparisonMode === 'pop' && displayFYs.length >= 2) displayFYs = displayFYs.slice(0, 2);
+
+    render(tbody, thead, sorted, displayFYs,
+      function (fy) { return fy; }, function (fy) { return fy; },
+      function (fy) { return fy === curFY; });
+  };
+
+  return {
+    setView: function (v, btn) {
+      state.view = v;
+      document.querySelectorAll('#' + K + '-toggles .btn').forEach(function (b) {
+        b.className = 'btn btn-sm btn-ghost';
+      });
+      if (btn) btn.className = 'btn btn-sm btn-primary';
+      window[cfg.loader](1);
+    },
+    setPage: function (p) { state.page = p; window[cfg.loader](p); },
+    load: async function (page) {
+      state.page = page || 1;
+      const tbody = document.getElementById('tbl-' + K + '-body');
+      const thead = document.getElementById('tbl-' + K + '-head');
+      if (!tbody || !thead) return;
+      tbody.innerHTML = window._loadingRow(6);
+
+      if (!document.getElementById('pagination-' + K)) {
+        const wrapCard = document.querySelector(cfg.pageSel + ' .table-card');
+        if (wrapCard) {
+          const pag = document.createElement('div');
+          pag.id = 'pagination-' + K;
+          wrapCard.appendChild(pag);
+        }
+      }
+
+      try {
+        if (state.view === 'year')       await byYear(tbody, thead);
+        else if (state.view === 'month') await byMonth(tbody, thead);
+        else                             await byQuarter(tbody, thead);
+      } catch (e) {
+        tbody.innerHTML = window._errorRow(6, e.message);
+      }
+    }
+  };
+};
+
+// ── Executive Sales ─────────────────────────────────────────────────────────
+window._execTable = window._makePersonTable({
+  key: 'execqoq', label: 'Executive', api: 'getExecutive',
+  loader: 'loadExecSale', pageSel: '#page-execqoq'
+});
+window.setExecView    = function (v, btn) { window._execTable.setView(v, btn); };
+window.loadExecSale   = function (page)   { return window._execTable.load(page); };
+
+// ── Project Sales ───────────────────────────────────────────────────────────
+// Same table, restricted to sales_type = 'Projects' server-side, so the person
+// column holds the project sales people.
+window._projTable = window._makePersonTable({
+  key: 'projqoq', label: 'Project Executive', api: 'getProject',
+  loader: 'loadProjSale', pageSel: '#page-projqoq'
+});
+window.setProjView    = function (v, btn) { window._projTable.setView(v, btn); };
+window.loadProjSale   = function (page)   { return window._projTable.load(page); };

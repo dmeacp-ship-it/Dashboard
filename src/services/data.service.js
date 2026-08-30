@@ -16,8 +16,60 @@ const { fetchAll, getSalesRowCount, supaFetch } = require('./supabase');
 
 const STATE_TO_ZONE = {};
 
+// hod_name -> HOD territory (the source sheets' HOD_STATE column).
+//
+// HOD_STATE is an attribute of the HOD, not of the individual sale: verified
+// against the RAW DATA sheets, 31 of 32 HODs carry exactly one value (labels
+// are territories, e.g. 'AP & TELEGANA', 'TRI CITY & HIMACHAL', 'HEAD OFFICE').
+// Resolving it once by hod_name -- rather than adding a column to every
+// aggregate view -- lets every existing vw_*/mv_* view and both RPCs stay
+// untouched, since they all already group by hod_name. It also covers
+// FY 24-25, whose sheet has no HOD_STATE column at all.
+//
+// Populated from vw_hod_state (db/migrations/08_create_hod_state_view.sql).
+// Until that migration and a data sync have run the map stays empty and every
+// lookup falls back to the row's own billing state, so this degrades safely.
+const HOD_TO_STATE = {};
+let _hodStateAt = 0;
+let _hodStateOk = false;
+const HOD_STATE_TTL_MS = 10 * 60 * 1000;
+// Negative cache. Before migration 08 is applied vw_hod_state 404s on every
+// call, and this loader runs once per authenticated request -- including each
+// tick of the sync polling loop, which fires up to 400 times. Without a retry
+// floor that becomes a request storm against Supabase on top of the sync's own
+// uploads. Short enough that the map still picks itself up automatically once
+// the migration lands.
+const HOD_STATE_RETRY_MS = 60 * 1000;
+
+// Loads (and refreshes) the hod_name -> territory map. Best-effort: any
+// failure leaves the previous map in place rather than blanking the dashboard.
+async function loadHodStates(force) {
+  const ttl = _hodStateOk ? HOD_STATE_TTL_MS : HOD_STATE_RETRY_MS;
+  if (!force && _hodStateAt && (Date.now() - _hodStateAt) < ttl) return HOD_TO_STATE;
+  // Stamped up front, not on success: a failure has to back off too, otherwise
+  // every request retries a call that is known to be failing.
+  _hodStateAt = Date.now();
+  try {
+    const rows = await fetchAll('vw_hod_state', '?select=hod_name,hod_state');
+    if (rows && rows.length) {
+      Object.keys(HOD_TO_STATE).forEach(function (k) { delete HOD_TO_STATE[k]; });
+      rows.forEach(function (r) {
+        const h = String(r.hod_name || '').trim();
+        const st = String(r.hod_state || '').trim();
+        // One HOD legitimately spans two labels (e.g. a state + HEAD OFFICE);
+        // first value wins so a HOD never flickers between rows.
+        if (h && st && !HOD_TO_STATE[h]) HOD_TO_STATE[h] = st;
+      });
+      _hodStateOk = true;
+    }
+  } catch (e) {
+    // vw_hod_state missing (migration 08 not applied yet) -> keep falling back.
+  }
+  return HOD_TO_STATE;
+}
+
 const { cached } = require('./cache.service');
-const { DB_TABLES, ROLES } = require('../config');
+const { DB_TABLES, ROLES, SQFT_PER_SQM } = require('../config');
 const { fetchSheetData, fetchSheetHeaders, fetchSheetTabs } = require('./sync.service');
 
 // ── numeric / string helpers ───────────────────────────────────────────────
@@ -32,8 +84,8 @@ function _s(r, col) {
 }
 
 // ── field extractors ────────────────────────────────────────────────────────
-function _sqm(r)   { const v = _num(_s(r, 'total_sqm')); return v || _num(_s(r, 'sq_ft')) / 10.76391; }
-function _sqft(r)  { const v = _num(_s(r, 'sq_ft'));     return v || _num(_s(r, 'total_sqm')) * 10.76391; }
+function _sqm(r)   { const v = _num(_s(r, 'total_sqm')); return v || _num(_s(r, 'sq_ft')) / SQFT_PER_SQM; }
+function _sqft(r)  { const v = _num(_s(r, 'sq_ft'));     return v || _num(_s(r, 'total_sqm')) * SQFT_PER_SQM; }
 function _txns(r)  { return _num(_s(r, 'txn_count') || _s(r, 'transaction_count')); }
 function _qty(r)   { return _num(_s(r, 'quantity')) || _num(_s(r, 'total_qty')); }
 function _days(r)  { return _num(_s(r, 'days_since_last_purchase')); }
@@ -42,8 +94,17 @@ function _last6(r) { return _num(_s(r, 'last_6m_sqm')); }
 function _rev(r)   { return _num(_s(r, 'net_revenue')) || _num(_s(r, 'revenue')); }
 function _thick(r) { return _s(r, 'thickness') || '-'; }
 function _fy(r)    { return _s(r, 'fy_year'); }
-function _zone(r)  { return _s(r, 'zone') || STATE_TO_ZONE[_state(r)] || 'Unknown'; }
-function _state(r) { return _s(r, 'state') || 'Unknown'; }
+function _zone(r)  { return _s(r, 'zone') || STATE_TO_ZONE[_rawState(r)] || 'Unknown'; }
+// The billing/shipping state as it arrives from the sheet's STATE column.
+// Only the zone lookup still needs it; nothing user-facing shows it.
+function _rawState(r) { return _s(r, 'state') || 'Unknown'; }
+// The state shown everywhere in the dashboard: the HOD's territory. Resolved
+// by hod_name so it works against the aggregate views, which never carried a
+// hod_state column; falls back to the row's own value, then to billing state.
+function _state(r) {
+  const h = _s(r, 'hod_name');
+  return (h && HOD_TO_STATE[h]) || _s(r, 'hod_state') || _s(r, 'state') || 'Unknown';
+}
 function _city(r)  { return _s(r, 'city') || 'Unknown'; }
 function _hod(r)   { return _s(r, 'hod_name') || 'Unknown'; }
 function _prevHod(r) { return _s(r, 'prev_hod_name') || '-'; }
@@ -275,7 +336,12 @@ function _q(f, exclude) {
     }
   }
   if (exclude.indexOf('zone') === -1) addFilter('zone', f.zone);
-  if (exclude.indexOf('state') === -1) addFilter('state', f.state);
+  // Territory selection -> hod_name. PostgREST ANDs repeated column filters,
+  // so this intersects naturally with any explicit HOD filter below.
+  if (exclude.indexOf('state') === -1) {
+    const stHods = _hodsForStates(_vals(f.state));
+    if (stHods) p.push('hod_name=in.(' + stHods.map(encodeURIComponent).join(',') + ')');
+  }
   if (exclude.indexOf('hod') === -1) addFilter('hod_name', f.hod);
 
   const scope = f._scope || {};
@@ -287,7 +353,10 @@ function _q(f, exclude) {
     p.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
   }
   if (scope.allowed_states && scope.allowed_states.length) {
-    p.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+    const scHods = _hodsForStates(scope.allowed_states);
+    p.push(scHods
+      ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
+      : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
   }
   // PostgREST allows one top-level or=; multiple groups get wrapped in and=().
   if (orGroups.length === 1) {
@@ -337,6 +406,31 @@ async function _tryRpc(fn, params) {
   }
 }
 
+// The UI's state picker now lists HOD territories, but no view or RPC has a
+// territory column -- they all key on hod_name. So a territory selection is
+// translated into the set of HODs sitting in those territories and applied as
+// a hod_name filter instead. Returns null when the selection can't be narrowed
+// (map not loaded yet), which leaves the query unfiltered rather than empty.
+function _hodsForStates(vals) {
+  if (!vals || !vals.length) return null;
+  const want = {};
+  vals.forEach(function (v) { want[String(v).trim().toLowerCase()] = 1; });
+  const hods = Object.keys(HOD_TO_STATE).filter(function (h) {
+    return want[String(HOD_TO_STATE[h]).trim().toLowerCase()];
+  });
+  return hods.length ? hods : null;
+}
+
+// Intersects two hod_name lists; either side may be null meaning "unrestricted".
+function _intersectHods(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const inB = {};
+  b.forEach(function (h) { inB[h] = 1; });
+  const out = a.filter(function (h) { return inB[h]; });
+  return out.length ? out : ['__none__'];
+}
+
 // Translates a filter set into the shared RPC filter contract
 // (db/perf_phase2.sql). Returns null when a value can't be translated —
 // callers then use the fetch-and-aggregate fallback path.
@@ -372,24 +466,79 @@ function _rpcTimeGeoParams(f) {
     if (pairFy.length) { p.p_fyq_fy = pairFy; p.p_fyq_q = pairQ; }
   }
   const zones = _vals(f.zone); if (zones) p.p_zone = zones;
-  const states = _vals(f.state); if (states) p.p_state = states;
-  const hods = _vals(f.hod); if (hods) p.p_hod = hods;
+  // Territories are resolved to HODs (see _hodsForStates); the RPCs' p_state
+  // slots stay null because mv_* has no territory column.
+  const stHods = _hodsForStates(_vals(f.state));
+  const hods = _vals(f.hod);
+  p.p_hod = _intersectHods(hods || null, stHods);
   const scope = f._scope || {};
   if (scope.hod_name) p.p_hod2 = [scope.hod_name];
   if (scope.allowed_hods && scope.allowed_hods.length) p.p_hod2 = scope.allowed_hods;
   if (scope.allowed_zones && scope.allowed_zones.length) p.p_zone2 = scope.allowed_zones;
-  if (scope.allowed_states && scope.allowed_states.length) p.p_state2 = scope.allowed_states;
+  if (scope.allowed_states && scope.allowed_states.length) {
+    const scHods = _hodsForStates(scope.allowed_states);
+    if (scHods) p.p_hod2 = _intersectHods(p.p_hod2, scHods);
+    else p.p_state2 = scope.allowed_states;
+  }
   return p;
+}
+
+// A non-concurrent REFRESH MATERIALIZED VIEW takes an AccessExclusiveLock, so
+// every read of that snapshot blocks until the refresh finishes.
+// refresh_dashboard_views() walks nine snapshots in turn (it runs after each
+// sync), and without a bound the dashboard simply waits — observed live at
+// 25 minutes for one getFilterOptions call, which the browser reports as
+// "Dashboard failed to load data". The plain vw_* view reads sales_data
+// instead and is unaffected, so a blocked snapshot must not be fatal.
+// Deliberately generous. An mv_ snapshot is a stored copy of its vw_ view, so
+// it is always the faster of the two EXCEPT while a refresh holds its lock --
+// which means bailing out early and falling back to the plain view makes a
+// merely-loaded database slower, not faster. This only needs to catch a real
+// lock stall, so it sits well above normal paging time.
+const MV_PROBE_TIMEOUT_MS = 20000;
+// For optional probes whose fallback is FASTER than the probe itself (the
+// filter-option chain ends at mv_filter_options, ~0.6s, while
+// vw_filter_options_distinct was measured past 20s), give up quickly.
+const PROBE_TIMEOUT_MS = 6000;
+// Once a snapshot is seen blocked, skip probing it for this long rather than
+// making every subsequent request pay the timeout again. Short, so the
+// snapshot comes back into use on its own once the refresh completes.
+const MV_BLOCKED_TTL_MS = 60 * 1000;
+// Deadline for the optional Retail/Projects split card.
+const SPLIT_TIMEOUT_MS = 8000;
+const _mvBlockedAt = {};
+
+// Runs an optional fast-path probe under a deadline. Every caller of this has
+// a slower but dependable fallback, so waiting indefinitely on the probe only
+// ever turns "slower" into "broken". Returns null on timeout; the request is
+// left running server-side, we simply stop waiting on it.
+async function _deadline(promise, ms) {
+  let timer;
+  const res = await Promise.race([
+    promise,
+    new Promise(function (resolve) {
+      timer = setTimeout(function () { resolve('__timeout__'); }, ms);
+    })
+  ]);
+  clearTimeout(timer);
+  return res === '__timeout__' ? null : res;
+}
+
+async function _probe(rel, qs, ms) {
+  return _deadline(_tryFetchAll(rel, qs), ms);
 }
 
 // Prefers the materialized snapshot (mv_*) of a dashboard view when the
 // db/perf_materialized_views.sql migration has been applied; falls back to
-// the plain view transparently otherwise.
+// the plain view transparently when it is missing, failing, or locked.
 async function _fetchAgg(view, qs) {
   const mv = 'mv_' + view.slice(3);
-  if (!_missingRelations[mv]) {
-    const rows = await _tryFetchAll(mv, qs);
-    if (rows) return rows;
+  const blockedAt = _mvBlockedAt[mv];
+  const skip = blockedAt && (Date.now() - blockedAt) < MV_BLOCKED_TTL_MS;
+  if (!_missingRelations[mv] && !skip) {
+    const rows = await _probe(mv, qs, MV_PROBE_TIMEOUT_MS);
+    if (!rows) _mvBlockedAt[mv] = Date.now();
+    else { delete _mvBlockedAt[mv]; return rows; }
   }
   return fetchAll(view, qs);
 }
@@ -406,7 +555,10 @@ async function _fetchOutstanding(f) {
     parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
   }
   if (scope.allowed_states && scope.allowed_states.length) {
-    parts.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+    const scHods = _hodsForStates(scope.allowed_states);
+    parts.push(scHods
+      ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
+      : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
   }
   function addF(col, val) {
     if (!val || val === 'All') return;
@@ -417,7 +569,8 @@ async function _fetchOutstanding(f) {
       parts.push(col + '=eq.' + encodeURIComponent(val));
     }
   }
-  addF('state', f && f.state);
+  const stHodsO = _hodsForStates(_vals(f && f.state));
+  if (stHodsO) addF('hod_name', stHodsO); else addF('state', f && f.state);
   addF('zone', f && f.zone);
   addF('hod_name', f && f.hod);
   if (parts.length) qs = '?' + parts.join('&');
@@ -496,10 +649,11 @@ async function getFilterOptions(userProfile) {
   const cacheKey = 'filterOptions_v2_' + role + '_' +
     ((scope.allowed_hods || scope.allowed_zones || scope.allowed_states || []).join('|'));
   return cached(cacheKey, async function () {
+    await loadHodStates();
     const scopeFilter = { _scope: scope };
 
-    let rows = await _tryFetchAll('rpc/get_filter_options', _q(scopeFilter).replace('?', ''));
-    if (!rows || rows.length === 0) rows = await _tryFetchAll('vw_filter_options_distinct', _q(scopeFilter));
+    let rows = await _probe('rpc/get_filter_options', _q(scopeFilter).replace('?', ''), PROBE_TIMEOUT_MS);
+    if (!rows || rows.length === 0) rows = await _probe('vw_filter_options_distinct', _q(scopeFilter), PROBE_TIMEOUT_MS);
 
     if (!rows || rows.length === 0) {
       const baseQ = _q(scopeFilter);
@@ -574,8 +728,8 @@ async function getKPIs(f) {
     const curM = (f && f.month && f.month !== 'All' && !Array.isArray(f.month)) ? f.month : sortedM[0];
     const cIdx = Math.max(0, sortedM.indexOf(curM));
 
-    const curSqft = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].sqm : 0) * 10.76391;
-    const prevSqft = (mMap[sortedM[cIdx + 1]] ? mMap[sortedM[cIdx + 1]].sqm : 0) * 10.76391;
+    const curSqft = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].sqm : 0) * SQFT_PER_SQM;
+    const prevSqft = (mMap[sortedM[cIdx + 1]] ? mMap[sortedM[cIdx + 1]].sqm : 0) * SQFT_PER_SQM;
     const momG = prevSqft ? ((curSqft - prevSqft) / prevSqft * 100) : 0;
 
     const curRev = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].rev : 0);
@@ -586,8 +740,8 @@ async function getKPIs(f) {
     const curF = (f && f.fy && f.fy !== 'All' && !Array.isArray(f.fy)) ? _normFy(f.fy) : sortedF[0];
     const fIdx = Math.max(0, sortedF.indexOf(curF));
     const prevFy = sortedF[fIdx + 1] || null;
-    const curFySqft = (fyMap[sortedF[fIdx]] ? fyMap[sortedF[fIdx]].sqm : 0) * 10.76391;
-    const prevFySqft = (fyMap[sortedF[fIdx + 1]] ? fyMap[sortedF[fIdx + 1]].sqm : 0) * 10.76391;
+    const curFySqft = (fyMap[sortedF[fIdx]] ? fyMap[sortedF[fIdx]].sqm : 0) * SQFT_PER_SQM;
+    const prevFySqft = (fyMap[sortedF[fIdx + 1]] ? fyMap[sortedF[fIdx + 1]].sqm : 0) * SQFT_PER_SQM;
     const yoyG = prevFySqft ? ((curFySqft - prevFySqft) / prevFySqft * 100) : 0;
 
     const curFyMonthsList = [];
@@ -605,7 +759,7 @@ async function getKPIs(f) {
     const avgSqftGrowth = prevFyAvgSqft ? ((curFyAvgSqft - prevFyAvgSqft) / prevFyAvgSqft * 100) : 0;
 
     const last6MoTrend = sortedM.slice(0, 6).reverse().map(function (m) {
-      return Math.round((mMap[m] ? mMap[m].sqm : 0) * 10.76391);
+      return Math.round((mMap[m] ? mMap[m].sqm : 0) * SQFT_PER_SQM);
     });
     const yearlyAvgsTrend = sortedF.slice().reverse().map(function (fy) {
       const fyMos = [];
@@ -613,7 +767,7 @@ async function getKPIs(f) {
         if (_robustFy(r) === fy) { const m = _mo(r); if (m && fyMos.indexOf(m) === -1) fyMos.push(m); }
       });
       const moCount = Math.max(1, fyMos.length);
-      const tSqft = (fyMap[fy] ? fyMap[fy].sqm : 0) * 10.76391;
+      const tSqft = (fyMap[fy] ? fyMap[fy].sqm : 0) * SQFT_PER_SQM;
       return Math.round(tSqft / moCount);
     });
 
@@ -665,8 +819,20 @@ async function getKPIs(f) {
     let retailSqm = 0, projectSqm = 0;
     let retailQty = 0, projectQty = 0;
     try {
-      const splitRows = await _fetchAgg('vw_sales_type_agg', geoQ);
-      splitRows.filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+      // Bounded: this card is optional, but vw_sales_type_agg is the one
+      // dashboard view with no mv_ snapshot, so it reads sales_data directly
+      // and was measured hanging past 30s. The catch below only covers errors
+      // -- without a deadline a slow view takes the whole dashboard down.
+      // Apply db/migrations/10_create_sales_type_snapshot.sql to make it fast.
+      const splitRows = (await _deadline(_fetchAgg('vw_sales_type_agg', geoQ), SPLIT_TIMEOUT_MS)) || [];
+      // Scoped to one financial year, the same curF the YTD/YoY cards use:
+      // the explicit FY filter when one is set, otherwise the latest FY in the
+      // data. geoQ is deliberately wide (no fy/quarter/month restriction) so
+      // the trend maps above can see every period, which left this card
+      // summing every year at once.
+      splitRows.filter(function (r) {
+        return _rowMatches(r, f) && (!curF || _robustFy(r) === curF);
+      }).forEach(function (r) {
         if (r.sales_type === 'Projects') {
           projectSqm += _sqm(r);
           projectQty += _qty(r);
@@ -695,7 +861,7 @@ async function getKPIs(f) {
     });
 
     return {
-      totalSqft: Math.round(totalSQM * 10.76391),
+      totalSqft: Math.round(totalSQM * SQFT_PER_SQM),
       totalSQM: +totalSQM.toFixed(2),
       totalRevenue: Math.round(totalRev),
       currentYearAvgSqft: Math.round(curFyAvgSqft) || 0,
@@ -705,8 +871,8 @@ async function getKPIs(f) {
       totalCustomers: custs.length,
       activeCustomers: active,
       loyalCustomers: loyalC,
-      retailSqft: Math.round(retailSqm * 10.76391),
-      projectSqft: Math.round(projectSqm * 10.76391),
+      retailSqft: Math.round(retailSqm * SQFT_PER_SQM),
+      projectSqft: Math.round(projectSqm * SQFT_PER_SQM),
       retailQty: retailQty,
       projectQty: projectQty,
       cust30d: cust30d,
@@ -766,12 +932,12 @@ async function getOverviewData(f) {
       r['SORT KEY'] = r['_SK'] = _mSk(r['MONTH YEAR']);
       r['_LABEL'] = r['MONTH YEAR'];
       r['_FY'] = r['FY YEAR'];
-      r['SQ FT.'] = r['TOTAL SQM'] * 10.76391;
+      r['SQ FT.'] = r['TOTAL SQM'] * SQFT_PER_SQM;
       return r;
     }).sort(function (a, b) { return a['SORT KEY'].localeCompare(b['SORT KEY']); });
 
     const states = Object.values(stateMap)
-      .map(function (r) { return Object.assign({}, r, { 'SQ FT.': r['TOTAL SQM'] * 10.76391 }); })
+      .map(function (r) { return Object.assign({}, r, { 'SQ FT.': r['TOTAL SQM'] * SQFT_PER_SQM }); })
       .sort(function (a, b) { return b['TOTAL SQM'] - a['TOTAL SQM']; });
 
     return { monthly: monthly, states: states };
@@ -800,12 +966,12 @@ async function getHODQoQ(f) {
     return Object.values(map).map(function (h) {
       return {
         HOD: h.HOD, STATE: h.STATE,
-        TOTAL_SQFT: Math.round(h.T * 10.76391),
+        TOTAL_SQFT: Math.round(h.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(h.NET_REVENUE),
-        Q1_SQFT: Math.round(h.Q1 * 10.76391),
-        Q2_SQFT: Math.round(h.Q2 * 10.76391),
-        Q3_SQFT: Math.round(h.Q3 * 10.76391),
-        Q4_SQFT: Math.round(h.Q4 * 10.76391)
+        Q1_SQFT: Math.round(h.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(h.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(h.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(h.Q4 * SQFT_PER_SQM)
       };
     }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
   });
@@ -839,12 +1005,12 @@ async function getHODAllFYSummary(f) {
     return Object.values(map).map(function (h) {
       return {
         HOD: h.HOD, STATE: h.STATE, FY: h.FY,
-        TOTAL_SQFT: Math.round(h.T * 10.76391),
+        TOTAL_SQFT: Math.round(h.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(h.NET_REVENUE),
-        Q1_SQFT: Math.round(h.Q1 * 10.76391),
-        Q2_SQFT: Math.round(h.Q2 * 10.76391),
-        Q3_SQFT: Math.round(h.Q3 * 10.76391),
-        Q4_SQFT: Math.round(h.Q4 * 10.76391)
+        Q1_SQFT: Math.round(h.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(h.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(h.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(h.Q4 * SQFT_PER_SQM)
       };
     });
   });
@@ -895,12 +1061,12 @@ async function getCustomerQoQ(f) {
     return Object.values(map).map(function (c) {
       return {
         STATE: c.STATE, HOD: c.HOD, CUSTOMER: c.CUSTOMER,
-        TOTAL_SQFT: Math.round(c.T * 10.76391),
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
-        Q1_SQFT: Math.round(c.Q1 * 10.76391),
-        Q2_SQFT: Math.round(c.Q2 * 10.76391),
-        Q3_SQFT: Math.round(c.Q3 * 10.76391),
-        Q4_SQFT: Math.round(c.Q4 * 10.76391)
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
       };
     }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
   });
@@ -933,12 +1099,12 @@ async function getCustomerAllFYSummary(f) {
     return Object.values(map).map(function (c) {
       return {
         STATE: c.STATE, HOD: c.HOD, CUSTOMER: c.CUSTOMER, FY: c.FY,
-        TOTAL_SQFT: Math.round(c.T * 10.76391),
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
-        Q1_SQFT: Math.round(c.Q1 * 10.76391),
-        Q2_SQFT: Math.round(c.Q2 * 10.76391),
-        Q3_SQFT: Math.round(c.Q3 * 10.76391),
-        Q4_SQFT: Math.round(c.Q4 * 10.76391)
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
       };
     });
   });
@@ -969,6 +1135,127 @@ async function getCustomerMonthlySummary(f) {
   });
 }
 
+// ── Person-wise sale (Executive / Project) ──────────────────────────────────
+// Both tables are the same three period views over the same row shape, keyed
+// on sales_person; only the backing view differs. Executive reads
+// vw_executive_sale_agg (all sales), Project reads vw_project_sale_agg, which
+// is restricted to sales_type = 'Projects' — and because the sync rewrites
+// sales_person to PROJECT_SALES_PERSON on the projects part of a split row,
+// grouping by sales_person there yields the project sales people.
+// See db/migrations/09 and 12.
+function _person(r) { return _s(r, 'sales_person') || 'Unassigned'; }
+
+// QoQ: current-period quarters, one row per state/HOD/person.
+function _personQoQ(view, cacheKey) {
+  return async function (f) {
+    return cached(cacheKey + '_qoq_' + _stableStringify(f), async function () {
+      const q = _q(f, ['month', 'zone']);
+      const rows = (await _fetchAgg(view, q)).filter(function (r) { return _rowMatches(r, f); });
+      const map = {};
+      rows.forEach(function (r) {
+        const e = _person(r); const st = _state(r); const h = _hod(r);
+        const key = st + '||' + h + '||' + e;
+        if (!map[key]) map[key] = { STATE: st, HOD: h, EXECUTIVE: e, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+        const sq = _sqm(r); const rev = _rev(r);
+        map[key].T += sq; map[key].NET_REVENUE += rev;
+        const qt = _qtr(r);
+        if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+        if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+        if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+        if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+      });
+      return Object.values(map).map(function (c) {
+        return {
+          STATE: c.STATE, HOD: c.HOD, EXECUTIVE: c.EXECUTIVE,
+          TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+          NET_REVENUE: Math.round(c.NET_REVENUE),
+          Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+          Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+          Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+          Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+        };
+      }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+    });
+  };
+}
+
+// All-FY: one row per state/HOD/person/FY, quarters within each FY.
+function _personAllFY(view, cacheKey) {
+  return async function (f) {
+    const scopeF = {
+      _scope: (f && f._scope) || {},
+      zone: (f && f.zone && f.zone !== 'All') ? f.zone : 'All',
+      state: (f && f.state && f.state !== 'All') ? f.state : 'All',
+      hod: (f && f.hod && f.hod !== 'All') ? f.hod : 'All'
+    };
+    return cached(cacheKey + '_all_fy_' + _stableStringify(scopeF), async function () {
+      const q = _q(f, ['month', 'zone', 'fy', 'quarter']); // all-FY view: never time-restrict
+      const rows = (await _fetchAgg(view, q)).filter(function (r) { return _rowMatches(r, scopeF); });
+      const map = {};
+      rows.forEach(function (r) {
+        const e = _person(r); const st = _state(r); const h = _hod(r); const fy = _robustFy(r);
+        if (!e || e === 'Unassigned' || !fy) return;
+        const key = st + '||' + h + '||' + e + '||' + fy;
+        if (!map[key]) map[key] = { STATE: st, HOD: h, EXECUTIVE: e, FY: fy, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+        const sq = _sqm(r); const rev = _rev(r);
+        map[key].T += sq; map[key].NET_REVENUE += rev;
+        const qt = _qtr(r);
+        if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+        if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+        if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+        if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+      });
+      return Object.values(map).map(function (c) {
+        return {
+          STATE: c.STATE, HOD: c.HOD, EXECUTIVE: c.EXECUTIVE, FY: c.FY,
+          TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+          NET_REVENUE: Math.round(c.NET_REVENUE),
+          Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+          Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+          Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+          Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+        };
+      });
+    });
+  };
+}
+
+// Monthly: one row per state/HOD/person/month.
+function _personMonthly(view, cacheKey) {
+  return async function (f) {
+    return cached(cacheKey + '_monthly_' + _stableStringify(f), async function () {
+      const q = _q(f, ['month', 'zone']);
+      const rows = (await _fetchAgg(view, q)).filter(function (r) { return _rowMatches(r, f); });
+      const map = {};
+      rows.forEach(function (r) {
+        const e = _person(r); const st = _state(r); const h = _hod(r); const mo = _mo(r);
+        if (!e || e === 'Unassigned' || !mo) return;
+        const key = st + '||' + h + '||' + e + '||' + mo;
+        if (!map[key]) map[key] = { STATE: st, HOD: h, EXECUTIVE: e, MONTH: mo, SORT_KEY: _mSk(mo), SQM: 0, SQFT: 0, NET_REVENUE: 0 };
+        map[key].SQM += _sqm(r); map[key].SQFT += _sqft(r); map[key].NET_REVENUE += _rev(r);
+      });
+      return Object.values(map).map(function (r) {
+        return {
+          STATE: r.STATE, HOD: r.HOD, EXECUTIVE: r.EXECUTIVE, MONTH: r.MONTH, SORT_KEY: r.SORT_KEY,
+          TOTAL_SQFT: Math.round(r.SQFT), TOTAL_SQM: +r.SQM.toFixed(2), NET_REVENUE: Math.round(r.NET_REVENUE)
+        };
+      }).sort(function (a, b) {
+        const sk = b.SORT_KEY.localeCompare(a.SORT_KEY);
+        if (sk !== 0) return sk;
+        return a.EXECUTIVE.localeCompare(b.EXECUTIVE);
+      });
+    });
+  };
+}
+
+const getExecutiveQoQ           = _personQoQ('vw_executive_sale_agg', 'exec');
+const getExecutiveAllFYSummary  = _personAllFY('vw_executive_sale_agg', 'exec');
+const getExecutiveMonthlySummary = _personMonthly('vw_executive_sale_agg', 'exec');
+
+const getProjectQoQ             = _personQoQ('vw_project_sale_agg', 'proj');
+const getProjectAllFYSummary    = _personAllFY('vw_project_sale_agg', 'proj');
+const getProjectMonthlySummary  = _personMonthly('vw_project_sale_agg', 'proj');
+
 async function getSkuTypeQoQ(f) {
   return cached('sku_type_qoq_' + _stableStringify(f), async function () {
     const q = _q(f, ['month']);
@@ -989,12 +1276,12 @@ async function getSkuTypeQoQ(f) {
     return Object.values(map).map(function (c) {
       return {
         STATE: c.STATE, HOD: c.HOD, SKU_TYPE: c.SKU_TYPE,
-        TOTAL_SQFT: Math.round(c.T * 10.76391),
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
-        Q1_SQFT: Math.round(c.Q1 * 10.76391),
-        Q2_SQFT: Math.round(c.Q2 * 10.76391),
-        Q3_SQFT: Math.round(c.Q3 * 10.76391),
-        Q4_SQFT: Math.round(c.Q4 * 10.76391)
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
       };
     }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
   });
@@ -1027,12 +1314,12 @@ async function getSkuTypeAllFYSummary(f) {
     return Object.values(map).map(function (c) {
       return {
         STATE: c.STATE, HOD: c.HOD, SKU_TYPE: c.SKU_TYPE, FY: c.FY,
-        TOTAL_SQFT: Math.round(c.T * 10.76391),
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
-        Q1_SQFT: Math.round(c.Q1 * 10.76391),
-        Q2_SQFT: Math.round(c.Q2 * 10.76391),
-        Q3_SQFT: Math.round(c.Q3 * 10.76391),
-        Q4_SQFT: Math.round(c.Q4 * 10.76391)
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
       };
     });
   });
@@ -1082,7 +1369,10 @@ async function getExecutiveTargets(f, opts) {
       parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
     }
     if (scope.allowed_states && scope.allowed_states.length) {
-      parts.push('state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+      const scHods = _hodsForStates(scope.allowed_states);
+      parts.push(scHods
+        ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
+        : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
     }
     function addF(col, val) {
       if (!val || val === 'All') return;
@@ -1093,7 +1383,8 @@ async function getExecutiveTargets(f, opts) {
         parts.push(col + '=eq.' + encodeURIComponent(val));
       }
     }
-    addF('state', f && f.state);
+    const stHodsT = _hodsForStates(_vals(f && f.state));
+    if (stHodsT) addF('hod_name', stHodsT); else addF('state', f && f.state);
     addF('zone', f && f.zone);
     addF('hod_name', f && f.hod);
     if (parts.length) qs = '?' + parts.join('&');
@@ -1109,7 +1400,7 @@ async function getExecutiveTargets(f, opts) {
     rows.forEach(function (r) {
       const emp = _s(r, 'employee_name') || 'Unknown';
       const hod = _s(r, 'hod_name') || 'Unknown';
-      const st = _s(r, 'state') || 'Unknown';
+      const st = _state(r);
       const fy = _s(r, 'fy_year');
       let mo = _s(r, 'month_name');
       if (mo && mo.length >= 3) mo = mo.substring(0, 3).toUpperCase();
@@ -1150,7 +1441,7 @@ async function getOutstandingSummary(f) {
     return rows.map(function (r) {
       return {
         HOD: _s(r, 'hod_name') || 'Unassigned',
-        STATE: _s(r, 'state') || 'Unknown',
+        STATE: _state(r),
         ZONE: _s(r, 'zone') || 'Unknown',
         CUSTOMER_NAME: _s(r, 'customer_name') || _s(r, 'customer_code') || 'Unknown',
         CREDIT_LIMIT: _num(_s(r, 'credit_limit')),
@@ -1681,6 +1972,7 @@ async function getSheetTabs(opts) {
 }
 
 module.exports = {
+  loadHodStates,
   getFilterOptions,
   getKPIs,
   getOverviewData,
@@ -1692,6 +1984,12 @@ module.exports = {
   getCustomerQoQ,
   getCustomerAllFYSummary,
   getCustomerMonthlySummary,
+  getExecutiveQoQ,
+  getExecutiveAllFYSummary,
+  getExecutiveMonthlySummary,
+  getProjectQoQ,
+  getProjectAllFYSummary,
+  getProjectMonthlySummary,
   getSkuTypeQoQ,
   getSkuTypeAllFYSummary,
   getSkuTypeMonthlySummary,
