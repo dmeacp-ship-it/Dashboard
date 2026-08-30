@@ -89,6 +89,18 @@ setInterval(async () => {
 /*  Start                                                              */
 /* ------------------------------------------------------------------ */
 
+// A stray rejection anywhere (a Supabase call during a long sync, say) takes
+// the whole process down on Node >=15 with no trace at all -- the browser just
+// reports "Failed to fetch" and the dashboard looks broken for no visible
+// reason. Log it and stay up; a dropped background call is not worth killing
+// an in-flight sync over.
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] UNHANDLED REJECTION:', (reason && reason.stack) || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[server] UNCAUGHT EXCEPTION:', (err && err.stack) || err);
+});
+
 app.listen(PORT, () => {
   console.log(`[server] Virgo ACP Dashboard running → http://localhost:${PORT}`);
   console.log(`[server] API endpoint             → http://localhost:${PORT}/api`);

@@ -118,6 +118,10 @@ module.exports = async function handler(req, res) {
 
     // ── Secure endpoints ────────────────────────────────────────────────────
     const userProfile = await AuthService.requireAuth(req_.token);
+    // Warm the hod_name -> HOD-territory map before anything reads or filters
+    // on state; it is memoised for 10 minutes, so this is a no-op on all but
+    // the first request after a cold start or a sync.
+    await DataService.loadHodStates();
     const scopedFilters = _applyScopeFilters(req_.filters || {}, userProfile);
 
     // Admin-only: user management (super admin)
@@ -170,10 +174,17 @@ module.exports = async function handler(req, res) {
       getCustomerQoQ: () => DataService.getCustomerQoQ(scopedFilters),
       getCustomerMonthlySummary: () => DataService.getCustomerMonthlySummary(scopedFilters),
       getCustomerAllFYSummary: () => DataService.getCustomerAllFYSummary(scopedFilters),
+      getExecutiveQoQ: () => DataService.getExecutiveQoQ(scopedFilters),
+      getExecutiveMonthlySummary: () => DataService.getExecutiveMonthlySummary(scopedFilters),
+      getExecutiveAllFYSummary: () => DataService.getExecutiveAllFYSummary(scopedFilters),
+      getProjectQoQ: () => DataService.getProjectQoQ(scopedFilters),
+      getProjectMonthlySummary: () => DataService.getProjectMonthlySummary(scopedFilters),
+      getProjectAllFYSummary: () => DataService.getProjectAllFYSummary(scopedFilters),
       getSkuTypeQoQ: () => DataService.getSkuTypeQoQ(scopedFilters),
       getSkuTypeMonthlySummary: () => DataService.getSkuTypeMonthlySummary(scopedFilters),
       getSkuTypeAllFYSummary: () => DataService.getSkuTypeAllFYSummary(scopedFilters),
       getExecutiveTargets: () => DataService.getExecutiveTargets(scopedFilters, opts),
+      getTargetVsAchievement: () => DataService.getTargetVsAchievement(scopedFilters, opts),
       getOutstandingSummary: () => DataService.getOutstandingSummary(scopedFilters),
       getOutstandingHODSummary: () => DataService.getOutstandingHODSummary(scopedFilters),
       getOutstandingStateSummary: () => DataService.getOutstandingStateSummary(scopedFilters),

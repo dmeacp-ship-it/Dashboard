@@ -15,13 +15,6 @@ window.switchRiskTab = function(tabId, btn) {
   window.loadPage('risk', 1);
 };
 
-window.setSkuTypeView = function(v, btn) {
-  window.skuTypeSaleView = v;
-  document.querySelectorAll('#skutypeqoq-toggles .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
-  if (btn) btn.className = 'btn btn-sm btn-primary';
-  window.loadSkuTypeSale(1);
-};
-
 window.setSkuTypeSalePage = function(p) { 
   window.skuTypeSalePage = p; 
   window.loadSkuTypeSale(p); 
@@ -167,7 +160,7 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   const stickyRowHOD = 'position:sticky;left:110px;z-index:5;background:var(--bg-card);min-width:160px;max-width:160px;border-right:1px solid var(--border);padding:10px 14px;';
 
   let thHtml = `<tr>
-    <th style="${stickyST}">STATE</th>
+    <th style="${stickyST}">HOD STATE</th>
     <th style="${stickyHOD}">HOD</th>`;
   
   periods.forEach(p => {
@@ -300,7 +293,7 @@ window._renderOutstandingTable = function() {
   const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:110px;padding:6px 12px;';
   const stickyRowHOD = 'position:sticky;left:154px;z-index:5;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;';
 
-  thead.innerHTML = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyST + '">State</th><th style="' + stickyHOD + '">HOD Name</th>'
+  thead.innerHTML = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyST + '">HOD State</th><th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="min-width:200px;padding:8px 12px;">Customer Name</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Credit Limit</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Outstanding</th><th style="min-width:110px;text-align:right;padding:8px 12px;">Below 45d</th><th style="min-width:110px;text-align:right;color:#fcd34d;padding:8px 12px;">Above 45d</th><th style="min-width:100px;text-align:right;color:#fca5a5;padding:8px 12px;">90+ Days</th><th style="min-width:80px;text-align:right;padding:8px 12px;">Risk %</th></tr>';
 
   if (!rows.length) { tbody.innerHTML = window._emptyRow(10, 'No outstanding data matching criteria.'); window._renderPagination(null, '', 'pagination-outstanding'); return; }
@@ -421,7 +414,7 @@ window.loadDeclining = async function(page = 1) {
   try {
     const res  = await window.api('getDecliningCustomers', { options: { page: window._expPage('declining', page), pageSize: window._expSize('declining'), search: window.searchQueries['declining'] } });
     const rows = window._tableItems(res); window._renderPagination(res, 'loadDeclining', 'pagination-declining');
-    const totalDrop = rows.reduce((s, r) => s + Math.abs((r['SQM CHANGE'] || 0) * 10.76391), 0);
+    const totalDrop = rows.reduce((s, r) => s + Math.abs((r['SQM CHANGE'] || 0) * window.SQFT_PER_SQM), 0);
     const kg = document.getElementById('declining-kpi-grid');
     if (kg) {
         kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-trend-down"></i></div><div class="kpi-label">Declining Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
@@ -438,7 +431,7 @@ window.loadDeclining = async function(page = 1) {
       const pct   = r['DECLINE %'] || 0; const cat   = r['DECLINE CATEGORY'] || '';
       const badge = cat.indexOf('Critical') !== -1 ? 'badge-red' : cat.indexOf('Severe') !== -1 ? 'badge-amber' : 'badge-purple';
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['PREV 6M SQM'] || 0) * 10.76391) + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['LAST 6M SQM'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + window.fmt.num((r['SQM CHANGE'] || 0) * 10.76391) + '</td><td style="color:var(--danger);font-weight:800;padding:6px 12px;">' + pct.toFixed(1) + '%</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['PREV 6M SQM'] || 0) * window.SQFT_PER_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['LAST 6M SQM'] || 0) * window.SQFT_PER_SQM) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + window.fmt.num((r['SQM CHANGE'] || 0) * window.SQFT_PER_SQM) + '</td><td style="color:var(--danger);font-weight:800;padding:6px 12px;">' + pct.toFixed(1) + '%</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
@@ -508,17 +501,6 @@ window.loadRFM = async function(page = 1) {
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
-};
-
-window.categoricalGroupBy = 'FINISH';
-
-window.setCategoricalGroup = function(g, btn) {
-  window.categoricalGroupBy = g;
-  document.querySelectorAll('#cat-group-toggles .btn').forEach(b => b.className = 'btn btn-sm btn-ghost');
-  if (btn) btn.className = 'btn btn-sm btn-primary';
-  const th = document.getElementById('th-cat-group');
-  if (th) th.innerText = g === 'THICKNESS TYPE' ? 'Thickness' : g === 'PRODUCT TYPE' ? 'Product Type' : g === 'SKU TYPE' ? 'SKU Type' : 'Finish';
-  window.loadCategoricalPerformance();
 };
 
 window.setTimeWiseGroup = function(g, btn) {
@@ -670,7 +652,15 @@ window.loadHodSkuSales = async function() {
     const payload = await window.api('getHodSkuPivotSales', { options: { timeGroup: timeGb } });
     let cols = payload.columns || [];
     let rawData = payload.rows || [];
-    
+
+    // Cladding is excluded from this analysis entirely, not merely hidden.
+    // Dropping the rows here — before the SKU columns and the per-period
+    // totals are built — means the remaining percentages re-normalise across
+    // the other SKU types and still add up to 100%.
+    rawData = rawData.filter(function (r) {
+      return String(r.SKU || '').trim().toUpperCase() !== 'CLADDING';
+    });
+
     if (!rawData || rawData.length === 0) {
       tb.innerHTML = window._emptyRow(10, 'No sales data found for this period.');
       return;
@@ -803,63 +793,6 @@ window.loadHodSkuSales = async function() {
   }
 };
 
-window.loadBrandFinish = async function() {
-  const kg = document.getElementById('prod-kpi-grid');
-  if (kg) kg.innerHTML = window._loadingRow(1);
-  try {
-    const [finishes, thicks, prods, skus] = await Promise.all([
-      window.api('getCategoricalPerformance', { options: { groupBy: 'FINISH' } }),
-      window.api('getCategoricalPerformance', { options: { groupBy: 'THICKNESS TYPE' } }),
-      window.api('getCategoricalPerformance', { options: { groupBy: 'PRODUCT TYPE' } }),
-      window.api('getCategoricalPerformance', { options: { groupBy: 'SKU TYPE' } })
-    ]);
-    
-    let totalSqft = 0, totalRev = 0, totalTxns = 0;
-    finishes.forEach(f => { totalSqft += f.TOTAL_SQFT; totalRev += f.NET_REVENUE; totalTxns += f.TXN_COUNT; });
-    
-    const topFinish = finishes.length ? finishes[0].CATEGORY : '-';
-    const topThick = thicks.length ? thicks[0].CATEGORY : '-';
-    const topProd = prods.length ? prods[0].CATEGORY : '-';
-    
-    let stdSqft = 0;
-    skus.forEach(s => { if(s.CATEGORY.indexOf('STANDARD') !== -1) stdSqft += s.TOTAL_SQFT; });
-    const stdMix = totalSqft > 0 ? ((stdSqft / totalSqft) * 100).toFixed(1) + '%' : '0%';
-
-    if (kg) {
-      kg.innerHTML = 
-          '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-receipt"></i></div><div class="kpi-label">Total Revenue</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.currency(totalRev) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-stack"></i></div><div class="kpi-label">Top Prod Type</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topProd + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#ec4899"><div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-paint-bucket"></i></div><div class="kpi-label">Top Finish</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topFinish + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent)"><i class="ph ph-line-segments"></i></div><div class="kpi-label">Top Thickness</div></div><div class="kpi-value" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + topThick + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-text)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-star"></i></div><div class="kpi-label">Standard Mix</div></div><div class="kpi-value" style="font-size:24px;">' + stdMix + '</div></div>';
-    }
-    
-    window.App.catDataCache = { 'FINISH': finishes, 'THICKNESS TYPE': thicks, 'PRODUCT TYPE': prods, 'SKU TYPE': skus };
-    window.loadCategoricalPerformance();
-    
-  } catch(e) { if(kg) kg.innerHTML = window._errorRow(1, e.message); }
-};
-
-window.loadCategoricalPerformance = function() {
-  const tbody = document.getElementById('tbl-cat-body'); if (!tbody) return;
-  const data = window.App.catDataCache ? window.App.catDataCache[window.categoricalGroupBy] : null;
-  if (!data || !data.length) { tbody.innerHTML = window._emptyRow(8, 'No data found.'); return; }
-  
-  const sq = (window.searchQueries['categorical'] || '').toLowerCase(); let rows = data;
-  if(sq) rows = rows.filter(r => (r.CATEGORY||'').toLowerCase().includes(sq));
-  
-  const totalSqft = rows.reduce((s, b) => s + (b.TOTAL_SQFT || 0), 0);
-  window.App.lastTableData['categorical'] = rows;
-  
-  let htmlStr = '';
-  rows.forEach(function(r, i) {
-    const share = totalSqft > 0 ? ((r.TOTAL_SQFT / totalSqft) * 100).toFixed(1) : '0.0';
-    htmlStr += '<tr><td style="padding:6px 12px;">' + (i + 1) + '</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.esc(r.CATEGORY || '-') + '</td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQFT) + '</td><td style="padding:6px 12px;"><div style="display:flex;align-items:center;gap:8px"><div style="height:5px;width:' + Math.min(80, Math.round(parseFloat(share))) + 'px;background:var(--accent2);border-radius:100px"></div><span style="font-size:11.5px;font-weight:600;color:var(--text-muted)">' + share + '%</span></div></td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TOTAL_QTY) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r.TXN_COUNT) + '</td><td style="font-weight:600;padding:6px 12px;">' + window.fmt.currency(r.NET_REVENUE) + '</td></tr>';
-  });
-  tbody.innerHTML = htmlStr;
-};
-
 window._cDefaults = function(extra) {
   extra = extra || {};
   const scales = Object.assign({ x: { ticks: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 600 } }, grid: { color: window.gc(), drawBorder: false } }, y: { ticks: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 600 } }, grid: { color: window.gc(), drawBorder: false } } }, extra.scales || {});
@@ -868,59 +801,6 @@ window._cDefaults = function(extra) {
     plugins: { legend: { labels: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 700 }, usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: window.ttBg(), titleColor: window.ttTitle(), bodyColor: window.tc(), borderColor: window.ttBorder(), borderWidth: 1, padding: 12, cornerRadius: 10, titleFont: { size: 13, family: 'Inter', weight: 700 }, bodyFont: { size: 12, family: 'Inter', weight: 600 } } },
     scales: scales
   }, extra);
-};
-
-window.renderBrandChart = function(brands) {
-  if (typeof Chart === 'undefined') return;
-  const ctx = document.getElementById('chart-brand'); if (!ctx) return;
-  const top = brands.slice(0, 8);
-  const palette = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#38bdf8', '#8b5cf6'];
-  
-  const allFinishes = new Set();
-  top.forEach(b => { if(b.finishes) Object.keys(b.finishes).forEach(f => allFinishes.add(f)); });
-  const fList = Array.from(allFinishes);
-  
-  const datasets = fList.map((fn, i) => {
-    return {
-      label: fn,
-      data: top.map(b => (b.finishes && b.finishes[fn]) ? b.finishes[fn] : 0),
-      backgroundColor: palette[i % palette.length],
-      borderRadius: 4
-    };
-  });
-
-  if (window.App.charts.brand) {
-      window.App.charts.brand.data.labels = top.map(b => b.BRAND);
-      window.App.charts.brand.data.datasets = datasets;
-      window.App.charts.brand.update('none'); 
-  } else {
-      window.App.charts.brand = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: top.map(b => b.BRAND), datasets: datasets },
-        options: window._cDefaults({ 
-          scales: { 
-            x: { stacked: true, ticks: { color: window.tc(), font: { size: 11, weight: 600 } }, grid: { display: false } }, 
-            y: { stacked: true, ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } } 
-          }, 
-          plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: {size: 11, weight: 600}, color: window.tc() } }, tooltip: { mode: 'index', intersect: false } } 
-        })
-      });
-  }
-};
-
-window.renderFinishChart = function(finishes) {
-  if (typeof Chart === 'undefined') return;
-  const ctx = document.getElementById('chart-finish'); if (!ctx) return;
-  const palette = ['#38bdf8','#a855f7','#10b981','#f59e0b','#ef4444','#ec4899','#6366f1','#14b8a6'];
-  if (window.App.charts.finish) {
-      window.App.charts.finish.data.labels = finishes.map(f => f.FINISH); window.App.charts.finish.data.datasets[0].data = finishes.map(f => f.TOTAL_SQFT); window.App.charts.finish.data.datasets[0].backgroundColor = finishes.map((_, i) => palette[i % palette.length]); window.App.charts.finish.update('none');
-  } else {
-      window.App.charts.finish = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels: finishes.map(f => f.FINISH), datasets: [{ data: finishes.map(f => f.TOTAL_SQFT), backgroundColor: finishes.map((_, i) => palette[i % palette.length]), borderWidth: 2, borderColor: window.doughnutBorder(), hoverOffset: 6 }] },
-        options: { cutout: '60%', responsive: true, maintainAspectRatio: false, plugins: { legend:  { position: 'right', labels: { color: window.tc(), font: { size: 11, family: 'Inter', weight: 600 }, usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: window.ttBg(), titleColor: window.ttTitle(), bodyColor: window.tc(), borderColor: window.ttBorder(), borderWidth: 1, padding: 12, callbacks: { label: function(c) { return ' ' + c.label + ': ' + window.fmt.num(c.raw) + ' sq ft'; } } } } }
-      });
-  }
 };
 
 window.loadProductType = async function() {
@@ -959,28 +839,8 @@ window.loadProductType = async function() {
   } catch(e) { tbody.innerHTML = window._errorRow(1, e.message); }
 };
 
-window.renderProdTypeChart = function(rows) {
-  if (typeof Chart === 'undefined') return;
-  const ctx = document.getElementById('chart-prodtype'); if (!ctx) return;
-  const palette = ['#38bdf8','#a855f7','#10b981','#f59e0b','#ef4444','#ec4899'];
-  if (window.App.charts.prodtype) {
-      window.App.charts.prodtype.data.labels = rows.map(r => r.PRODUCT_TYPE); window.App.charts.prodtype.data.datasets[0].data = rows.map(r => r.TOTAL_SQFT); window.App.charts.prodtype.data.datasets[0].backgroundColor = rows.map((_, i) => palette[i % palette.length]); window.App.charts.prodtype.update('none');
-  } else {
-      window.App.charts.prodtype = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: rows.map(r => r.PRODUCT_TYPE), datasets: [{ label: 'SQ FT', data: rows.map(r => r.TOTAL_SQFT), backgroundColor: rows.map((_, i) => palette[i % palette.length]), borderRadius: 6 }] },
-        options: window._cDefaults({ scales: { x: { ticks: { color: window.tc(), font: { size: 11, weight: 600 }, maxRotation: 35 }, grid: { display: false } }, y: { ticks: { color: window.tc(), font: { size: 11, weight: 600 }, callback: function(v) { return window.fmtK(v); } }, grid: { color: window.gc(), drawBorder: false } } }, plugins: { legend: { display: false } } })
-      });
-  }
-};
-
 window.setSkuBrand = function(b, btn) {
   window.skuBrandFilter = b; document.querySelectorAll('#sku-brand-filter .btn').forEach(function(x) { x.className = 'btn btn-sm btn-ghost'; });
-  if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadTopSKUs(1);
-};
-
-window.setSkuType = function(t, btn) {
-  window.skuTypeFilter = t; document.querySelectorAll('#page-topsku .btn-group:last-of-type .btn').forEach(function(x) { x.className = 'btn btn-sm btn-ghost'; });
   if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadTopSKUs(1);
 };
 
@@ -1055,14 +915,6 @@ window.renderParetoChart = function(rows) {
   }
 };
 
-window._sparklineLine = function(data, color, gid) {
-  if (!data || data.length < 2) return '';
-  const max = Math.max.apply(null, data) || 1; const min = Math.min.apply(null, data); const range = (max - min) || max || 1; const W = 100, H = 34, n = data.length;
-  const pts = data.map(function(v, i) { return (i / (n - 1) * W).toFixed(1) + ',' + (H - 4 - ((v - min) / range) * (H - 8)).toFixed(1); });
-  const pStr = pts.join(' '); const last = pts[pts.length - 1].split(',');
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:34px;display:block;margin-top:5px;margin-bottom:auto;"><defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + color + '" stop-opacity="0.2"/><stop offset="100%" stop-color="' + color + '" stop-opacity="0"/></linearGradient></defs><polygon points="0,' + H + ' ' + pStr + ' ' + W + ',' + H + '" fill="url(#' + gid + ')"/><polyline points="' + pStr + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="3" fill="' + color + '"/></svg>';
-};
-
 window._sparklineBar = function(data, color) {
   if (!data || !data.length) return '';
   const max = Math.max.apply(null, data) || 1; 
@@ -1081,18 +933,6 @@ window._sparklineBar = function(data, color) {
   return svg + '</svg>';
 };
 
-window._progressBar = function(current, target, color, label) {
-  const pct = target > 0 ? Math.min(100, Math.round(current / target * 100)) : 0;
-  return '<div style="margin-top:6px;margin-bottom:auto"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">' + label + '</span><span style="font-size:10.5px;font-weight:700;color:' + color + '">' + pct + '%</span></div><div style="height:6px;background:var(--bg-hover);border-radius:100px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:100px;transition:width .8s cubic-bezier(.16,1,.3,1)"></div></div></div>';
-};
-
-window._riskBar = function(n90, n120, n180) {
-  const total = (n90 || 0) + (n120 || 0) + (n180 || 0);
-  if (!total) return '<div class="kpi-footer"><div class="kpi-sub">No inactive customers</div></div>';
-  const p90  = Math.round((n90  / total) * 100); const p120 = Math.round((n120 / total) * 100); const p180 = 100 - p90 - p120;
-  return '<div style="margin-top:auto"><div style="display:flex;gap:4px;height:8px;border-radius:100px;"><div style="width:' + p90  + '%;background:#f97316;border-radius:100px;"></div><div style="width:' + p120 + '%;background:#ef4444;border-radius:100px;"></div><div style="width:' + p180 + '%;background:#991b1b;border-radius:100px;"></div></div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span style="font-size:10px;color:#f97316;font-weight:700">● ' + n90  + ' <span style="color:var(--text-muted)">90d</span></span><span style="font-size:10px;color:var(--danger);font-weight:700">● ' + n120 + ' <span style="color:var(--text-muted)">120d</span></span><span style="font-size:10px;color:#fca5a5;font-weight:700">● ' + n180 + ' <span style="color:var(--text-muted)">180d+</span></span></div></div>';
-};
-
 // ═══════════════════════════════════════════════════════════
 // renderKPIs — Completely updated per your new requirements
 // ═══════════════════════════════════════════════════════════
@@ -1103,7 +943,7 @@ window.renderKPIs = function(k, monthly) {
   monthly.forEach(function(r) {
     const fy = window.getRowFY(r);
     if (!fyData[fy]) fyData[fy] = { sqft: 0, rev: 0, months: new Set(), byIdx: {} };
-    const sq = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391);
+    const sq = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM);
     fyData[fy].sqft += sq;
     fyData[fy].rev  += Number(r['NET REVENUE']) || 0;
     const sk = window.getSortKey(r);
@@ -1124,7 +964,7 @@ window.renderKPIs = function(k, monthly) {
   const prevYrSqft    = prevFy && fyData[prevFy] ? fyData[prevFy].sqft : 0;
   const currYrRev     = currentFy !== 'N/A' ? (fyData[currentFy].rev || 0) : 0;
   const yrGrowth      = prevYrSqft ? ((currYrSqft - prevYrSqft) / prevYrSqft * 100) : 0;
-  const currYrSqm     = Math.round(currYrSqft / 10.76391);
+  const currYrSqm     = Math.round(currYrSqft / window.SQFT_PER_SQM);
 
   // ── Like-for-like YTD: current FY vs the SAME months of the previous FY ────
   // Comparing a part-year against a full prior year understates growth, so we
@@ -1166,9 +1006,9 @@ window.renderKPIs = function(k, monthly) {
   const avgSqftGrowth = prevYrAvgSqft ? +((currYrAvgSqft - prevYrAvgSqft) / prevYrAvgSqft * 100).toFixed(1) : 0;
 
   const sortedM    = monthly.slice().sort((a, b) => window.getSortKey(b).localeCompare(window.getSortKey(a)));
-  const currMoSqft = sortedM[0] ? (Number(sortedM[0]['SQ FT.']) || ((Number(sortedM[0]['TOTAL SQM']) || 0) * 10.76391)) : 0;
-  const prevMoSqft = sortedM[1] ? (Number(sortedM[1]['SQ FT.']) || ((Number(sortedM[1]['TOTAL SQM']) || 0) * 10.76391)) : 0;
-  const currMoSqm  = Math.round(currMoSqft / 10.76391);
+  const currMoSqft = sortedM[0] ? (Number(sortedM[0]['SQ FT.']) || ((Number(sortedM[0]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
+  const prevMoSqft = sortedM[1] ? (Number(sortedM[1]['SQ FT.']) || ((Number(sortedM[1]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
+  const currMoSqm  = Math.round(currMoSqft / window.SQFT_PER_SQM);
 
   function _dlt(v) {
     if (v === null || v === undefined || isNaN(v)) return '';
@@ -1569,7 +1409,7 @@ window.renderMonthlyChart = function(rows) {
   const displayRows = showAllTime ? filtered : filtered.slice(-12);
   displayRows.forEach(function(r) { 
     labels.push(window.getAxisLabel(r)); 
-    sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391)); 
+    sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)); 
   });
   
   if (window.App.charts.monthly) {
@@ -1698,7 +1538,7 @@ window.renderQoQChart = function(monthly) {
         q = match ? 'Q' + match[1] : 'Q1';
     }
     if (!fy || !q) return;
-    const sqft = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * 10.76391);
+    const sqft = Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM);
     fySet.add(fy);
     if (!dataMap[q][fy]) dataMap[q][fy] = 0;
     dataMap[q][fy] += sqft;

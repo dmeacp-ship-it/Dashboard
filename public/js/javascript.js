@@ -71,11 +71,14 @@ window.applyMultiSort = function(data, tableId) {
 };
 window.inactiveDays    = 90;
 window.rfmSegFilter    = 'All';
-window.prodSort        = 'sqm';
 window.skuBrandFilter  = 'All';
 window.skuTypeFilter   = 'All';
 window.hodView         = 'quarter';
 
+// Square feet per square metre. Mirrors SQFT_PER_SQM in src/config.js and the
+// database trigger -- keep all three in step so stored and recomputed sq ft
+// figures agree.
+window.SQFT_PER_SQM = 10.764;
 window.custSaleView    = 'quarter';
 window.custSalePage    = 1;
 window.skuTypeSaleView = 'quarter';
@@ -93,14 +96,13 @@ window.scrollTableHoriz = function(pageId, offset) {
   if (wrap) wrap.scrollBy({ left: offset, behavior: 'smooth' });
 };
 
-window.searchQueries   = { hodqoq: '', custqoq: '', skutypeqoq: '', outstanding: '', targets: '', hodtargets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
+window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', skutypeqoq: '', outstanding: '', targets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
 window.outstandingPage = 1;
 
 window.copilotHistory = [];
 window.tableAIHistory = {};
 
 window.MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-window._kpiTooltips = [];
 window._appReady    = false;
 
 /* ── Keyboard accessibility ─────────────────────────────────────────────────
@@ -215,8 +217,6 @@ window.gc = function() { return window.theme() === 'light' ? 'rgba(0,0,0,0.06)' 
 window.ttBg = function() { return window.theme() === 'light' ? 'rgba(255,255,255,0.98)' : 'rgba(17,24,39,0.98)'; };
 window.ttTitle = function() { return window.theme() === 'light' ? '#111827' : '#f9fafb'; };
 window.ttBorder = function() { return window.theme() === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'; };
-window.doughnutBorder = function() { return window.theme() === 'light' ? '#ffffff' : '#1f2937'; };
-
 window.applyTheme = function(t) {
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('acp-theme', t);
@@ -225,6 +225,18 @@ window.applyTheme = function(t) {
   const hIcon = document.getElementById('header-theme-icon');
   if (hIcon) hIcon.className = t === 'dark' ? 'ph ph-sun-dim' : 'ph ph-moon';
   if (window._appReady && window.loadPage) window.loadPage(window.App.currentPage, 1, true); 
+};
+
+// A ViewTransition exposes three promises (ready, updateCallbackDone,
+// finished). Starting a transition while another is still running rejects
+// them with InvalidStateError even though the DOM update itself still runs, so
+// every one has to be silenced or it surfaces as an unhandled rejection.
+window._settleViewTransition = function (vt) {
+  if (!vt) return vt;
+  ['ready', 'updateCallbackDone', 'finished'].forEach(function (k) {
+    if (vt[k] && typeof vt[k].catch === 'function') vt[k].catch(function () {});
+  });
+  return vt;
 };
 
 window.toggleTheme = function(event) { 
@@ -245,9 +257,9 @@ window.toggleTheme = function(event) {
   document.documentElement.style.setProperty('--x', `${x}px`);
   document.documentElement.style.setProperty('--y', `${y}px`);
   
-  document.startViewTransition(function() {
+  window._settleViewTransition(document.startViewTransition(function() {
     window.applyTheme(targetTheme);
-  });
+  }));
 };
 
 window.initTheme = function() {
@@ -269,14 +281,17 @@ window.handleSearch = function(pageId) {
       window.searchQueries[pageId] = input.value.trim();
       if (pageId === 'outstanding') window.outstandingPage = 1;
       if (pageId === 'custqoq')     window.custSalePage    = 1;
+      if (pageId === 'execqoq')     window.execSalePage    = 1;
+      if (pageId === 'projqoq' && window._personTables) window._personTables.projqoq.page = 1;
       if (pageId === 'skutypeqoq')  window.skuTypeSalePage = 1;
       if (pageId === 'targets')     window.targetPage      = 1;
-      if (pageId === 'hodtargets')  window.hodTargetPage   = 1;
       
       if (pageId === 'outstanding' && window._renderOutstandingTable) window._renderOutstandingTable();
       else if (pageId === 'targets' && window.loadTargets) window.loadTargets(1);
-      else if (pageId === 'hodtargets' && window.loadHodTargets) window.loadHodTargets(1);
       else if (pageId === 'custqoq' && window.loadCustSale) window.loadCustSale(1);
+      else if (pageId === 'execqoq' && window.loadExecSale) window.loadExecSale(1);
+      else if (pageId === 'tgtactual' && window.loadTargetActual) window.loadTargetActual();
+      else if (pageId === 'projqoq' && window.loadProjSale) window.loadProjSale(1);
       else if (pageId === 'skutypeqoq' && window.loadSkuTypeSale) window.loadSkuTypeSale(1);
       else if (pageId === 'customers' && window.loadTopCustomers) window.loadTopCustomers(1);
       else if (pageId === 'rfm' && window.loadRFM) window.loadRFM(1);
@@ -685,12 +700,6 @@ window.closeModal = function() {
 window.confirmModalAction = function() { 
   if (window._modalCb) window._modalCb(); 
   window.closeModal(); 
-};
-
-window.openSettingsModal = function() {
-  if (typeof window.navigate === 'function') {
-    window.navigate('settings');
-  }
 };
 
 window.closeSettingsModal = function() {
@@ -1195,8 +1204,10 @@ window.saveGoogleSheetsConfig = function() {
 window._EXPORT_TABLES = {
   'tbl-outstanding-body': { key: 'outstanding', reload: function () { return window._renderOutstandingTable(); } },
   'tbl-custqoq-body':     { key: 'custqoq',     reload: function () { return window.loadCustSale(window.custSalePage || 1); } },
+  'tbl-execqoq-body':     { key: 'execqoq',     reload: function () { return window.loadExecSale(window.execSalePage || 1); } },
+  'tbl-tgtactual-body':   { key: 'tgtactual',   reload: function () { return window.loadTargetActual(); } },
+  'tbl-projqoq-body':     { key: 'projqoq',     reload: function () { return window.loadProjSale(1); } },
   'tbl-targets-body':     { key: 'targets',     reload: function () { return window.loadTargets(window.targetPage || 1); } },
-  'tbl-targets-hod-body': { key: 'hodtargets',  reload: function () { return window.loadHodTargets(window.hodTargetPage || 1); } },
   'tbl-customers-body':   { key: 'customers',   reload: function () { return window.loadTopCustomers(1); } },
   'tbl-rfm-body':         { key: 'rfm',         reload: function () { return window.loadRFM(1); } },
   'tbl-declining-body':   { key: 'declining',   reload: function () { return window.loadDeclining(1); } },
@@ -1458,7 +1469,7 @@ window.applyRoleSimulation = function() {
 
 window.navigate = function(pageId) {
   if (document.startViewTransition) {
-    document.startViewTransition(function() { window._doNavigate(pageId); });
+    window._settleViewTransition(document.startViewTransition(function() { window._doNavigate(pageId); }));
   } else {
     window._doNavigate(pageId);
   }
@@ -1508,13 +1519,15 @@ window.loadPage = function(id, page = 1, useCache = false) {
     overview:     () => typeof window.loadOverview === 'function' ? window.loadOverview(useCache) : null,
     hodqoq:       () => typeof window.loadHODQoQ === 'function' ? window.loadHODQoQ() : null,
     custqoq:      () => typeof window.loadCustSale === 'function' ? window.loadCustSale(page) : null, 
+    execqoq:      () => typeof window.loadExecSale === 'function' ? window.loadExecSale(page) : null,
+    tgtactual:    () => typeof window.loadTargetActual === 'function' ? window.loadTargetActual() : null,
+    projqoq:      () => typeof window.loadProjSale === 'function' ? window.loadProjSale(page) : null,
     settings:     () => { 
       if (typeof window.loadUsers === 'function') window.loadUsers(); 
       if (typeof window.loadGoogleSheetsConfig === 'function') window.loadGoogleSheetsConfig(); 
       if (typeof window.loadConnectionsConfig === 'function') window.loadConnectionsConfig();
     },
     skutypeqoq:   () => typeof window.loadSkuTypeSale === 'function' ? window.loadSkuTypeSale(page) : null, 
-    hodtargets:   () => typeof window.loadHodTargets === 'function' ? window.loadHodTargets(page) : null,
     targets:      () => typeof window.loadTargets === 'function' ? window.loadTargets(page) : null,
     outstanding:  () => typeof window.loadOutstanding === 'function' ? window.loadOutstanding() : null,
     pareto:       () => typeof window.loadTopCustomers === 'function' ? window.loadTopCustomers(page) : null,
@@ -1532,7 +1545,6 @@ window.loadPage = function(id, page = 1, useCache = false) {
   if (loaders[id] && typeof loaders[id] === 'function') loaders[id]();
 };
 
-window.toggleAnalytics = function(btn)  { btn.classList.toggle('open'); document.getElementById('analytics-submenu').classList.toggle('open'); };
 window.togglePopover = function(btn, menuId, e) {
   e.stopPropagation();
   const menu = document.getElementById(menuId);
@@ -1560,8 +1572,6 @@ document.addEventListener('click', function(e) {
 window.actionAppend = function(e) { if (e) e.stopPropagation(); window.closeSettingsModal(); window.triggerAggregation(); };
 window.actionCache = function(e)  { if (e) e.stopPropagation(); window.closeSettingsModal(); if(window.debouncedCacheUpdate) window.debouncedCacheUpdate(); };
 window.actionReset = function(e)  { if (e) e.stopPropagation(); window.closeSettingsModal(); window.triggerReset(); };
-window.actionLogout = function(e) { if (e) e.stopPropagation(); window.closeSettingsModal(); window.toast('Logging out securely...', 'success'); };
-
 window.actionSyncOutstanding = function(e) {
   if (e) e.stopPropagation();
   window.closeSettingsModal();
@@ -1596,7 +1606,7 @@ window.actionSyncTargets = function(e) {
         .then(function(res) {
           window.loading(false);
           window.toast((res && res.message) ? res.message : 'Targets sync complete!', 'success', 6000);
-          if ((window.App.currentPage === 'targets' || window.App.currentPage === 'hodtargets') && window.loadPage) window.loadPage(window.App.currentPage);
+          if (window.App.currentPage === 'targets' && window.loadPage) window.loadPage(window.App.currentPage);
         })
         .catch(function(err) {
           window.loading(false);

@@ -98,11 +98,11 @@
             <span class="nav-chevron"><i class="ph ph-caret-right"></i></span>
           </div>
           <div class="nav-submenu" id="target-achv-submenu">
-            <div class="nav-item" data-page="hodtargets" onclick="navigate('hodtargets')">
-              <span class="nav-label">HOD Wise</span>
-            </div>
             <div class="nav-item" data-page="targets" onclick="navigate('targets')">
               <span class="nav-label">Executive Wise</span>
+            </div>
+            <div class="nav-item" data-page="tgtactual" onclick="navigate('tgtactual')">
+              <span class="nav-label">HOD Target vs Sales</span>
             </div>
           </div>
         </div>
@@ -116,6 +116,12 @@
           <div class="nav-submenu" id="sale-perf-submenu">
             <div class="nav-item" data-page="hodqoq" onclick="navigate('hodqoq')">
               <span class="nav-label">HOD Sales</span>
+            </div>
+            <div class="nav-item" data-page="execqoq" onclick="navigate('execqoq')">
+              <span class="nav-label">Executive Sales</span>
+            </div>
+            <div class="nav-item" data-page="projqoq" onclick="navigate('projqoq')">
+              <span class="nav-label">Project Sales</span>
             </div>
             <div class="nav-item" data-page="custqoq" onclick="navigate('custqoq')">
               <span class="nav-label">Customer Sales</span>
@@ -314,7 +320,7 @@
             <span class="table-title"><i class="ph ph-users-three"></i> HOD Performance</span>
             <div style="position:relative; margin-left:auto;">
               <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-              <input type="text" id="search-hodqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or State..." onkeyup="handleSearch('hodqoq')">
+              <input type="text" id="search-hodqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or HOD State..." onkeyup="handleSearch('hodqoq')">
             </div>
             <div class="btn-group" id="hod-toggles" style="margin-left:12px;"></div>
             <div class="btn-group comp-toggles" style="margin-left:8px;">
@@ -369,51 +375,69 @@
         </div>
       </section>
 
-      <section id="page-hodtargets" class="page">
-        <div id="hod-targets-kpi-grid" class="kpi-grid stagger-1"></div>
-        <div class="table-card stagger-2">
+      <section id="page-execqoq" class="page">
+        <div class="table-card stagger-1">
           <div class="table-toolbar">
-            <span class="table-title"><i class="ph ph-crosshair"></i> HOD Wise Targets</span>
+            <span class="table-title"><i class="ph ph-user-focus"></i> Executive Wise Sale</span>
             <div style="position:relative; margin-left:auto;">
               <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-              <input type="text" id="search-hodtargets" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or State..." onkeyup="handleSearch('hodtargets')">
+              <input type="text" id="search-execqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Executive, HOD, or State..." onkeyup="handleSearch('execqoq')">
             </div>
-            <div class="btn-group" id="hodtarget-toggles" style="margin-left:12px;">
-              <button class="btn btn-sm btn-primary" id="hodtarget-btn-month" onclick="setHodTargetView('month',this)">Month</button>
-              <button class="btn btn-sm btn-ghost" id="hodtarget-btn-quarter" onclick="setHodTargetView('quarter',this)">Quarter</button>
-              <button class="btn btn-sm btn-ghost" id="hodtarget-btn-year" onclick="setHodTargetView('year',this)">Year</button>
-            </div>
-            <select id="hodtarget-fy-select" class="form-select" style="padding:4px 10px; font-size:12px; min-height:30px; border-radius:100px; margin-left:6px; background:var(--bg-elevated);" onchange="window.setHodTargetFY(this.value)">
-              <option value="All">All FYs (24 Months)</option>
-              <option value="FY 26-27">FY 26-27</option>
-              <option value="FY 25-26">FY 25-26</option>
-            </select>
-            <div class="btn-group" style="margin-left:4px;">
-              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-hodtargets', -350)"><i class="ph ph-caret-left"></i></button>
-              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-hodtargets', 350)"><i class="ph ph-caret-right"></i></button>
+            <div class="btn-group" id="execqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setExecView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setExecView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setExecView('year',this)">Year</button>
             </div>
             <div class="btn-group comp-toggles" style="margin-left:8px;">
               <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
               <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
             </div>
-            <div class="btn-group" id="density-toggles-hodtargets" style="margin-left:8px;">
-              <button class="btn btn-sm btn-primary btn-density-simple" title="Simple Mode: Actual + Badge" onclick="setTargetDensity('simple', this)">Simple</button>
-              <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
-            </div>
-            <select id="hodtarget-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadHodTargets(1)"></select>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('hodtargets', 'HOD Targets')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('hodtargets', 'tbl-targets-hod-head', function(){ window.loadHodTargets(window.hodTargetPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-targets-hod-head', 'tbl-targets-hod-body', 'HOD_Targets_Wise')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon" style="color:var(--brand-primary);" onclick="actionSyncTargets(event)" title="Sync" aria-label="Sync"><i class="ph ph-arrows-clockwise"></i></button>
+            <select id="exec-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadExecSale(window.execSalePage || 1)"></select>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('execqoq', 'Executive Wise Sale')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('execqoq', 'tbl-execqoq-head', function(){ window.loadExecSale(window.execSalePage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-execqoq-head', 'tbl-execqoq-body', 'Executive_Wise_Sale')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
-              <thead id="tbl-targets-hod-head"></thead>
-              <tbody id="tbl-targets-hod-body"></tbody>
+              <thead id="tbl-execqoq-head"></thead>
+              <tbody id="tbl-execqoq-body"></tbody>
             </table>
           </div>
-          <div id="pagination-hodtargets"></div>
+          <div id="pagination-execqoq"></div>
+        </div>
+      </section>
+
+      <section id="page-projqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-buildings"></i> Project Wise Sale</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-projqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Project Executive, HOD, or State..." onkeyup="handleSearch('projqoq')">
+            </div>
+            <div class="btn-group" id="projqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setProjView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setProjView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setProjView('year',this)">Year</button>
+            </div>
+            <div class="btn-group comp-toggles" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <select id="proj-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadProjSale(window._personTables.projqoq.page || 1)"></select>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('projqoq', 'Project Wise Sale')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('projqoq', 'tbl-projqoq-head', function(){ window.loadProjSale(window._personTables.projqoq.page||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-projqoq-head', 'tbl-projqoq-body', 'Project_Wise_Sale')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table style="border-collapse:separate">
+              <thead id="tbl-projqoq-head"></thead>
+              <tbody id="tbl-projqoq-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-projqoq"></div>
         </div>
       </section>
 
@@ -464,6 +488,34 @@
           <div id="pagination-targets"></div>
         </div>
       </section>
+
+      <section id="page-tgtactual" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-target"></i> HOD Target vs Sales</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-tgtactual" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:240px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search HOD or HOD State..." onkeyup="handleSearch('tgtactual')">
+            </div>
+            <div class="btn-group" id="tgtactual-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setTgtActualView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setTgtActualView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setTgtActualView('year',this)">Year</button>
+            </div>
+            
+            <button class="btn btn-sm btn-ghost btn-icon" onclick="openTableAI('tgtactual', 'HOD Target vs Sales')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" onclick="exportTableToCSV('tbl-tgtactual-head', 'tbl-tgtactual-body', 'HOD_Target_vs_Sales')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table style="border-collapse:separate">
+              <thead id="tbl-tgtactual-head"></thead>
+              <tbody id="tbl-tgtactual-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-tgtactual"></div>
+        </div>
+      </section>
+
 
       <section id="page-outstanding" class="page">
         <div id="outstanding-kpi-grid" class="kpi-grid stagger-1"></div>
@@ -523,7 +575,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>HOD Name</th><th>SQ FT</th><th>SQM</th><th>Txns</th><th>Last Purchase</th><th>Days</th></tr></thead>
+                <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>HOD Name</th><th>SQ FT</th><th>SQM</th><th>Txns</th><th>Last Purchase</th><th>Days</th></tr></thead>
                 <tbody id="tbl-customers-body"></tbody>
               </table>
             </div>
@@ -554,7 +606,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>R/F Summary</th><th>SQ FT</th><th>Scores</th><th>Total/15</th><th>Segment</th></tr></thead>
+                <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>R/F Summary</th><th>SQ FT</th><th>Scores</th><th>Total/15</th><th>Segment</th></tr></thead>
                 <tbody id="tbl-rfm-body"></tbody>
               </table>
             </div>
@@ -585,7 +637,7 @@
                </div>
                <div class="table-wrap">
                  <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Prev 6M SQ FT</th><th>Last 6M SQ FT</th><th>Change</th><th>Decline %</th><th>Category</th></tr></thead>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Prev 6M SQ FT</th><th>Last 6M SQ FT</th><th>Change</th><th>Decline %</th><th>Category</th></tr></thead>
                    <tbody id="tbl-declining-body"></tbody>
                  </table>
                </div>
@@ -617,7 +669,7 @@
                </div>
                <div class="table-wrap">
                  <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Last Purchase</th><th>Days Inactive</th><th>Lifetime SQ FT</th><th>Txns</th><th>Category</th></tr></thead>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Last Purchase</th><th>Days Inactive</th><th>Lifetime SQ FT</th><th>Txns</th><th>Category</th></tr></thead>
                    <tbody id="tbl-inactive-body"></tbody>
                  </table>
                </div>
@@ -645,7 +697,7 @@
                </div>
                <div class="table-wrap">
                  <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>State</th><th>Lifetime SQ FT</th><th>Last Purchase</th><th>Days Inactive</th><th>Percentile</th></tr></thead>
+                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Lifetime SQ FT</th><th>Last Purchase</th><th>Days Inactive</th><th>Percentile</th></tr></thead>
                    <tbody id="tbl-losthv-body"></tbody>
                  </table>
                </div>
@@ -1434,9 +1486,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=97504cf6"></script>
-<script defer src="/js/javascript1.min.js?v=2ece62c4"></script>
-<script defer src="/js/javascript2.min.js?v=145b1315"></script>
+<script defer src="/js/javascript.min.js?v=494e8441"></script>
+<script defer src="/js/javascript1.min.js?v=96a5ca5e"></script>
+<script defer src="/js/javascript2.min.js?v=9b057d13"></script>
 <script defer src="/js/fms.min.js?v=5605d69c"></script>
 
 </body>
