@@ -731,25 +731,24 @@ window.addConnectionRow = function(id = '', name = '', url = '', key = '', isAct
   const row = document.createElement('div');
   row.className = 'cfg-conn-row';
   row.dataset.id = rowId;
-  row.style = 'border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--surface1);display:flex;flex-direction:column;gap:8px;position:relative;';
+  row.dataset.active = isActive ? 'true' : 'false';
+  row.style = 'border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg-surface);display:flex;flex-direction:column;gap:8px;position:relative;';
   
-  let activeBadge = isActive ? '<span style="position:absolute;top:12px;right:12px;background:var(--primary);color:white;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;">ACTIVE</span>' : '';
-  let setActiveBtn = !isActive ? `<button class="btn btn-ghost btn-sm" onclick="setConnectionActive('${rowId}')"><i class="ph ph-check-circle"></i> Set Active</button>` : '';
+  let activeBadge = isActive ? '<span style="position:absolute;top:10px;right:12px;background:var(--brand-primary, #4f46e5);color:white;font-size:9.5px;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:0.04em;" class="active-badge">ACTIVE</span>' : '';
+  let setActiveBtn = !isActive ? `<button type="button" class="btn btn-ghost btn-sm" style="height:28px;padding:0 8px;font-size:11.5px;" onclick="setConnectionActive('${rowId}')"><i class="ph ph-check-circle"></i> Set Active</button>` : '';
 
   row.innerHTML = `
     ${activeBadge}
-    <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Connection Name</label><input type="text" class="form-input conn-name" placeholder="e.g. Primary Database" value="${window.esc(name)}" /></div>
+    <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:8px;padding-right:${isActive ? '70px' : '0'};">
+      <div><label style="font-size:9.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Connection Name</label><input type="text" class="form-input conn-name" style="height:32px;font-size:12px;margin-top:2px;" placeholder="Primary Database" value="${window.esc(name)}" /></div>
+      <div><label style="font-size:9.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Supabase URL</label><input type="text" class="form-input conn-url" style="height:32px;font-size:11.5px;font-family:monospace;margin-top:2px;" placeholder="https://xyz.supabase.co" value="${window.esc(url)}" /></div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase URL</label><input type="text" class="form-input conn-url" placeholder="https://..." value="${window.esc(url)}" /></div>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <div style="flex:1;"><label style="font-size:10px;color:var(--text3);">Supabase Key</label><input type="password" class="form-input conn-key" placeholder="eyJ..." value="${window.esc(key)}" /><div style="font-size:10px;color:var(--text3);margin-top:3px;">Stored keys are masked. Leave as-is to keep the current key; type a new one to replace it.</div></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
-      ${setActiveBtn}
-      <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="this.closest('.cfg-conn-row').remove()"><i class="ph ph-trash"></i> Remove</button>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:flex-end;">
+      <div><label style="font-size:9.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Supabase Key (Anon / Service)</label><input type="password" class="form-input conn-key" style="height:32px;font-size:11.5px;font-family:monospace;margin-top:2px;" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${window.esc(key)}" /></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${setActiveBtn}
+        <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);height:28px;padding:0 8px;font-size:11.5px;" onclick="this.closest('.cfg-conn-row').remove()"><i class="ph ph-trash"></i> Remove</button>
+      </div>
     </div>
   `;
   container.appendChild(row);
@@ -758,19 +757,19 @@ window.addConnectionRow = function(id = '', name = '', url = '', key = '', isAct
 window.setConnectionActive = function(rowId) {
   document.querySelectorAll('.cfg-conn-row').forEach(row => {
     const isThisRow = row.dataset.id === rowId;
-    const oldBadge = row.querySelector('span');
-    if (oldBadge && oldBadge.textContent === 'ACTIVE') oldBadge.remove();
+    const oldBadge = row.querySelector('.active-badge');
+    if (oldBadge) oldBadge.remove();
     
-    const btnsDiv = row.querySelector('div:last-child');
+    const btnsDiv = row.querySelector('div:last-child > div:last-child') || row.querySelector('div:last-child');
     if (isThisRow) {
-      row.insertAdjacentHTML('beforeend', '<span style="position:absolute;top:12px;right:12px;background:var(--primary);color:white;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;" class="active-badge">ACTIVE</span>');
+      row.insertAdjacentHTML('beforeend', '<span style="position:absolute;top:10px;right:12px;background:var(--brand-primary, #4f46e5);color:white;font-size:9.5px;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:0.04em;" class="active-badge">ACTIVE</span>');
       const setBtn = btnsDiv.querySelector('button:not([style*="color:var(--danger)"])');
       if (setBtn) setBtn.remove();
       row.dataset.active = 'true';
     } else {
       row.dataset.active = 'false';
       if (!btnsDiv.querySelector('button:not([style*="color:var(--danger)"])')) {
-        btnsDiv.insertAdjacentHTML('afterbegin', `<button class="btn btn-ghost btn-sm" onclick="setConnectionActive('${row.dataset.id}')"><i class="ph ph-check-circle"></i> Set Active</button>`);
+        btnsDiv.insertAdjacentHTML('afterbegin', `<button type="button" class="btn btn-ghost btn-sm" style="height:28px;padding:0 8px;font-size:11.5px;" onclick="setConnectionActive('${row.dataset.id}')"><i class="ph ph-check-circle"></i> Set Active</button>`);
       }
     }
   });
@@ -876,42 +875,64 @@ window.addSourceSheetRow = function(fy = '', id = '', name = '') {
   const container = document.getElementById('cfg-raw-sheets-container');
   if (!container) return;
   const row = document.createElement('div');
-  row.style = 'display:flex;gap:10px;align-items:center;';
+  row.style = 'display:grid; grid-template-columns:120px 1fr 180px 96px; gap:8px; align-items:center;';
   row.className = 'cfg-raw-sheet-row';
   row.innerHTML = `
-    <input type="text" class="form-input" style="flex:0.3" placeholder="FY 24-25" value="${fy}" />
-    <input type="text" class="form-input" style="flex:1" placeholder="Sheet ID" value="${id}" />
-    <input type="text" class="form-input" style="flex:0.6" placeholder="Sheet Name" value="${name}" />
-    <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="this.parentElement.remove()"><i class="ph ph-trash"></i></button>
+    <input type="text" class="form-input" style="height:32px; font-size:12px; font-weight:600;" placeholder="FY 24-25" value="${window.esc(fy)}" />
+    <input type="text" class="form-input" style="height:32px; font-size:11px; font-family:monospace;" placeholder="Google Spreadsheet ID" value="${window.esc(id)}" />
+    <input type="text" class="form-input" style="height:32px; font-size:12px;" placeholder="RAW DATA" value="${window.esc(name)}" />
+    <div style="display:flex; gap:3px; justify-content:flex-end;">
+      <button type="button" class="btn btn-ghost btn-sm" title="Move Up" style="padding:4px 6px; height:32px; font-size:13px;" onclick="window.moveSourceSheetRowUp(this)"><i class="ph ph-caret-up"></i></button>
+      <button type="button" class="btn btn-ghost btn-sm" title="Move Down" style="padding:4px 6px; height:32px; font-size:13px;" onclick="window.moveSourceSheetRowDown(this)"><i class="ph ph-caret-down"></i></button>
+      <button type="button" class="btn btn-ghost btn-sm" title="Remove" style="color:var(--danger); padding:4px 6px; height:32px; font-size:13px;" onclick="this.closest('.cfg-raw-sheet-row').remove()"><i class="ph ph-trash"></i></button>
+    </div>
   `;
   container.appendChild(row);
+};
+
+window.moveSourceSheetRowUp = function(btn) {
+  const row = btn.closest('.cfg-raw-sheet-row');
+  if (!row) return;
+  const prev = row.previousElementSibling;
+  if (prev && prev.classList.contains('cfg-raw-sheet-row')) {
+    row.parentNode.insertBefore(row, prev);
+  }
+};
+
+window.moveSourceSheetRowDown = function(btn) {
+  const row = btn.closest('.cfg-raw-sheet-row');
+  if (!row) return;
+  const next = row.nextElementSibling;
+  if (next && next.classList.contains('cfg-raw-sheet-row')) {
+    row.parentNode.insertBefore(next, row);
+  }
 };
 
 window.addCustomReportRow = function(name = '', id = '', sheet = '', rowDim = '', colDim = '', metrics = '', rules = '[]') {
   const container = document.getElementById('cfg-custom-reports-container');
   if (!container) return;
   const row = document.createElement('div');
-  row.style = 'display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background:var(--bg-elevated); padding:12px; border-radius:var(--radius); border:1px solid var(--border); margin-right:32px; position:relative;';
+  row.style = 'background:var(--bg-surface); padding:10px 12px; border-radius:10px; border:1px solid var(--border); position:relative;';
   row.className = 'cfg-custom-report-row';
   
   // Create placeholders if values exist but headers aren't fetched yet
-  const sheetOpt = sheet ? `<option value="${sheet}" selected>${sheet}</option>` : `<option value="">-- Load Tabs first --</option>`;
-  const colOpt = colDim ? `<option value="${colDim}" selected>${colDim}</option>` : `<option value="">-- Connect to select --</option>`;
+  const sheetOpt = sheet ? `<option value="${window._escAttr(sheet)}" selected>${window.esc(sheet)}</option>` : `<option value="">-- Load Tabs first --</option>`;
+  const colOpt = colDim ? `<option value="${window._escAttr(colDim)}" selected>${window.esc(colDim)}</option>` : `<option value="">-- Connect to select --</option>`;
   
-  let rowHtml = `<div style="color:var(--text-muted);font-size:12px;margin:auto;">Connect to select</div>`;
+  let rowHtml = `<div style="color:var(--text-muted);font-size:11px;margin:auto;">Connect to select</div>`;
   if (rowDim) {
     rowHtml = rowDim.split(',').map(m => `
-      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:4px 8px;border-radius:100px;font-size:11px;border:1px solid var(--border);cursor:pointer;">
-        <input type="checkbox" checked value="${m.trim()}" onchange="updatePillInput(this, '.r-row')"> ${m.trim()}
+      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:2px 8px;border-radius:100px;font-size:10.5px;border:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" checked value="${window._escAttr(m.trim())}" onchange="updatePillInput(this, '.r-row')"> ${window.esc(m.trim())}
       </label>
     `).join('');
   }
 
-  let metricsHtml = `<div style="color:var(--text-muted);font-size:12px;margin:auto;">Connect to select metrics</div>`;
+  let metricsHtml = `<div style="color:var(--text-muted);font-size:11px;margin:auto;">Connect to select metrics</div>`;
   if (metrics) {
     metricsHtml = metrics.split(',').map(m => `
-      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:4px 8px;border-radius:100px;font-size:11px;border:1px solid var(--border);cursor:pointer;">
-        <input type="checkbox" checked value="${m.trim()}" onchange="updatePillInput(this, '.r-metrics')"> ${m.trim()}
+      <label style="display:flex;align-items:center;gap:4px;background:var(--surface2);padding:2px 8px;border-radius:100px;font-size:10.5px;border:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" checked value="${window._escAttr(m.trim())}" onchange="updatePillInput(this, '.r-metrics')"> ${window.esc(m.trim())}
       </label>
     `).join('');
   }
@@ -922,75 +943,82 @@ window.addCustomReportRow = function(name = '', id = '', sheet = '', rowDim = ''
   let rulesHtml = '';
   parsedRules.forEach(r => {
     rulesHtml += `
-      <div class="format-rule" style="display:flex; gap:6px; background:var(--bg); padding:6px; border:1px solid var(--border); border-radius:var(--radius); align-items:center;">
-        <span style="font-size:12px;">If</span>
-        <select class="form-select rule-metric" onchange="updateRulesInput(this)" style="flex:1" data-val="${r.metric}"><option value="${r.metric}">${r.metric}</option></select>
-        <select class="form-select rule-op" onchange="updateRulesInput(this)" style="width:60px;">
+      <div class="format-rule" style="display:flex; gap:6px; background:var(--bg-card); padding:4px 6px; border:1px solid var(--border); border-radius:6px; align-items:center;">
+        <span style="font-size:11.5px; font-weight:600;">If</span>
+        <select class="form-select rule-metric" onchange="updateRulesInput(this)" style="flex:1; height:28px; font-size:11.5px;" data-val="${window._escAttr(r.metric)}"><option value="${window._escAttr(r.metric)}">${window.esc(r.metric)}</option></select>
+        <select class="form-select rule-op" onchange="updateRulesInput(this)" style="width:55px; height:28px; font-size:11.5px;">
           <option value=">" ${r.operator==='>'?'selected':''}>&gt;</option>
           <option value="<" ${r.operator==='<'?'selected':''}>&lt;</option>
           <option value="=" ${r.operator==='='?'selected':''}>=</option>
         </select>
-        <input type="text" class="form-input rule-val" placeholder="Value" value="${r.target}" onchange="updateRulesInput(this)" style="flex:1"/>
-        <span style="font-size:12px;">then color</span>
-        <select class="form-select rule-color" onchange="updateRulesInput(this)" style="width:100px;">
+        <input type="text" class="form-input rule-val" placeholder="Value" value="${window._escAttr(r.target)}" onchange="updateRulesInput(this)" style="flex:1; height:28px; font-size:11.5px;"/>
+        <span style="font-size:11.5px;">then</span>
+        <select class="form-select rule-color" onchange="updateRulesInput(this)" style="width:90px; height:28px; font-size:11.5px;">
           <option value="var(--green)" ${r.color==='var(--green)'?'selected':''}>Green</option>
           <option value="var(--danger)" ${r.color==='var(--danger)'?'selected':''}>Red</option>
           <option value="var(--warning)" ${r.color==='var(--warning)'?'selected':''}>Yellow</option>
         </select>
-        <button type="button" class="btn btn-sm btn-ghost" style="color:var(--danger);" onclick="this.parentElement.remove(); updateRulesInput(this)"><i class="ph ph-x"></i></button>
+        <button type="button" class="btn btn-sm btn-ghost" style="color:var(--danger); padding:2px 6px;" onclick="this.parentElement.remove(); updateRulesInput(this)"><i class="ph ph-x"></i></button>
       </div>
     `;
   });
 
   row.innerHTML = `
-    <div class="form-field"><label class="form-label">Report Name</label><input type="text" class="form-input r-name" placeholder="POP Dashboard" value="${name}" /></div>
-    <div class="form-field">
-      <label class="form-label">Sheet ID</label>
-      <div style="display:flex;gap:6px;">
-        <input type="text" class="form-input r-id" style="flex:1;" placeholder="1wpaZ..." value="${id}" />
-        <button type="button" class="btn btn-sm btn-outline" onclick="fetchTabsForBuilder(this)"><i class="ph ph-list"></i> Tabs</button>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+      <div style="display:grid; grid-template-columns:1.2fr 2fr 1.5fr; gap:8px; flex:1; margin-right:12px;">
+        <div class="form-field">
+          <label class="form-label" style="font-size:9.5px; font-weight:700; text-transform:uppercase;">Report Name</label>
+          <input type="text" class="form-input r-name" style="height:32px; font-size:12px;" placeholder="e.g. POP Dashboard" value="${window.esc(name)}" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="font-size:9.5px; font-weight:700; text-transform:uppercase;">Spreadsheet ID</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" class="form-input r-id" style="flex:1; height:32px; font-size:11px; font-family:monospace;" placeholder="Google Sheet ID" value="${window.esc(id)}" />
+            <button type="button" class="btn btn-sm btn-outline" style="height:32px; padding:0 8px; font-size:11.5px;" onclick="fetchTabsForBuilder(this)"><i class="ph ph-list"></i> Tabs</button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="font-size:9.5px; font-weight:700; text-transform:uppercase;">Sheet Tab Name</label>
+          <div style="display:flex; gap:6px;">
+            <select class="form-select r-sheet" style="flex:1; height:32px; font-size:11.5px;" data-val="${window._escAttr(sheet)}">${sheetOpt}</select>
+            <button type="button" class="btn btn-sm btn-primary" style="height:32px; padding:0 10px; font-size:11.5px;" onclick="fetchColumnsForBuilder(this)"><i class="ph ph-plug"></i> Connect</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="form-field">
-      <label class="form-label">Sheet Tab Name</label>
-      <div style="display:flex;gap:6px;">
-        <select class="form-select r-sheet" style="flex:1;" data-val="${sheet}">${sheetOpt}</select>
-        <button type="button" class="btn btn-sm btn-primary" onclick="fetchColumnsForBuilder(this)"><i class="ph ph-plug"></i> Connect</button>
-      </div>
+      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger); padding:4px 6px; height:32px; margin-top:16px;" onclick="this.closest('.cfg-custom-report-row').remove()"><i class="ph ph-trash" style="font-size:15px;"></i></button>
     </div>
     
-    <div class="builder-area" style="grid-column: 1 / -1; display:flex; gap:12px; background:var(--surface); padding:12px; border-radius:var(--radius); border:1px dashed var(--border);">
-      <div style="flex:2;" class="form-field">
-          <label class="form-label"><i class="ph ph-rows"></i> Row Dimensions</label>
-          <div class="r-row-container" style="display:flex; gap:6px; flex-wrap:wrap; min-height:36px; padding:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);" data-val="${rowDim}">
+    <div class="builder-area" style="display:grid; grid-template-columns:2fr 1fr 2fr; gap:10px; background:var(--surface2); padding:10px; border-radius:8px; border:1px dashed var(--border); margin-bottom:8px;">
+      <div class="form-field">
+          <label class="form-label" style="font-size:10px;"><i class="ph ph-rows"></i> Row Dimensions</label>
+          <div class="r-row-container" style="display:flex; gap:4px; flex-wrap:wrap; min-height:30px; padding:4px 6px; background:var(--bg-surface); border:1px solid var(--border); border-radius:6px;" data-val="${window._escAttr(rowDim)}">
              ${rowHtml}
           </div>
-          <input type="hidden" class="r-row" value="${rowDim}" />
+          <input type="hidden" class="r-row" value="${window._escAttr(rowDim)}" />
       </div>
-      <div style="flex:1;" class="form-field">
-          <label class="form-label"><i class="ph ph-columns"></i> Column Dimension</label>
-          <select class="form-select r-col" data-val="${colDim}">${colOpt}</select>
+      <div class="form-field">
+          <label class="form-label" style="font-size:10px;"><i class="ph ph-columns"></i> Column Dimension</label>
+          <select class="form-select r-col" style="height:30px; font-size:11.5px;" data-val="${window._escAttr(colDim)}">${colOpt}</select>
       </div>
-      <div style="flex:2;" class="form-field">
-          <label class="form-label"><i class="ph ph-calculator"></i> Metrics (Values)</label>
-          <div class="r-metrics-container" style="display:flex; gap:6px; flex-wrap:wrap; min-height:36px; padding:6px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);" data-val="${metrics}">
+      <div class="form-field">
+          <label class="form-label" style="font-size:10px;"><i class="ph ph-calculator"></i> Metrics (Values)</label>
+          <div class="r-metrics-container" style="display:flex; gap:4px; flex-wrap:wrap; min-height:30px; padding:4px 6px; background:var(--bg-surface); border:1px solid var(--border); border-radius:6px;" data-val="${window._escAttr(metrics)}">
              ${metricsHtml}
           </div>
-          <input type="hidden" class="r-metrics" value="${metrics}" />
+          <input type="hidden" class="r-metrics" value="${window._escAttr(metrics)}" />
       </div>
     </div>
     
-    <div class="formatting-area" style="grid-column: 1 / -1; margin-top:4px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <label class="form-label"><i class="ph ph-palette"></i> Conditional Formatting</label>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="addFormatRule(this)"><i class="ph ph-plus"></i> Add Rule</button>
+    <div class="formatting-area">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <label class="form-label" style="font-size:10px; margin:0;"><i class="ph ph-palette"></i> Conditional Formatting</label>
+        <button type="button" class="btn btn-sm btn-ghost" style="font-size:11px; padding:2px 6px;" onclick="addFormatRule(this)"><i class="ph ph-plus"></i> Add Rule</button>
       </div>
-      <div class="rules-container" style="display:flex; flex-direction:column; gap:8px;">
+      <div class="rules-container" style="display:flex; flex-direction:column; gap:6px;">
         ${rulesHtml}
       </div>
       <input type="hidden" class="r-rules" value='${rules.replace(/'/g, "&apos;")}' />
     </div>
-    <button type="button" class="btn btn-ghost btn-sm" style="position:absolute; right:-38px; top:12px; color:var(--danger); padding:6px;" onclick="this.closest('.cfg-custom-report-row').remove()"><i class="ph ph-trash"></i></button>
   `;
   container.appendChild(row);
 };
@@ -1761,26 +1789,34 @@ window.loadUsers = async function() {
   if (!tbody) return;
   // populate the HOD / Zone pickers from the current filter options
   window._populateScopePickers();
-  tbody.innerHTML = window._loadingRow(4);
+  tbody.innerHTML = window._loadingRow(5);
   try {
     const users = await window.api('listUsers');
     window._lastLoadedUsers = users;
-    if (!users || !users.length) { tbody.innerHTML = window._emptyRow(4, 'No users found.'); return; }
+    if (!users || !users.length) { tbody.innerHTML = window._emptyRow(5, 'No users found.'); return; }
     const rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
     let htmlStr = '';
     users.forEach(function(u) {
       var scope = (u.role === 'hod') ? ((u.allowed_hods || []).join(', ') || '—')
         : (u.role === 'zonal_head') ? ((u.allowed_zones || []).join(', ') || '—')
         : 'All data';
-      htmlStr += '<tr>'
-        + '<td style="padding:12px 18px;"><b>' + window.esc(u.full_name || u.username) + '</b><br><span style="color:var(--text-muted);font-size:11px;">@' + window.esc(u.username) + '</span>'
-        + '<div style="color:var(--text-muted);font-size:10.5px;margin-top:3px;max-width:260px;">' + scope + '</div></td>'
-        + '<td style="padding:12px 18px;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
-        + '<td style="padding:12px 18px;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
-        + '<td style="padding:12px 18px;text-align:right;white-space:nowrap;">'
-        + '<button class="btn btn-ghost btn-sm" onclick="window.openEditUser(\'' + u.id + '\')"><i class="ph ph-pencil"></i> Edit</button> '
-        + '<button class="btn btn-ghost btn-sm" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button>'
-        + (u.username === 'superadmin' ? '' : ' <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="window.deleteUser(\'' + u.id + '\',\'' + u.username + '\')"><i class="ph ph-trash"></i></button>')
+      
+      var scopeBadge = (u.role === 'super_admin' || u.role === 'admin')
+        ? '<span style="color:var(--text-muted);font-size:11.5px;font-style:italic;">All data</span>'
+        : '<span style="font-size:11.5px;font-weight:500;color:var(--text-main);">' + window.esc(scope) + '</span>';
+
+      htmlStr += '<tr style="border-bottom:1px solid var(--border);transition:background 0.15s ease;" onmouseover="this.style.background=\'var(--bg-hover, rgba(255,255,255,0.03))\'" onmouseout="this.style.background=\'transparent\'">'
+        + '<td style="padding:8px 14px;vertical-align:middle;">'
+        + '<span style="font-weight:700;font-size:12px;color:var(--text-main);">' + window.esc(u.full_name || u.username) + '</span>'
+        + '<span style="color:var(--text-muted);font-size:11px;margin-left:6px;">@' + window.esc(u.username) + '</span>'
+        + '</td>'
+        + '<td style="padding:8px 14px;vertical-align:middle;"><span class="badge ' + (rc[u.role] || 'badge-gray') + '" style="font-size:10px;padding:2px 8px;">' + (window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
+        + '<td style="padding:8px 14px;vertical-align:middle;max-width:320px;">' + scopeBadge + '</td>'
+        + '<td style="padding:8px 14px;vertical-align:middle;"><span class="badge ' + (u.is_active ? 'badge-green' : 'badge-red') + '" style="font-size:10px;padding:2px 7px;">' + (u.is_active ? 'Active' : 'Inactive') + '</span></td>'
+        + '<td style="padding:8px 14px;text-align:right;white-space:nowrap;vertical-align:middle;">'
+        + '<button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:11.5px;" onclick="window.openEditUser(\'' + u.id + '\')"><i class="ph ph-pencil"></i> Edit</button> '
+        + '<button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:11.5px;" onclick="window.toggleUserActive(\'' + u.id + '\',' + u.is_active + ')">' + (u.is_active ? 'Deactivate' : 'Activate') + '</button>'
+        + (u.username === 'superadmin' ? '' : ' <button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:3px 6px;font-size:12px;" onclick="window.deleteUser(\'' + u.id + '\',\'' + u.username + '\')"><i class="ph ph-trash"></i></button>')
         + '</td>'
         + '</tr>';
     });
@@ -1791,55 +1827,65 @@ window.loadUsers = async function() {
 // Fill the multi-select HOD/Zone pickers from App.filterOptions (loaded at boot).
 window._populateScopePickers = function() {
   var opts = window.App.filterOptions || {};
-  var hodSel = document.getElementById('uf-hods');
-  var zoneSel = document.getElementById('uf-zones');
-  var fill = function(sel, list) {
+  var hods = (opts.hod || []).filter(function(v){ return v && v !== 'All'; });
+  var zones = (opts.zone || []).filter(function(v){ return v && v !== 'All'; });
+  
+  var fill = function(id, list) {
+    var sel = document.getElementById(id);
     if (!sel) return;
-    var cur = list || [];
-    sel.innerHTML = cur.filter(function(v){ return v && v !== 'All'; })
-      .map(function(v){ return '<option value="' + window._escAttr(v) + '">' + v + '</option>'; }).join('');
-    
+    sel.innerHTML = list.map(function(v){ return '<option value="' + window._escAttr(v) + '">' + v + '</option>'; }).join('');
     if (!sel._ms) sel._ms = new CustomMultiSelect(sel);
     else sel._ms.update();
   };
-  fill(hodSel, opts.hod);
-  fill(zoneSel, opts.zone);
+  fill('uf-hods', hods);
+  fill('uf-zones', zones);
+  fill('edit-user-hods', hods);
+  fill('edit-user-zones', zones);
 };
 
 class CustomMultiSelect {
   constructor(selectEl) {
     this.select = selectEl;
     this.select.style.display = 'none';
+    
+    if (this.select._msContainer && this.select._msContainer.parentNode) {
+      this.select._msContainer.parentNode.removeChild(this.select._msContainer);
+    }
+
     this.container = document.createElement('div');
+    this.container.className = 'custom-multiselect-container';
     this.container.style.position = 'relative';
     this.container.style.userSelect = 'none';
+    this.container.style.width = '100%';
+    this.select._msContainer = this.container;
     
     this.trigger = document.createElement('div');
     this.trigger.className = 'form-input';
     this.trigger.style.height = 'auto';
-    this.trigger.style.minHeight = '42px';
+    this.trigger.style.minHeight = '38px';
     this.trigger.style.display = 'flex';
     this.trigger.style.flexWrap = 'wrap';
     this.trigger.style.gap = '6px';
     this.trigger.style.alignItems = 'center';
     this.trigger.style.cursor = 'pointer';
-    this.trigger.style.padding = '6px 12px';
+    this.trigger.style.padding = '5px 10px';
+    this.trigger.style.background = 'var(--bg-surface)';
     
     this.dropdown = document.createElement('div');
     this.dropdown.style.position = 'absolute';
     this.dropdown.style.top = 'calc(100% + 4px)';
     this.dropdown.style.left = '0';
     this.dropdown.style.right = '0';
-    this.dropdown.style.background = 'var(--bg-card)';
+    this.dropdown.style.background = 'var(--popover-bg, var(--bg-card, #1f2937))';
     this.dropdown.style.border = '1px solid var(--border)';
-    this.dropdown.style.borderRadius = 'var(--radius)';
-    this.dropdown.style.boxShadow = 'var(--shadow-lg)';
-    this.dropdown.style.maxHeight = '240px';
+    this.dropdown.style.borderRadius = 'var(--radius-sm, 12px)';
+    this.dropdown.style.boxShadow = '0 16px 36px rgba(0,0,0,0.35)';
+    this.dropdown.style.maxHeight = '260px';
     this.dropdown.style.overflowY = 'auto';
-    this.dropdown.style.zIndex = '2000';
+    this.dropdown.style.zIndex = '99999999';
     this.dropdown.style.display = 'none';
     this.dropdown.style.flexDirection = 'column';
-    this.dropdown.style.padding = '4px';
+    this.dropdown.style.padding = '6px';
 
     this.container.appendChild(this.trigger);
     this.container.appendChild(this.dropdown);
@@ -1847,7 +1893,8 @@ class CustomMultiSelect {
 
     this.trigger.addEventListener('click', (e) => {
       if(e.target.closest('.cm-remove')) return;
-      this.dropdown.style.display = this.dropdown.style.display === 'none' ? 'flex' : 'none';
+      var isOpen = this.dropdown.style.display === 'flex';
+      this.dropdown.style.display = isOpen ? 'none' : 'flex';
     });
 
     document.addEventListener('click', (e) => {
@@ -1861,41 +1908,112 @@ class CustomMultiSelect {
     this.dropdown.innerHTML = '';
     this.trigger.innerHTML = '';
     let hasSelected = false;
+    let opts = Array.from(this.select.options);
 
-    Array.from(this.select.options).forEach((opt) => {
+    let listContainer = document.createElement('div');
+    listContainer.style.display = 'flex';
+    listContainer.style.flexDirection = 'column';
+    listContainer.style.gap = '2px';
+    listContainer.style.overflowY = 'auto';
+
+    if (opts.length > 4) {
+      let topBar = document.createElement('div');
+      topBar.style.padding = '4px 4px 6px 4px';
+      topBar.style.display = 'flex';
+      topBar.style.flexDirection = 'column';
+      topBar.style.gap = '6px';
+      topBar.style.borderBottom = '1px solid var(--border)';
+      topBar.style.marginBottom = '4px';
+
+      let searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.placeholder = 'Search / Filter...';
+      searchInput.className = 'form-input';
+      searchInput.style.width = '100%';
+      searchInput.style.height = '30px';
+      searchInput.style.fontSize = '12px';
+      searchInput.style.padding = '4px 8px';
+      searchInput.addEventListener('click', (e) => e.stopPropagation());
+      searchInput.addEventListener('input', (e) => {
+        let q = e.target.value.toLowerCase().trim();
+        listContainer.childNodes.forEach(child => {
+          if (!child._optText) return;
+          child.style.display = child._optText.toLowerCase().includes(q) ? 'flex' : 'none';
+        });
+      });
+      topBar.appendChild(searchInput);
+
+      let quickActions = document.createElement('div');
+      quickActions.style.display = 'flex';
+      quickActions.style.justifyContent = 'space-between';
+      quickActions.style.fontSize = '11px';
+      quickActions.style.fontWeight = '600';
+      quickActions.style.color = 'var(--accent, #818cf8)';
+      quickActions.style.padding = '0 4px';
+
+      let selAll = document.createElement('span');
+      selAll.textContent = 'Select All';
+      selAll.style.cursor = 'pointer';
+      selAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        opts.forEach(o => o.selected = true);
+        this.select.dispatchEvent(new Event('change'));
+        this.update();
+      });
+
+      let clrAll = document.createElement('span');
+      clrAll.textContent = 'Clear All';
+      clrAll.style.cursor = 'pointer';
+      clrAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        opts.forEach(o => o.selected = false);
+        this.select.dispatchEvent(new Event('change'));
+        this.update();
+      });
+
+      quickActions.appendChild(selAll);
+      quickActions.appendChild(clrAll);
+      topBar.appendChild(quickActions);
+
+      this.dropdown.appendChild(topBar);
+    }
+
+    opts.forEach((opt) => {
       let item = document.createElement('div');
-      item.style.padding = '8px 12px';
+      item._optText = opt.text;
+      item.style.padding = '7px 10px';
       item.style.cursor = 'pointer';
       item.style.borderRadius = '6px';
       item.style.display = 'flex';
       item.style.alignItems = 'center';
       item.style.gap = '10px';
-      item.style.fontSize = '13px';
-      item.style.color = opt.selected ? 'var(--brand-primary)' : 'var(--text-main)';
-      item.style.background = opt.selected ? 'var(--brand-muted)' : 'transparent';
+      item.style.fontSize = '12.5px';
+      item.style.color = opt.selected ? 'var(--brand-primary, #4f46e5)' : 'var(--text-main, #f9fafb)';
+      item.style.background = opt.selected ? 'var(--brand-muted, rgba(79, 70, 229, 0.12))' : 'transparent';
       item.style.fontWeight = opt.selected ? '700' : '500';
-      item.style.transition = 'background 0.2s';
+      item.style.transition = 'background 0.15s ease';
       
       let checkbox = document.createElement('div');
-      checkbox.style.width = '16px';
-      checkbox.style.height = '16px';
-      checkbox.style.border = '1px solid ' + (opt.selected ? 'var(--brand-primary)' : 'var(--border-light)');
+      checkbox.style.width = '18px';
+      checkbox.style.height = '18px';
+      checkbox.style.border = '1.5px solid ' + (opt.selected ? 'var(--brand-primary, #4f46e5)' : 'var(--border-light, #4b5563)');
       checkbox.style.borderRadius = '4px';
-      checkbox.style.background = opt.selected ? 'var(--brand-primary)' : 'transparent';
+      checkbox.style.background = opt.selected ? 'var(--brand-primary, #4f46e5)' : 'transparent';
       checkbox.style.display = 'flex';
       checkbox.style.alignItems = 'center';
       checkbox.style.justifyContent = 'center';
       checkbox.style.color = '#fff';
       checkbox.style.flexShrink = '0';
-      checkbox.innerHTML = opt.selected ? '<i class="ph-bold ph-check" style="font-size:10px"></i>' : '';
+      checkbox.innerHTML = opt.selected ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : '';
       
       let label = document.createElement('span');
       label.textContent = opt.text;
+      label.style.flex = '1';
 
       item.appendChild(checkbox);
       item.appendChild(label);
 
-      item.addEventListener('mouseover', () => { if(!opt.selected) item.style.background = 'var(--bg-hover)'; });
+      item.addEventListener('mouseover', () => { if(!opt.selected) item.style.background = 'var(--bg-hover, #374151)'; });
       item.addEventListener('mouseout', () => { if(!opt.selected) item.style.background = 'transparent'; });
 
       item.addEventListener('click', (e) => {
@@ -1905,28 +2023,31 @@ class CustomMultiSelect {
         this.update();
       });
       
-      this.dropdown.appendChild(item);
+      listContainer.appendChild(item);
 
       if(opt.selected) {
         hasSelected = true;
         let pill = document.createElement('div');
-        pill.style.background = 'var(--brand-primary)';
+        pill.style.background = 'var(--brand-primary, #4f46e5)';
         pill.style.color = '#fff';
-        pill.style.padding = '4px 8px';
+        pill.style.padding = '3px 8px';
         pill.style.borderRadius = '6px';
-        pill.style.fontSize = '11.5px';
+        pill.style.fontSize = '11px';
         pill.style.fontWeight = '600';
         pill.style.display = 'flex';
         pill.style.alignItems = 'center';
-        pill.style.gap = '6px';
-        pill.style.boxShadow = 'var(--shadow-sm)';
+        pill.style.gap = '5px';
+        pill.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
         
         let text = document.createElement('span');
         text.textContent = opt.text;
         
-        let remove = document.createElement('i');
-        remove.className = 'ph-bold ph-x cm-remove';
+        let remove = document.createElement('span');
+        remove.className = 'cm-remove';
+        remove.innerHTML = '&times;';
         remove.style.cursor = 'pointer';
+        remove.style.fontSize = '14px';
+        remove.style.lineHeight = '1';
         remove.style.opacity = '0.8';
         remove.addEventListener('mouseover', () => remove.style.opacity = '1');
         remove.addEventListener('mouseout', () => remove.style.opacity = '0.8');
@@ -1943,13 +2064,23 @@ class CustomMultiSelect {
       }
     });
 
+    this.dropdown.appendChild(listContainer);
+
     if(!hasSelected) {
       let placeholder = document.createElement('span');
       placeholder.textContent = 'Select options...';
-      placeholder.style.color = 'var(--text-muted)';
-      placeholder.style.padding = '4px 0';
+      placeholder.style.color = 'var(--text-muted, #9ca3af)';
+      placeholder.style.fontSize = '12px';
+      placeholder.style.padding = '2px 0';
       this.trigger.appendChild(placeholder);
     }
+
+    let chevron = document.createElement('i');
+    chevron.className = 'ph ph-caret-down';
+    chevron.style.marginLeft = 'auto';
+    chevron.style.color = 'var(--text-muted, #9ca3af)';
+    chevron.style.fontSize = '13px';
+    this.trigger.appendChild(chevron);
   }
 }
 
@@ -1995,8 +2126,8 @@ window.submitNewUser = function() {
       window.toast(username + ' added successfully.', 'success');
       ['uf-name','uf-username','uf-password'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
       var h = document.getElementById('uf-hods'), z = document.getElementById('uf-zones');
-      if (h) Array.from(h.options).forEach(function(o){ o.selected = false; });
-      if (z) Array.from(z.options).forEach(function(o){ o.selected = false; });
+      if (h) { Array.from(h.options).forEach(function(o){ o.selected = false; }); if (h._ms) h._ms.update(); }
+      if (z) { Array.from(z.options).forEach(function(o){ o.selected = false; }); if (z._ms) z._ms.update(); }
       if (window.loadUsers) window.loadUsers();
     })
     .catch(function(e) { if (status) { status.textContent = '✗ ' + e.message; status.style.color = 'var(--danger)'; } window.toast('Create failed: ' + e.message, 'error'); });
@@ -2023,7 +2154,6 @@ window.deleteUser = function(profileId, username) {
 
 window.openEditUser = function(uid) {
   console.log('openEditUser called with uid:', uid);
-  console.log('window._lastLoadedUsers:', window._lastLoadedUsers);
   try {
     var u = (window._lastLoadedUsers || []).find(function(x) { return String(x.id) === String(uid); });
     if (!u) {
@@ -2037,20 +2167,31 @@ window.openEditUser = function(uid) {
     document.getElementById('edit-user-role').value = u.role || 'hod';
     document.getElementById('edit-user-password').value = '';
     
+    // Ensure all pickers have the master options populated
+    if (window._populateScopePickers) window._populateScopePickers();
+    
     var selH = document.getElementById('edit-user-hods');
     var selZ = document.getElementById('edit-user-zones');
-    var ufH = document.getElementById('uf-hods');
-    var ufZ = document.getElementById('uf-zones');
-    if (selH && ufH) selH.innerHTML = ufH.innerHTML;
-    if (selZ && ufZ) selZ.innerHTML = ufZ.innerHTML;
     
-    if (u.role === 'hod' && Array.isArray(u.allowed_hods) && selH) {
-      Array.from(selH.options).forEach(function(o){ o.selected = (u.allowed_hods.indexOf(o.value) !== -1); });
+    var userHods = Array.isArray(u.allowed_hods) ? u.allowed_hods : [];
+    if (selH) {
+      Array.from(selH.options).forEach(function(o){
+        o.selected = (u.role === 'hod' && userHods.indexOf(o.value) !== -1);
+      });
+      if (selH._ms) selH._ms.update();
+      else selH._ms = new CustomMultiSelect(selH);
     }
-    if (u.role === 'zonal_head' && Array.isArray(u.allowed_zones) && selZ) {
-      Array.from(selZ.options).forEach(function(o){ o.selected = (u.allowed_zones.indexOf(o.value) !== -1); });
+    
+    var userZones = Array.isArray(u.allowed_zones) ? u.allowed_zones : [];
+    if (selZ) {
+      Array.from(selZ.options).forEach(function(o){
+        o.selected = (u.role === 'zonal_head' && userZones.indexOf(o.value) !== -1);
+      });
+      if (selZ._ms) selZ._ms.update();
+      else selZ._ms = new CustomMultiSelect(selZ);
     }
-    if(window.onEditRoleChange) window.onEditRoleChange();
+
+    if (window.onEditRoleChange) window.onEditRoleChange();
     
     var modal = document.getElementById('edit-user-modal');
     if (modal) {
@@ -2069,8 +2210,10 @@ window.onEditRoleChange = function() {
   var role = document.getElementById('edit-user-role').value;
   var hw = document.getElementById('edit-hods-wrap');
   var zw = document.getElementById('edit-zones-wrap');
-  if(hw) hw.style.display = (role === 'hod') ? 'block' : 'none';
-  if(zw) zw.style.display = (role === 'zonal_head') ? 'block' : 'none';
+  var adminInfo = document.getElementById('edit-admin-scope-info');
+  if (hw) hw.style.display = (role === 'hod') ? 'block' : 'none';
+  if (zw) zw.style.display = (role === 'zonal_head') ? 'block' : 'none';
+  if (adminInfo) adminInfo.style.display = (role === 'super_admin' || role === 'admin') ? 'block' : 'none';
 };
 
 window.submitEditUser = function() {
