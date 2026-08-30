@@ -1350,6 +1350,354 @@ async function getSkuTypeMonthlySummary(f) {
   });
 }
 
+// ── Person-name matching (target sheet -> sales data) ───────────────────────
+// The two sources spell the same people differently, so an exact-only join
+// leaves 78 of 268 employees at zero achievement -- and those hold the largest
+// targets, which drags the reported figure to a third of reality.
+//
+// Matching runs in order, and the ORDER IS LOAD-BEARING: 'GANESH KUMAR' is
+// within edit distance 2 of 'MANISH KUMAR', so fuzzy alone would credit one
+// person's sales to another. Token-subset resolves him correctly to
+// 'GANESH KUMAR SINGH' first. Any step producing more than one candidate is
+// treated as no match rather than guessing.
+//
+// Every row reports how it matched (MATCHED_BY) so a non-exact join can be
+// audited rather than trusted blindly.
+
+function _lev(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+const _nameKey    = function (v) { return String(v || '').toUpperCase().replace(/\s+/g, ' ').trim(); };
+const _nameTokens = function (v) { return _nameKey(v).replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 1; }); };
+const _nameTight  = function (v) { return _nameKey(v).replace(/[^A-Z]/g, ''); };
+
+// Builds a resolver over the sales-side names. Returns
+// { key, via } for a target name, or null when nothing safe matches.
+function _personMatcher(salesKeys) {
+  const exact = {};
+  salesKeys.forEach(function (k) { exact[k] = k; });
+  const prepared = salesKeys.map(function (k) {
+    return { key: k, tokens: _nameTokens(k), tight: _nameTight(k) };
+  });
+  const cache = {};
+
+  return function (rawName) {
+    const k = _nameKey(rawName);
+    if (!k) return null;
+    if (cache[k] !== undefined) return cache[k];
+
+    let res = null;
+    if (exact[k]) {
+      res = { key: exact[k], via: 'exact' };
+    } else {
+      // token-subset: every token of the shorter name appears in the longer
+      const ut = _nameTokens(k);
+      if (ut.length >= 2) {
+        const hits = prepared.filter(function (p) {
+          if (p.tokens.length < 2) return false;
+          const short = ut.length <= p.tokens.length ? ut : p.tokens;
+          const long = ut.length <= p.tokens.length ? p.tokens : ut;
+          return short.every(function (w) { return long.indexOf(w) !== -1; });
+        });
+        if (hits.length === 1) res = { key: hits[0].key, via: 'token' };
+      }
+      // fuzzy: tight edit distance, unique candidate only
+      if (!res) {
+        const ut2 = _nameTight(k);
+        const thresh = Math.max(1, Math.floor(ut2.length * 0.15));
+        const hits = prepared
+          .map(function (p) { return { key: p.key, d: _lev(ut2, p.tight) }; })
+          .filter(function (x) { return x.d <= thresh; });
+        if (hits.length === 1) res = { key: hits[0].key, via: 'fuzzy' };
+      }
+    }
+    cache[k] = res;
+    return res;
+  };
+}
+
+// ── Target vs Achievement ───────────────────────────────────────────────────
+// Targets come from the TARGET_DATA sheet only (target_master). Achievement is
+// NOT the sheet's Achivement column -- it is recomputed from actual sales, so
+// the two sides can never drift apart.
+//
+// Matching, as specified:
+//   * a target row finds its sales by Employee Name -> sales_person
+//   * no match means zero achievement; sales are never borrowed from anyone
+//     else, because several employees share a state and crediting a whole
+//     state's volume to each of them would multiply the real figure
+//   * the HOD shown is the CURRENT one from the sales data, not the sheet's.
+//     When the employee has no sales to read it from, the sheet's HOD is used
+//     if it exists in the sales data at all, and failing that the state's
+//     dominant HOD -- this is the "if HOD doesn't match, match their State"
+//     fallback, and it only ever decides the label, never the number.
+
+const _Q_OF_MONTH = {
+  JAN: 'Q4', FEB: 'Q4', MAR: 'Q4',
+  APR: 'Q1', MAY: 'Q1', JUN: 'Q1',
+  JUL: 'Q2', AUG: 'Q2', SEP: 'Q2',
+  OCT: 'Q3', NOV: 'Q3', DEC: 'Q3'
+};
+const _MON_TITLE = {
+  JAN: 'Jan', FEB: 'Feb', MAR: 'Mar', APR: 'Apr', MAY: 'May', JUN: 'Jun',
+  JUL: 'Jul', AUG: 'Aug', SEP: 'Sep', OCT: 'Oct', NOV: 'Nov', DEC: 'Dec'
+};
+
+// target_master stores the month bare ('APR'), so the calendar year has to come
+// from the financial year: Apr-Dec sit in the first half, Jan-Mar in the second.
+// 'FY 26-27' + 'APR' -> 'Apr-26';  'FY 26-27' + 'JAN' -> 'Jan-27'.
+function _targetMonthKey(fy, mon3) {
+  const m = String(fy || '').match(/(\d{2})[-\s_]+(\d{2})/);
+  const t = _MON_TITLE[mon3];
+  if (!m || !t) return null;
+  return t + '-' + (['JAN', 'FEB', 'MAR'].indexOf(mon3) !== -1 ? m[2] : m[1]);
+}
+
+function _mon3(v) {
+  const s = String(v || '').trim().toUpperCase();
+  return s.length >= 3 ? s.slice(0, 3) : '';
+}
+
+async function getTargetVsAchievement(f, opts) {
+  opts = opts || {};
+  return cached('tgt_actual_v1_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
+    // ── actual sales, person-wise ───────────────────────────────────────────
+    const salesRows = (await _fetchAgg('vw_executive_sale_agg', _q(f, ['month', 'fy', 'quarter'])))
+      .filter(function (r) { return _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' })); });
+
+    const byPerson = {};      // EMP -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} }
+    const personHodSqft = {}; // EMP -> { hod: sqft }  (pick the dominant one)
+    const stateHodSqft = {};  // STATE -> { hod: sqft }
+    const hodStateSqft = {};  // HOD -> { state: sqft }  (state as the sales data has it)
+    const byHodSales = {};    // HOD -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} } -- ALL of the HOD's sales
+    const salesHods = {};
+
+    salesRows.forEach(function (r) {
+      const emp = String(_s(r, 'sales_person') || '').trim().toUpperCase();
+      const hod = _hod(r);
+      const st = String(_s(r, 'state') || '').trim().toUpperCase();
+      const sqft = _sqft(r);
+      const mo = _mo(r);
+      const fy = _robustFy(r);
+      const q = _Q_OF_MONTH[_mon3(mo)];
+
+      if (hod && hod !== 'Unknown') salesHods[hod] = true;
+      if (hod && st) {
+        (stateHodSqft[st] = stateHodSqft[st] || {})[hod] = (stateHodSqft[st][hod] || 0) + sqft;
+        (hodStateSqft[hod] = hodStateSqft[hod] || {})[st] = (hodStateSqft[hod][st] || 0) + sqft;
+      }
+      if (!emp) return;
+      if (hod) { (personHodSqft[emp] = personHodSqft[emp] || {})[hod] = (personHodSqft[emp][hod] || 0) + sqft; }
+
+      const b = byPerson[emp] = byPerson[emp] || { MONTHLY: {}, QUARTERLY: {}, YEARLY: {} };
+      if (mo) b.MONTHLY[mo] = (b.MONTHLY[mo] || 0) + sqft;
+      if (fy) {
+        b.YEARLY[fy] = (b.YEARLY[fy] || 0) + sqft;
+        if (q) { const k = fy + '_' + q; b.QUARTERLY[k] = (b.QUARTERLY[k] || 0) + sqft; }
+      }
+
+      // HOD-level achievement is built separately from vw_sales_type_agg
+      // below, because it has to exclude project sales and this view carries
+      // no sales_type.
+    });
+
+    // A HOD's achievement is their whole team's RETAIL sales -- including
+    // salespeople who have no target row at all, so it reconciles with the
+    // rest of the dashboard, but excluding project business, which is measured
+    // separately on the Project Sales page. vw_sales_type_agg is the only
+    // aggregate carrying sales_type; it is snapshot-backed (migration 10) so
+    // this stays fast.
+    (await _fetchAgg('vw_sales_type_agg', _q(f, ['month', 'fy', 'quarter'])))
+      .filter(function (r) {
+        return String(_s(r, 'sales_type')).trim().toLowerCase() !== 'projects'
+          && _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' }));
+      })
+      .forEach(function (r) {
+        const hod = _hod(r);
+        if (!hod || hod === 'Unknown') return;
+        const sqft = _sqft(r);
+        const mo = _mo(r);
+        const fy = _robustFy(r);
+        const q = _Q_OF_MONTH[_mon3(mo)];
+        const hb = byHodSales[hod] = byHodSales[hod] || { MONTHLY: {}, QUARTERLY: {}, YEARLY: {} };
+        if (mo) hb.MONTHLY[mo] = (hb.MONTHLY[mo] || 0) + sqft;
+        if (fy) {
+          hb.YEARLY[fy] = (hb.YEARLY[fy] || 0) + sqft;
+          if (q) { const k = fy + '_' + q; hb.QUARTERLY[k] = (hb.QUARTERLY[k] || 0) + sqft; }
+        }
+      });
+
+    // Resolve each target employee onto a sales-side name (see _personMatcher).
+    const resolve = _personMatcher(Object.keys(byPerson));
+
+    const dominant = function (m) {
+      if (!m) return null;
+      let best = null, bestV = -1;
+      Object.keys(m).forEach(function (k) { if (m[k] > bestV) { bestV = m[k]; best = k; } });
+      return best;
+    };
+
+    // ── targets, from the sheet only ────────────────────────────────────────
+    let qs = '';
+    const scope = (f && f._scope) || {};
+    const parts = [];
+    if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
+    if (scope.allowed_hods && scope.allowed_hods.length) {
+      parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+    }
+    if (scope.allowed_zones && scope.allowed_zones.length) {
+      parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+    }
+    if (scope.allowed_states && scope.allowed_states.length) {
+      const scHods = _hodsForStates(scope.allowed_states);
+      parts.push(scHods
+        ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
+        : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+    }
+    if (parts.length) qs = '?' + parts.join('&');
+    const tRows = await fetchAll(DB_TABLES.TARGETS || 'target_master', qs);
+
+    // ── one row per employee ────────────────────────────────────────────────
+    const map = {};
+    tRows.forEach(function (r) {
+      const empRaw = _s(r, 'employee_name') || 'Unknown';
+      const emp = empRaw.trim().toUpperCase();
+      const st = (_s(r, 'state') || '').trim().toUpperCase();
+      const sheetHod = _s(r, 'hod_name') || '';
+      const fy = _normFy(_s(r, 'fy_year')) || _s(r, 'fy_year');
+      const mon3 = _mon3(_s(r, 'month_name'));
+      const q = _Q_OF_MONTH[mon3];
+      const moKey = _targetMonthKey(fy, mon3);
+      const t = _num(r.target_sqft);
+
+      const hit = resolve(empRaw);
+      const salesKey = hit && hit.key;
+      if (!map[emp]) {
+        const sales = salesKey ? byPerson[salesKey] : null;
+        // Current HOD: the employee's own sales first, then the sheet's HOD if
+        // it exists in sales at all, then the state's dominant HOD.
+        const hod = dominant(salesKey ? personHodSqft[salesKey] : null)
+          || (salesHods[sheetHod] ? sheetHod : null)
+          || dominant(stateHodSqft[st])
+          || sheetHod || 'Unknown';
+        map[emp] = {
+          EMPLOYEE: empRaw, HOD: hod, STATE: _s(r, 'state') || 'Unknown',
+          MATCHED: !!sales,
+          MATCHED_BY: hit ? hit.via : 'none',
+          MATCHED_TO: salesKey || null,
+          HOD_SOURCE: dominant(salesKey ? personHodSqft[salesKey] : null) ? 'sales'
+            : (salesHods[sheetHod] ? 'sheet' : (dominant(stateHodSqft[st]) ? 'state' : 'sheet-unmatched')),
+          YEARLY: {}, QUARTERLY: {}, MONTHLY: {}
+        };
+      }
+      const row = map[emp];
+      const sales = salesKey ? byPerson[salesKey] : null;
+
+      if (fy) {
+        if (!row.YEARLY[fy]) row.YEARLY[fy] = { t: 0, a: (sales && sales.YEARLY[fy]) || 0 };
+        row.YEARLY[fy].t += t;
+        if (q) {
+          const qk = fy + '_' + q;
+          if (!row.QUARTERLY[qk]) row.QUARTERLY[qk] = { t: 0, a: (sales && sales.QUARTERLY[qk]) || 0 };
+          row.QUARTERLY[qk].t += t;
+        }
+      }
+      if (moKey) {
+        if (!row.MONTHLY[moKey]) row.MONTHLY[moKey] = { t: 0, a: (sales && sales.MONTHLY[moKey]) || 0 };
+        row.MONTHLY[moKey].t += t;
+      }
+    });
+
+    let out = Object.values(map);
+
+    // Roll employees up to their (current) HOD. Default for the HOD Target vs
+    // Sales page; pass groupBy:'employee' for the per-person breakdown.
+    if ((opts.groupBy || 'hod') === 'hod') {
+      const byHod = {};
+      out.forEach(function (r) {
+        const h = r.HOD || 'Unknown';
+        if (!byHod[h]) {
+          byHod[h] = {
+            HOD: h,
+            // Always from the sales data, never the target sheet: the HOD's
+            // territory as the rest of the dashboard shows it, falling back to
+            // the state they actually sell most in. The sheet's State column is
+            // deliberately not consulted -- it disagrees with sales in places.
+            STATE: HOD_TO_STATE[h] || dominant(hodStateSqft[h]) || '-',
+            EMPLOYEES: 0, MATCHED_EMPLOYEES: 0,
+            YEARLY: {}, QUARTERLY: {}, MONTHLY: {}
+          };
+        }
+        const g = byHod[h];
+        g.EMPLOYEES += 1;
+        if (r.MATCHED) g.MATCHED_EMPLOYEES += 1;
+        // Targets roll up from the employees; achievement does not (see above).
+        ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (grp) {
+          Object.keys(r[grp]).forEach(function (k) {
+            if (!g[grp][k]) g[grp][k] = { t: 0, a: 0 };
+            g[grp][k].t += r[grp][k].t;
+          });
+        });
+      });
+
+      // A HOD can have sales but no target row at all (EKANSHU KHURANA,
+      // KIRAN KUMAR, NAGMANI SINGH, SATISH GURJAR). Leaving them out would
+      // make the page disagree with HOD Sales, so they appear with a zero
+      // target rather than silently vanishing.
+      Object.keys(byHodSales).forEach(function (h) {
+        if (byHod[h]) return;
+        byHod[h] = {
+          HOD: h,
+          STATE: HOD_TO_STATE[h] || dominant(hodStateSqft[h]) || '-',
+          EMPLOYEES: 0, MATCHED_EMPLOYEES: 0,
+          YEARLY: {}, QUARTERLY: {}, MONTHLY: {}
+        };
+      });
+
+      // Achievement comes from the HOD's own sales, and brings in periods the
+      // targets never mentioned so a month with sales but no target still shows.
+      Object.keys(byHod).forEach(function (h) {
+        const g = byHod[h];
+        const hs = byHodSales[h];
+        if (!hs) return;
+        ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (grp) {
+          Object.keys(hs[grp]).forEach(function (k) {
+            if (!g[grp][k]) g[grp][k] = { t: 0, a: 0 };
+            g[grp][k].a = hs[grp][k];
+          });
+        });
+      });
+      out = Object.values(byHod);
+    }
+
+    return out.map(function (r) {
+      ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (g) {
+        Object.keys(r[g]).forEach(function (k) {
+          r[g][k].t = Math.round(r[g][k].t);
+          r[g][k].a = Math.round(r[g][k].a);
+        });
+      });
+      return r;
+    }).sort(function (a, b) {
+      const h = String(a.HOD).localeCompare(String(b.HOD));
+      return h !== 0 ? h : String(a.EMPLOYEE || '').localeCompare(String(b.EMPLOYEE || ''));
+    });
+  });
+}
+
 async function getExecutiveTargets(f, opts) {
   // The router calls this as (scopedFilters, opts) but the signature only took
   // `f`, so anything in `opts` was silently dropped. No caller sends opts today
@@ -1994,6 +2342,7 @@ module.exports = {
   getSkuTypeAllFYSummary,
   getSkuTypeMonthlySummary,
   getExecutiveTargets,
+  getTargetVsAchievement,
   getOutstandingSummary,
   getOutstandingHODSummary,
   getOutstandingStateSummary,

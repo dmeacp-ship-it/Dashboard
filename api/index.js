@@ -184,6 +184,7 @@ module.exports = async function handler(req, res) {
       getSkuTypeMonthlySummary: () => DataService.getSkuTypeMonthlySummary(scopedFilters),
       getSkuTypeAllFYSummary: () => DataService.getSkuTypeAllFYSummary(scopedFilters),
       getExecutiveTargets: () => DataService.getExecutiveTargets(scopedFilters, opts),
+      getTargetVsAchievement: () => DataService.getTargetVsAchievement(scopedFilters, opts),
       getOutstandingSummary: () => DataService.getOutstandingSummary(scopedFilters),
       getOutstandingHODSummary: () => DataService.getOutstandingHODSummary(scopedFilters),
       getOutstandingStateSummary: () => DataService.getOutstandingStateSummary(scopedFilters),

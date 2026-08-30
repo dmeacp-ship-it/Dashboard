@@ -2,25 +2,21 @@
 -- Migration 11: Align the sq m -> sq ft factor on 10.764
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- WHAT THIS DOES:
--- Redefines calc_sales_data_fields() so the stored sales_data.sq_ft column is
--- computed with 10.764, then backfills every existing row.
+-- Run the three steps BELOW ONE AT A TIME, not as a single paste.
+-- Step 2 updates ~77k rows and step 3 rebuilds ten materialized views; run
+-- together they exceed the SQL editor's statement timeout, which is why an
+-- earlier all-in-one attempt left the trigger unchanged.
 --
--- WHY:
--- The source sheets carry TOTAL_SQM only; sq ft is derived. The factor used to
--- be spelled three different ways across the codebase (10.7639104 in the
--- trigger and sync, 10.76391 in the dashboard, 10.7639 in FMS). It is now the
--- single constant SQFT_PER_SQM = 10.764 in src/config.js and
--- window.SQFT_PER_SQM in the frontend; this brings the database in step so a
--- stored sq_ft and a recomputed one never disagree.
---
--- Only the sq_ft line differs from migration 05 -- the FY / quarter /
--- month_year logic below is carried over verbatim so the trigger keeps doing
--- everything it did before.
---
--- HOW TO RUN:
--- Paste into the Supabase SQL Editor and Run. Safe to re-run.
+-- Verify afterwards with:
+--   SELECT total_sqm, sq_ft, sq_ft/total_sqm AS factor
+--   FROM sales_data WHERE total_sqm > 50 LIMIT 3;
+--   -- factor should read 10.7640000
 -- ═══════════════════════════════════════════════════════════════════════════
+
+
+-- ── STEP 1 of 3 — replace the trigger (fast) ───────────────────────────────
+-- Only the sq_ft line differs from migration 05; the FY / quarter /
+-- month_year logic is carried over verbatim.
 
 CREATE OR REPLACE FUNCTION calc_sales_data_fields()
 RETURNS TRIGGER AS $$
@@ -33,7 +29,6 @@ BEGIN
     NEW.sq_ft := ROUND((NEW.total_sqm * 10.764)::NUMERIC, 4);
   END IF;
 
-  -- Auto-calculate FY_YEAR, QUARTER ("FY-YY-YY Q-X"), and MONTH_YEAR from sale_date
   IF NEW.sale_date IS NOT NULL THEN
     IF EXTRACT(MONTH FROM NEW.sale_date) >= 4 THEN
       v_fy := 'FY-' || TO_CHAR(NEW.sale_date, 'YY') || '-' || TO_CHAR(NEW.sale_date + INTERVAL '1 year', 'YY');
@@ -60,10 +55,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Backfill existing rows onto the new factor.
-UPDATE sales_data
-SET sq_ft = ROUND((total_sqm * 10.764)::NUMERIC, 4)
-WHERE total_sqm IS NOT NULL;
 
--- The aggregate snapshots sum sq_ft, so they have to be rebuilt.
-SELECT refresh_dashboard_views();
+-- ── STEP 2 of 3 — backfill existing rows ───────────────────────────────────
+-- Re-run this until it reports 0 rows updated. The WHERE clause skips rows
+-- already on the new factor, so it is safe to run repeatedly and each pass
+-- shrinks the remaining set if it times out partway.
+
+-- UPDATE sales_data
+-- SET sq_ft = ROUND((total_sqm * 10.764)::NUMERIC, 4)
+-- WHERE total_sqm IS NOT NULL
+--   AND sq_ft IS DISTINCT FROM ROUND((total_sqm * 10.764)::NUMERIC, 4);
+
+
+-- ── STEP 3 of 3 — rebuild the snapshots ────────────────────────────────────
+-- The aggregate snapshots sum sq_ft, so they hold the old numbers until this
+-- runs. If it times out, refresh them individually instead.
+
+-- SELECT refresh_dashboard_views();
