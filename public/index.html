@@ -54,7 +54,7 @@
     <div id="login-err" class="login-err" style="display:none"></div>
     <form onsubmit="event.preventDefault(); window.doLogin();">
       <label class="login-lbl" for="login-username">Username</label>
-      <input id="login-username" class="form-input login-inp" autocomplete="username" autocapitalize="off" placeholder="e.g. superadmin"/>
+      <input id="login-username" class="form-input login-inp" autocomplete="username" autocapitalize="off" placeholder="Enter username"/>
       <label class="login-lbl" for="login-password">Password</label>
       <input id="login-password" type="password" class="form-input login-inp" autocomplete="current-password" placeholder="••••••••"/>
       <button class="btn btn-primary" id="login-btn" type="submit" style="width:100%; justify-content:center; margin-top:18px;">Sign In</button>
@@ -954,10 +954,7 @@
             <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;padding:0 14px;">Settings</div>
             
             <div class="settings-tab active" data-tab="tab-sheets" onclick="switchSettingsTab('tab-sheets')">
-              <i class="ph ph-table"></i> Google Sheets
-            </div>
-            <div class="settings-tab" data-tab="tab-connections" onclick="switchSettingsTab('tab-connections')">
-              <i class="ph ph-database"></i> Database Connections
+              <i class="ph ph-plugs-connected"></i> Data Sources & Sheets
             </div>
             <div class="settings-tab" data-tab="tab-sync" onclick="switchSettingsTab('tab-sync')">
               <i class="ph ph-arrows-clockwise"></i> Data Sync
@@ -978,83 +975,125 @@
 
           <div class="settings-content">
             
-            <!-- TAB: Database Connections -->
-            <div id="tab-connections" class="settings-pane">
-              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Database Connections</div>
-              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
-                <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Configure multiple Supabase environments. The active connection is used globally by the dashboard.</div>
-                
-                <div id="connections-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
-                  <!-- Rows injected by JS -->
+            <!-- TAB: Data Sources & Google Sheets -->
+            <div id="tab-sheets" class="settings-pane active">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <div>
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main);">Data Sources & Google Sheets</div>
+                  <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">Manage database connections and source Google Sheets for live data streams.</div>
                 </div>
-                
-                <div style="text-align:right;">
-                  <button class="btn btn-ghost btn-sm" onclick="addConnectionRow()"><i class="ph ph-plus"></i> Add Connection</button>
-                  <button class="btn btn-primary btn-sm" onclick="saveConnections(event)" style="margin-left:8px;"><i class="ph ph-floppy-disk"></i> Save Connections</button>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span id="cfg-save-status" style="font-size:12px; font-weight:600; color:var(--text3);"></span>
+                  <button class="btn btn-primary btn-sm" onclick="saveGoogleSheetsConfig()"><i class="ph ph-floppy-disk"></i> Save Sheets Config</button>
                 </div>
               </div>
-            </div>
 
-            <!-- TAB: Google Sheets -->
-            <div id="tab-sheets" class="settings-pane active">
-              <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Google Sheets Configuration</div>
-              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
-                <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Link the source Google Sheets for different data streams. The service account must have read access to these sheets.</div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
                 
-                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
-                  <div class="form-field">
-                    <label class="form-label">
-                      Outstanding Master Sheet ID
-                      <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.customers</span>
-                    </label>
-                    <input class="form-input" id="cfg-outstanding-id" placeholder="e.g. 1wpaZwEqW6AHGYqz..."/>
+                <!-- SECTION 0: Database Connections -->
+                <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm, 14px); padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <i class="ph ph-database" style="color:var(--brand-primary); font-size:15px;"></i>
+                      <span style="font-size:12px; font-weight:700; color:var(--text-main);">Database Connections</span>
+                      <span style="background:var(--surface3); color:var(--text-muted); padding:1px 6px; border-radius:4px; font-size:9.5px; font-family:monospace; border:1px solid var(--border);">Supabase</span>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                      <button class="btn btn-ghost btn-sm" style="padding:3px 8px; font-size:11.5px;" onclick="addConnectionRow()"><i class="ph ph-plus"></i> Add Connection</button>
+                      <button class="btn btn-primary btn-sm" style="padding:3px 10px; font-size:11.5px;" onclick="saveConnections(event)"><i class="ph ph-floppy-disk"></i> Save Connections</button>
+                    </div>
                   </div>
-                  <div class="form-field">
-                    <label class="form-label">Sheet Name</label>
-                    <input class="form-input" id="cfg-outstanding-name" placeholder="e.g. CUSTOMER MASTER"/>
-                  </div>
-                </div>
-                
-                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
-                  <div class="form-field">
-                    <label class="form-label">
-                      Target Data Sheet ID
-                      <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.targets</span>
-                    </label>
-                    <input class="form-input" id="cfg-target-id" placeholder="e.g. 1aJomY8qL1cVJrUg..."/>
-                  </div>
-                  <div class="form-field">
-                    <label class="form-label">Sheet Name</label>
-                    <input class="form-input" id="cfg-target-name" placeholder="e.g. TARGET_DATA"/>
+
+                  <div id="connections-container" style="display:flex; flex-direction:column; gap:8px;">
+                    <!-- Rows injected by JS -->
                   </div>
                 </div>
                 
-                <div style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
-                  <div style="font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:6px;">
-                    <span>Sales Raw Data Sheets</span>
-                    <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">public.raw_data</span>
+                <!-- SECTION 1: Master Tables -->
+                <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm, 14px); padding:12px 14px;">
+                  <div style="font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                    <i class="ph ph-database" style="color:var(--brand-primary); font-size:15px;"></i> Master Data Sheets
                   </div>
-                  <button class="btn btn-ghost btn-sm" style="margin-bottom:4px;" onclick="addSourceSheetRow()"><i class="ph ph-plus"></i> Add Year</button>
-                </div>
-                <div id="cfg-raw-sheets-container" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-                  <!-- Rows injected by JS -->
-                </div>
-                
-                <div style="margin-top:24px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;">
-                  <div style="font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:6px;">
-                    <span>Custom Pivot Reports</span>
-                    <span style="background:var(--surface3); color:var(--text); padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-family:monospace; border:1px solid var(--border);">Dynamic Pivot Tables</span>
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:10px;">
+                    
+                    <!-- Outstanding Master -->
+                    <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:11px; font-weight:700; color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">Outstanding Master</span>
+                        <span style="background:var(--surface3); color:var(--text-muted); padding:1px 6px; border-radius:4px; font-size:9.5px; font-family:monospace; border:1px solid var(--border);">public.customers</span>
+                      </div>
+                      <div style="display:grid; grid-template-columns:1.8fr 1.2fr; gap:8px;">
+                        <div>
+                          <label style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Sheet ID</label>
+                          <input class="form-input" id="cfg-outstanding-id" style="font-family:monospace; font-size:11px; height:32px; margin-top:2px;" placeholder="Spreadsheet ID..."/>
+                        </div>
+                        <div>
+                          <label style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Tab Name</label>
+                          <input class="form-input" id="cfg-outstanding-name" style="font-size:11.5px; height:32px; margin-top:2px;" placeholder="CUSTOMER MASTER"/>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Target Master -->
+                    <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:11px; font-weight:700; color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">Target Master</span>
+                        <span style="background:var(--surface3); color:var(--text-muted); padding:1px 6px; border-radius:4px; font-size:9.5px; font-family:monospace; border:1px solid var(--border);">public.targets</span>
+                      </div>
+                      <div style="display:grid; grid-template-columns:1.8fr 1.2fr; gap:8px;">
+                        <div>
+                          <label style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Sheet ID</label>
+                          <input class="form-input" id="cfg-target-id" style="font-family:monospace; font-size:11px; height:32px; margin-top:2px;" placeholder="Spreadsheet ID..."/>
+                        </div>
+                        <div>
+                          <label style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Tab Name</label>
+                          <input class="form-input" id="cfg-target-name" style="font-size:11.5px; height:32px; margin-top:2px;" placeholder="TARGET_DATA"/>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
-                  <button class="btn btn-ghost btn-sm" style="margin-bottom:4px;" onclick="addCustomReportRow()"><i class="ph ph-plus"></i> Add Report</button>
                 </div>
-                <div id="cfg-custom-reports-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
-                  <!-- Rows injected by JS -->
+
+                <!-- SECTION 2: Sales Raw Data Sheets -->
+                <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm, 14px); padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <i class="ph ph-file-spreadsheet" style="color:var(--brand-primary); font-size:15px;"></i>
+                      <span style="font-size:12px; font-weight:700; color:var(--text-main);">Sales Raw Data Sheets</span>
+                      <span style="background:var(--surface3); color:var(--text-muted); padding:1px 6px; border-radius:4px; font-size:9.5px; font-family:monospace; border:1px solid var(--border);">public.raw_data</span>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" style="padding:3px 8px; font-size:11.5px;" onclick="addSourceSheetRow()"><i class="ph ph-plus"></i> Add Year</button>
+                  </div>
+                  
+                  <div style="display:grid; grid-template-columns:120px 1fr 180px 96px; gap:8px; padding:0 4px 4px 4px; font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+                    <div>Financial Year</div>
+                    <div>Spreadsheet ID</div>
+                    <div>Tab Name</div>
+                    <div style="text-align:right;">Actions</div>
+                  </div>
+
+                  <div id="cfg-raw-sheets-container" style="display:flex; flex-direction:column; gap:6px;">
+                    <!-- Rows injected by JS -->
+                  </div>
                 </div>
-                
-                <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;">
-                  <span id="cfg-save-status" style="font-size:12px;font-weight:600;color:var(--text3);"></span>
-                  <button class="btn btn-primary btn-sm" onclick="saveGoogleSheetsConfig()"><i class="ph ph-floppy-disk"></i> Save Configuration</button>
+
+                <!-- SECTION 3: Custom Pivot Reports -->
+                <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm, 14px); padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <i class="ph ph-chart-polar" style="color:var(--brand-primary); font-size:15px;"></i>
+                      <span style="font-size:12px; font-weight:700; color:var(--text-main);">Custom Pivot Reports</span>
+                      <span style="background:var(--surface3); color:var(--text-muted); padding:1px 6px; border-radius:4px; font-size:9.5px; font-family:monospace; border:1px solid var(--border);">Dynamic Pivot Tables</span>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" style="padding:3px 8px; font-size:11.5px;" onclick="addCustomReportRow()"><i class="ph ph-plus"></i> Add Report</button>
+                  </div>
+
+                  <div id="cfg-custom-reports-container" style="display:flex; flex-direction:column; gap:10px;">
+                    <!-- Rows injected by JS -->
+                  </div>
                 </div>
+
               </div>
             </div>
             
@@ -1109,20 +1148,20 @@
               <div style="font-size:15px;font-weight:700;margin-bottom:16px;">User Management</div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
                 <div style="font-weight:700;color:var(--text);font-size:12.5px;margin-bottom:10px;">Provision New Account</div>
-                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
-                  <div class="form-field">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+                  <div class="form-field" style="flex:1;min-width:140px;">
                     <label class="form-label">Username</label>
-                    <input class="form-input" id="uf-username" autocomplete="off" placeholder="e.g. rajnish"/>
+                    <input class="form-input" id="uf-username" name="create_user_username" autocomplete="new-password" data-lpignore="true" placeholder="Enter username"/>
                   </div>
-                  <div class="form-field">
+                  <div class="form-field" style="flex:1;min-width:140px;">
                     <label class="form-label">Full Name</label>
-                    <input class="form-input" id="uf-name" placeholder="Rajnish Singh"/>
+                    <input class="form-input" id="uf-name" name="create_user_fullname" autocomplete="off" placeholder="Enter full name"/>
                   </div>
-                  <div class="form-field">
+                  <div class="form-field" style="flex:1;min-width:140px;">
                     <label class="form-label">Password</label>
-                    <input class="form-input" id="uf-password" type="text" placeholder="Set a password"/>
+                    <input class="form-input" id="uf-password" name="create_user_password" type="password" autocomplete="new-password" placeholder="Enter password"/>
                   </div>
-                  <div class="form-field">
+                  <div class="form-field" style="flex:1;min-width:120px;">
                     <label class="form-label">Role</label>
                     <select class="form-select" id="uf-role" onchange="onRoleChange()">
                       <option value="hod">HOD</option>
@@ -1131,17 +1170,19 @@
                       <option value="super_admin">Super Admin</option>
                     </select>
                   </div>
-                  <div class="form-field" id="uf-hods-wrap" style="grid-column:1/-1;">
-                    <label class="form-label">Assigned HOD Name(s) — hold Ctrl / Cmd to pick multiple</label>
-                    <select class="form-select" id="uf-hods" multiple size="3" style="height:auto;min-height:76px;"></select>
+                  <div class="form-field" id="uf-hods-wrap" style="flex:1.5;min-width:160px;">
+                    <label class="form-label">Assigned HOD(s)</label>
+                    <select class="form-select" id="uf-hods" multiple size="2" style="height:34px;min-height:34px;"></select>
                   </div>
-                  <div class="form-field" id="uf-zones-wrap" style="display:none;grid-column:1/-1;">
-                    <label class="form-label">Assigned Zone(s) — hold Ctrl / Cmd to pick multiple</label>
-                    <select class="form-select" id="uf-zones" multiple size="3" style="height:auto;min-height:76px;"></select>
+                  <div class="form-field" id="uf-zones-wrap" style="display:none;flex:1.5;min-width:160px;">
+                    <label class="form-label">Assigned Zone(s)</label>
+                    <select class="form-select" id="uf-zones" multiple size="2" style="height:34px;min-height:34px;"></select>
+                  </div>
+                  <div style="margin-bottom:2px;">
+                    <button class="btn btn-primary btn-sm" onclick="submitNewUser()"><i class="ph ph-user-plus"></i> Create</button>
                   </div>
                 </div>
-                <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
-                  <button class="btn btn-primary btn-sm" onclick="submitNewUser()"><i class="ph ph-user-plus"></i> Create User</button>
+                <div style="margin-top:6px;display:flex;justify-content:flex-end;">
                   <span id="uf-status" style="font-size:12px;font-weight:600;color:var(--text3)"></span>
                 </div>
               </div>
@@ -1158,8 +1199,9 @@
                   <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
                     <thead style="background:var(--surface3);position:sticky;top:0;z-index:10;">
                       <tr>
-                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Name / Email</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">User</th>
                         <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Role</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Assigned Scope / HOD(s)</th>
                         <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;">Status</th>
                         <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;text-align:right;">Action</th>
                       </tr>
@@ -1361,25 +1403,27 @@
 </div>
 
 <div id="edit-user-modal" class="modal-overlay" style="z-index:9999999; display:none;">
-  <div class="modal-box" style="max-width:500px; text-align:left;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h3 style="font-size:16px; font-weight:700; margin:0;">Edit User</h3>
+  <div class="modal-box" style="max-width:620px; width:92%; text-align:left; border-radius:20px; padding:26px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <h3 style="font-size:17px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;"><i class="ph ph-user-gear" style="color:var(--brand-primary); font-size:20px;"></i> Edit User</h3>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-user-modal').style.display='none'"><i class="ph ph-x"></i></button>
     </div>
     
     <input type="hidden" id="edit-user-id">
     
-    <div style="display:flex; flex-direction:column; gap:12px;">
-      <div>
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Username</label>
-        <input type="text" id="edit-user-username" class="form-input" style="width:100%; margin-top:4px;">
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Username</label>
+          <input type="text" id="edit-user-username" class="form-input" style="width:100%; margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Full Name</label>
+          <input type="text" id="edit-user-fullname" class="form-input" style="width:100%; margin-top:4px;">
+        </div>
       </div>
       <div>
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Full Name</label>
-        <input type="text" id="edit-user-fullname" class="form-input" style="width:100%; margin-top:4px;">
-      </div>
-      <div>
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Role</label>
+        <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Role</label>
         <select id="edit-user-role" class="form-select" style="width:100%; margin-top:4px;" onchange="if(window.onEditRoleChange) window.onEditRoleChange()">
           <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
@@ -1387,21 +1431,25 @@
           <option value="zonal_head">Zonal Head</option>
         </select>
       </div>
+      <div id="edit-admin-scope-info" style="display:none; padding:10px 14px; background:var(--brand-muted, rgba(79, 70, 229, 0.1)); border:1px solid var(--border); border-radius:10px; font-size:12px; color:var(--brand-text, #818cf8);">
+        <i class="ph ph-shield-check" style="font-size:15px; vertical-align:-2px; margin-right:4px;"></i>
+        <b>Full Data Access:</b> Super Admins and Admins have access to all HODs, Zones, and branches by default.
+      </div>
       <div id="edit-hods-wrap" style="display:none;">
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned HOD Name(s) — hold Ctrl / Cmd</label>
-        <select id="edit-user-hods" class="form-select" multiple size="4" style="width:100%; margin-top:4px; min-height:96px;"></select>
+        <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; display:block;">Assigned HOD(s)</label>
+        <select id="edit-user-hods" class="form-select" multiple style="width:100%; display:none;"></select>
       </div>
       <div id="edit-zones-wrap" style="display:none;">
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Assigned Zone(s) — hold Ctrl / Cmd</label>
-        <select id="edit-user-zones" class="form-select" multiple size="4" style="width:100%; margin-top:4px; min-height:96px;"></select>
+        <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; display:block;">Assigned Zone(s)</label>
+        <select id="edit-user-zones" class="form-select" multiple style="width:100%; display:none;"></select>
       </div>
       <div>
-        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Reset Password (Leave blank to keep unchanged)</label>
+        <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Reset Password <span style="font-weight:400; text-transform:none; font-size:10px; color:var(--text3);">(Leave blank to keep unchanged)</span></label>
         <input type="password" id="edit-user-password" class="form-input" style="width:100%; margin-top:4px;" placeholder="New password...">
       </div>
     </div>
 
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:24px;">
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
       <button class="btn btn-ghost" onclick="document.getElementById('edit-user-modal').style.display='none'">Cancel</button>
       <button class="btn btn-primary" onclick="submitEditUser()"><i class="ph ph-check"></i> Save Changes</button>
     </div>
@@ -1486,7 +1534,7 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=494e8441"></script>
+<script defer src="/js/javascript.min.js?v=40363954"></script>
 <script defer src="/js/javascript1.min.js?v=96a5ca5e"></script>
 <script defer src="/js/javascript2.min.js?v=9b057d13"></script>
 <script defer src="/js/fms.min.js?v=5605d69c"></script>
