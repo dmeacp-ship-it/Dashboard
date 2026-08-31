@@ -84,8 +84,6 @@ window.custSalePage    = 1;
 window.skuTypeSaleView = 'quarter';
 window.skuTypeSalePage = 1;
 
-window.targetView = 'month';
-window.targetPage = 1;
 window.targetFY   = 'All';
 window.hodTargetView = 'month';
 window.hodTargetPage = 1;
@@ -135,7 +133,7 @@ window.bindKpiWheelScroll = function(root) {
   });
 };
 
-window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', skutypeqoq: '', outstanding: '', targets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
+window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', exectgt: '', skutypeqoq: '', outstanding: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
 window.copilotHistory = [];
 window.tableAIHistory = {};
 
@@ -320,13 +318,12 @@ window.handleSearch = function(pageId) {
       if (pageId === 'execqoq')     window.execSalePage    = 1;
       if (pageId === 'projqoq' && window._personTables) window._personTables.projqoq.page = 1;
       if (pageId === 'skutypeqoq')  window.skuTypeSalePage = 1;
-      if (pageId === 'targets')     window.targetPage      = 1;
       
       if (pageId === 'outstanding' && window._renderOutstandingTable) window._renderOutstandingTable();
-      else if (pageId === 'targets' && window.loadTargets) window.loadTargets(1);
       else if (pageId === 'custqoq' && window.loadCustSale) window.loadCustSale(1);
       else if (pageId === 'execqoq' && window.loadExecSale) window.loadExecSale(1);
       else if (pageId === 'tgtactual' && window.loadTargetActual) window.loadTargetActual();
+      else if (pageId === 'exectgt' && window.loadExecTargetActual) window.loadExecTargetActual();
       else if (pageId === 'projqoq' && window.loadProjSale) window.loadProjSale(1);
       else if (pageId === 'skutypeqoq' && window.loadSkuTypeSale) window.loadSkuTypeSale(1);
       else if (pageId === 'customers' && window.loadTopCustomers) window.loadTopCustomers(1);
@@ -1269,9 +1266,7 @@ window._EXPORT_TABLES = {
   'tbl-outstanding-body': { key: 'outstanding', reload: function () { return window._renderOutstandingTable(); } },
   'tbl-custqoq-body':     { key: 'custqoq',     reload: function () { return window.loadCustSale(window.custSalePage || 1); } },
   'tbl-execqoq-body':     { key: 'execqoq',     reload: function () { return window.loadExecSale(window.execSalePage || 1); } },
-  'tbl-tgtactual-body':   { key: 'tgtactual',   reload: function () { return window.loadTargetActual(); } },
   'tbl-projqoq-body':     { key: 'projqoq',     reload: function () { return window.loadProjSale(1); } },
-  'tbl-targets-body':     { key: 'targets',     reload: function () { return window.loadTargets(window.targetPage || 1); } },
   'tbl-customers-body':   { key: 'customers',   reload: function () { return window.loadTopCustomers(1); } },
   'tbl-rfm-body':         { key: 'rfm',         reload: function () { return window.loadRFM(1); } },
   'tbl-declining-body':   { key: 'declining',   reload: function () { return window.loadDeclining(1); } },
@@ -1356,8 +1351,16 @@ window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
 
   if (rows.length <= (theadId ? 1 : 0)) { window.toast('No data rows to export.', 'info'); return; }
 
-  const csv  = rows.join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  window._downloadCSV(rows, filename, rows.length - (theadId ? 1 : 0));
+};
+
+/**
+ * Writes already-built CSV lines out as a dated download. Split out of
+ * _scrapeTableToCSV so builders that assemble their rows from the underlying
+ * data rather than from the DOM share the same BOM/blob/anchor handling.
+ */
+window._downloadCSV = function(rows, filename, count) {
+  const blob = new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
@@ -1366,7 +1369,7 @@ window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  window.toast('Exported ' + (rows.length - (theadId ? 1 : 0)) + ' rows successfully.', 'success');
+  window.toast('Exported ' + count + ' rows successfully.', 'success');
 };
 
 window.formatAIResponse = function(text) {
@@ -1587,6 +1590,7 @@ window.loadPage = function(id, page = 1, useCache = false) {
     custqoq:      () => typeof window.loadCustSale === 'function' ? window.loadCustSale(page) : null, 
     execqoq:      () => typeof window.loadExecSale === 'function' ? window.loadExecSale(page) : null,
     tgtactual:    () => typeof window.loadTargetActual === 'function' ? window.loadTargetActual() : null,
+    exectgt:      () => typeof window.loadExecTargetActual === 'function' ? window.loadExecTargetActual() : null,
     projqoq:      () => typeof window.loadProjSale === 'function' ? window.loadProjSale(page) : null,
     settings:     () => { 
       if (typeof window.loadUsers === 'function') window.loadUsers(); 
@@ -1594,7 +1598,6 @@ window.loadPage = function(id, page = 1, useCache = false) {
       if (typeof window.loadConnectionsConfig === 'function') window.loadConnectionsConfig();
     },
     skutypeqoq:   () => typeof window.loadSkuTypeSale === 'function' ? window.loadSkuTypeSale(page) : null, 
-    targets:      () => typeof window.loadTargets === 'function' ? window.loadTargets(page) : null,
     outstanding:  () => typeof window.loadOutstanding === 'function' ? window.loadOutstanding() : null,
     pareto:       () => typeof window.loadTopCustomers === 'function' ? window.loadTopCustomers(page) : null,
     rfm:          () => typeof window.loadRFM === 'function' ? window.loadRFM(page) : null,
@@ -1672,7 +1675,7 @@ window.actionSyncTargets = function(e) {
         .then(function(res) {
           window.loading(false);
           window.toast((res && res.message) ? res.message : 'Targets sync complete!', 'success', 6000);
-          if (window.App.currentPage === 'targets' && window.loadPage) window.loadPage(window.App.currentPage);
+          if (['tgtactual', 'exectgt'].indexOf(window.App.currentPage) !== -1 && window.loadPage) window.loadPage(window.App.currentPage);
         })
         .catch(function(err) {
           window.loading(false);
@@ -2379,7 +2382,7 @@ window._bootDashboard = async function() {
     if (targetWrap) {
       targetWrap.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;gap:6px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:24px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i><span>Loading Target Performance...</span></div>';
     }
-    window.api('getTargetVsAchievement').then(targets => {
+    window._fetchOverviewTargets().then(targets => {
       if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
       if (typeof window.renderTargetAchievementOverview === 'function') window.renderTargetAchievementOverview(targets || []);
     }).catch(() => {

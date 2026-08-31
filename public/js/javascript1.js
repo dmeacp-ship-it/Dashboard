@@ -38,11 +38,6 @@ window._getMonthSortVal = function(k) {
   return calYear * 100 + calMonth;
 };
 
-window.setTargetFY = function(fy) {
-  window.targetFY = fy;
-  window.loadTargets(1);
-};
-
 window.setHodTargetPage = function(p) {
   window.hodTargetPage = p;
   window.loadHodTargets(p);
@@ -231,8 +226,6 @@ window.loadHodTargets = async function(page = 1) {
 
 window.selectedHodCompareRows = new Set();
 window.hodCompareActive = false;
-window.selectedTargetCompareRows = new Set();
-window.targetCompareActive = false;
 
 window.toggleHodSelection = function(key, checked) {
     if (checked) {
@@ -269,21 +262,10 @@ window._updateHodCompareBadge = function() {
     window._renderCompareFloatingBar('hodtargets', count);
 };
 
-window._updateTargetCompareBadge = function() {
-    const badge = document.getElementById('badge-compare-targets');
-    const count = window.selectedTargetCompareRows.size;
-    if (badge) {
-        badge.textContent = count;
-        badge.style.display = (window.targetCompareActive && count > 0) ? 'inline-flex' : 'none';
-    }
-    window._renderCompareFloatingBar('targets', count);
-};
-
 window._renderCompareFloatingBar = function(type, count) {
     let barId = 'compare-float-bar-' + type;
     let bar = document.getElementById(barId);
-    const containerId = type === 'hodtargets' ? 'page-hodtargets' : 'page-targets';
-    const container = document.querySelector(`#${containerId} .table-card`);
+    const container = document.querySelector('#page-hodtargets .table-card');
     if (!container) return;
 
     if (count < 2) {
@@ -298,7 +280,7 @@ window._renderCompareFloatingBar = function(type, count) {
         container.appendChild(bar);
     }
 
-    const titleText = type === 'hodtargets' ? 'HODs' : 'Executives';
+    const titleText = 'HODs';
     bar.innerHTML = `
         <div style="display:flex; align-items:center; gap:10px;">
             <i class="ph ph-scales" style="font-size:18px; color:var(--brand-text);"></i>
@@ -313,16 +295,10 @@ window._renderCompareFloatingBar = function(type, count) {
     `;
 };
 
-window.clearCompareSelection = function(type) {
-    if (type === 'hodtargets') {
-        window.selectedHodCompareRows.clear();
-        window._updateHodCompareBadge();
-        window.loadHodTargets(window.hodTargetPage || 1);
-    } else {
-        window.selectedTargetCompareRows.clear();
-        window._updateTargetCompareBadge();
-        window.loadTargets(window.targetPage || 1);
-    }
+window.clearCompareSelection = function() {
+    window.selectedHodCompareRows.clear();
+    window._updateHodCompareBadge();
+    window.loadHodTargets(window.hodTargetPage || 1);
 };
 
 window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
@@ -391,278 +367,6 @@ window._renderHodTargetTable = function(displayRows, displayCols, thead, tbody, 
 };
 
 // -- EXECUTIVE TARGETS --
-window.setTargetView = function(v, btn) {
-  window.targetView = v;
-  document.querySelectorAll('#target-toggles .btn').forEach(function(b) {
-    b.className = 'btn btn-sm btn-ghost';
-  });
-  if (btn) btn.className = 'btn btn-sm btn-primary';
-  window.loadTargets(1);
-};
-
-window.setTargetPage = function(p) {
-  window.targetPage = p;
-  window.loadTargets(p);
-};
-
-window.loadTargets = async function(page = 1) {
-  const tbody = document.getElementById('tbl-targets-body');
-  const thead = document.getElementById('tbl-targets-head');
-  if (!tbody || !thead) return;
-  
-  const compBtns = document.querySelectorAll('#page-targets .comp-toggles .btn');
-  if (compBtns.length === 3) {
-      compBtns[0].className = 'btn btn-sm ' + (window.comparisonMode === 'none' ? 'btn-primary' : 'btn-ghost');
-      compBtns[1].className = 'btn btn-sm ' + (window.comparisonMode === 'pop' ? 'btn-primary' : 'btn-ghost');
-      compBtns[2].className = 'btn btn-sm ' + (window.comparisonMode === 'yoy' ? 'btn-primary' : 'btn-ghost');
-  }
-
-  tbody.innerHTML = window._loadingRow(8);
-  
-  let pagContainer = document.getElementById('pagination-targets');
-  if(!pagContainer) {
-      const wrap = document.querySelector('#page-targets .table-card:last-child');
-      if(wrap) {
-        pagContainer = document.createElement('div');
-        pagContainer.id = 'pagination-targets';
-        wrap.appendChild(pagContainer);
-      }
-  }
-
-  try {
-    const rawData = await window.api('getExecutiveTargets');
-    let rows = rawData || [];
-    
-    const sq = (window.searchQueries['targets'] || '').toLowerCase();
-    if (sq) {
-      rows = rows.filter(function(r) {
-        return (r.EMPLOYEE || '').toLowerCase().indexOf(sq) !== -1 ||
-               (r.STATE || '').toLowerCase().indexOf(sq) !== -1 ||
-               (r.HOD || '').toLowerCase().indexOf(sq) !== -1;
-      });
-    }
-
-    const dataKey = window.targetView === 'year' ? 'YEARLY' : window.targetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY';
-
-    let allKeys = new Set();
-    rows.forEach(function(r) {
-      Object.keys(r[dataKey] || {}).forEach(function(k) { 
-         if (r[dataKey][k] && r[dataKey][k].a > 0) allKeys.add(k); 
-      });
-    });
-    
-    let sortedKeys = Array.from(allKeys);
-    if(window.targetView === 'year' || window.targetView === 'quarter') {
-       sortedKeys.sort().reverse();
-    } else {
-       sortedKeys.sort(function(a, b) {
-         return window._getMonthSortVal(b) - window._getMonthSortVal(a);
-       });
-    }
-    
-    const latestPeriod = sortedKeys[0] || 'N/A';
-    let displayCols = sortedKeys;
-
-    if (window.comparisonMode !== 'none') {
-        const baseIdx = window._getCompBaseIndex('target-comp-period', window.targetView, sortedKeys);
-        const offsetCols = sortedKeys.slice(baseIdx);
-        if (window.comparisonMode === 'pop') {
-            if (offsetCols.length >= 2) displayCols = [offsetCols[0], offsetCols[1]];
-            else displayCols = offsetCols;
-        } else if (window.comparisonMode === 'yoy') {
-            displayCols = [];
-            let cur = offsetCols[0];
-            while (cur && sortedKeys.includes(cur)) {
-                displayCols.push(cur);
-                const prevYear = cur.replace(/FY (\d+)-(\d+)/, (_, y1, y2) => `FY ${parseInt(y1)-1}-${parseInt(y2)-1}`);
-                if (prevYear === cur || !sortedKeys.includes(prevYear)) break;
-                cur = prevYear;
-            }
-        }
-    } else {
-        window._getCompBaseIndex('target-comp-period', window.targetView, []);
-        const selFY = (window.targetFY && window.targetFY !== 'All') ? window.targetFY : (window.App.filters && window.App.filters.fy);
-        if (selFY && selFY !== 'All') {
-            const allowedFYs = Array.isArray(selFY) ? selFY : [selFY];
-            if (!allowedFYs.includes('All') && allowedFYs.length > 0) {
-                displayCols = displayCols.filter(k => allowedFYs.some(fy => k.startsWith(fy)));
-            }
-        }
-        const monthFilter = window.App.filters && window.App.filters.month;
-        if (monthFilter && monthFilter !== 'All') {
-            const allowedMonths = Array.isArray(monthFilter) ? monthFilter : [monthFilter];
-            if (!allowedMonths.includes('All') && allowedMonths.length > 0) {
-                displayCols = displayCols.filter(k => {
-                    const mStr = k.split('_')[1];
-                    return allowedMonths.some(m => k.endsWith(m) || (mStr && m.toUpperCase().includes(mStr.toUpperCase())));
-                });
-            }
-        }
-    }
-
-    let totalTarget = 0, totalAchv = 0;
-    rows.forEach(r => {
-       if(r[dataKey] && r[dataKey][latestPeriod]) {
-           totalTarget += r[dataKey][latestPeriod].t || 0;
-           totalAchv += r[dataKey][latestPeriod].a || 0;
-       }
-    });
-    
-    const overallPct = totalTarget > 0 ? ((totalAchv / totalTarget) * 100).toFixed(1) : (totalAchv > 0 ? 100.0 : 0.0);
-    let pctColor = overallPct < 50 ? 'var(--danger)' : overallPct < 80 ? 'var(--accent4)' : 'var(--accent3)';
-
-    const kpiGrid = document.getElementById('targets-kpi-grid');
-    if (kpiGrid) {
-       kpiGrid.innerHTML = 
-          '<div class="kpi-card stagger-1" style="--kpi-color:var(--brand-text)">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:var(--brand-text)"><i class="ph ph-target"></i></div><div class="kpi-label">LATEST TARGET (' + latestPeriod.replace('_', ' ') + ')</div></div>'
-        + '<div class="kpi-value" style="font-size:24px;">' + window.fmt.num(totalTarget) + '</div>'
-        + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">target assigned</div>'
-        + '</div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:' + pctColor + '">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:' + pctColor + '"><i class="ph ph-trend-up"></i></div><div class="kpi-label">LATEST ACHIEVEMENT</div></div>'
-        + '<div class="kpi-value" style="font-size:24px;color:' + pctColor + '">' + window.fmt.num(totalAchv) + '</div>'
-        + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">actual generated</div>'
-        + '</div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:' + pctColor + '">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:' + pctColor + '"><i class="ph ph-percent"></i></div><div class="kpi-label">OVERALL ACHIEVEMENT %</div></div>'
-        + '<div class="kpi-value" style="font-size:24px;color:' + pctColor + '">' + overallPct + '%</div>'
-        + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">conversion rate</div>'
-        + '</div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#ec4899">'
-        + '<div class="kpi-header-row"><div class="kpi-icon" style="color:#ec4899"><i class="ph ph-user-circle-gear"></i></div><div class="kpi-label">TOTAL EXECUTIVES</div></div>'
-        + '<div class="kpi-value" style="font-size:24px;">' + rows.length + '</div>'
-        + '<div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">matching current filters</div>'
-        + '</div>';
-    }
-
-    rows.forEach(function(r) {
-      r.STATE = window._normalizeState(r.STATE);
-      r.HOD = window._normalizeHOD(r.HOD);
-    });
-
-    rows.forEach(r => {
-        let maxA = 0;
-        if(r[dataKey]) {
-            Object.values(r[dataKey]).forEach(v => { if(v.a > maxA) maxA = v.a; });
-        }
-        r._maxA = maxA;
-        r._latestA = (r[dataKey] && r[dataKey][latestPeriod]) ? (r[dataKey][latestPeriod].a || 0) : 0;
-    });
-
-    rows.sort(function(a,b) {
-        let sCmp = (a.STATE || '').trim().localeCompare((b.STATE || '').trim());
-        if (sCmp !== 0) return sCmp;
-
-        let nameA = (a.EXECUTIVE || a.HOD || a.HOD_NAME || '').trim();
-        let nameB = (b.EXECUTIVE || b.HOD || b.HOD_NAME || '').trim();
-        let hCmp = nameA.localeCompare(nameB);
-        if (hCmp !== 0) return hCmp;
-
-        let diffA = (b._latestA || 0) - (a._latestA || 0);
-        if (diffA !== 0) return diffA;
-        return (b._maxA || 0) - (a._maxA || 0);
-    });
-
-    if (window.tableSortRules['targets'] && window.tableSortRules['targets'].length > 0) {
-      rows = window.applyMultiSort(rows, 'targets');
-    }
-
-    const exportAll = window.App.exportAll === 'targets';
-    const ps = exportAll ? (rows.length || 1) : 50;
-    const totalPages = Math.ceil(rows.length / ps) || 1;
-    if (page > totalPages) page = totalPages;
-    if (exportAll) page = 1;
-    const displayRows = rows.slice((page - 1) * ps, page * ps);
-
-    window._renderTargetTable(displayRows, displayCols, thead, tbody, dataKey, page, ps, latestPeriod);
-    
-    window._renderPagination({
-      page: page,
-      totalPages: totalPages,
-      total: rows.length
-    }, 'setTargetPage', 'pagination-targets');
-
-  } catch(e) {
-    tbody.innerHTML = window._errorRow(8, e.message);
-  }
-};
-
-window._targetTh = function(label, isCurrent, suffix, hasVar) {
-  const s = (isCurrent ? 'color:var(--brand-text);background:var(--brand-muted);' : '')
-    + 'white-space:nowrap;min-width:130px;padding:8px 10px;font-size:11.5px;text-align:center;';
-  let badgeHtml = '';
-  if (suffix) {
-    let bg = isCurrent ? 'var(--brand-primary)' : 'rgba(107, 114, 128, 0.12)';
-    let fg = isCurrent ? '#ffffff' : 'var(--text-muted)';
-    badgeHtml = '<br><span style="font-size:9px;font-weight:700;letter-spacing:0.04em;background:' + bg + ';color:' + fg + ';padding:2px 6px;border-radius:4px;display:inline-block;margin-top:3px;">' + suffix + '</span>';
-  }
-  return '<th style="' + s + '">'
-    + (isCurrent ? '<span style="color:var(--brand-text);margin-right:4px">●</span>' : '')
-    + label
-    + badgeHtml
-    + '</th>';
-};
-
-window._renderTargetTable = function(displayRows, displayCols, thead, tbody, dataKey, page, pageSize, latestPeriod) {
-  window.App.lastTableData['targets'] = displayRows;
-  const stickyN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:44px;min-width:44px;max-width:44px;padding:6px 8px;box-sizing:border-box;';
-  const stickyST  = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:110px;max-width:110px;padding:6px 8px;box-sizing:border-box;';
-  const stickyHOD = 'position:sticky;left:154px;top:0;z-index:15;background:var(--brand-primary);min-width:140px;max-width:140px;padding:6px 8px;box-sizing:border-box;';
-  const stickyEMP = 'position:sticky;left:294px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;max-width:150px;padding:6px 8px;box-sizing:border-box;';
-
-  const stickyRowN   = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:44px;min-width:44px;max-width:44px;padding:4px 8px;box-sizing:border-box;';
-  const stickyRowST  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:110px;max-width:110px;padding:4px 8px;box-sizing:border-box;';
-  const stickyRowHOD = 'position:sticky;left:154px;z-index:5;background:var(--bg-card);min-width:140px;max-width:140px;padding:4px 8px;box-sizing:border-box;';
-  const stickyRowEMP = 'position:sticky;left:294px;z-index:5;background:var(--bg-card);min-width:150px;max-width:150px;padding:4px 8px;box-sizing:border-box;';
-
-  thead.innerHTML = '<tr>'
-    + '<th style="' + stickyN + '">#</th>'
-    + '<th style="' + stickyST + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'STATE\', \'loadTargets\')">HOD State ' + window._getSortIndicator('targets', 'STATE') + '</th>'
-    + '<th style="' + stickyHOD + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'HOD\', \'loadTargets\')">HOD Name ' + window._getSortIndicator('targets', 'HOD') + '</th>'
-    + '<th style="' + stickyEMP + '" class="sortable-th" onclick="window.toggleHeaderSort(\'targets\', \'EMPLOYEE\', \'loadTargets\')">Executive Name ' + window._getSortIndicator('targets', 'EMPLOYEE') + '</th>'
-    + displayCols.map(function(c, i) {
-        let sub = '';
-        if (window.comparisonMode !== 'none') {
-            if (i === 0) sub = (c === latestPeriod ? 'CURRENT' : 'BASE');
-            else if (window.comparisonMode === 'pop') sub = 'PREV';
-            else if (window.comparisonMode === 'yoy') sub = i + ' YR AGO';
-        } else {
-            if (c === latestPeriod) sub = 'LATEST';
-        }
-        const hasVar = (window.comparisonMode !== 'none' && i + 1 < displayCols.length);
-        return window._targetTh(c.replace('_', ' '), (c === latestPeriod || i === 0), sub, hasVar);
-    }).join('')
-    + '</tr>';
-
-  if (!displayRows.length) {
-     tbody.innerHTML = window._emptyRow(displayCols.length + 4, 'No target data found matching your criteria.'); 
-     return; 
-  }
-  
-  let htmlStr = '';
-  displayRows.forEach(function(r, i) {
-    const idx = ((page - 1) * pageSize) + i + 1;
-    let html = '<td style="' + stickyRowN + '">' + idx + '</td>'
-      + '<td style="font-weight:600;color:var(--text-main);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td>'
-      + '<td style="color:var(--text-main);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowHOD + '" title="'+window.esc(r.HOD||'-')+'">' + window.esc(r.HOD || '-') + '</td>'
-      + '<td style="color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' + stickyRowEMP + '" title="'+window.esc(r.EMPLOYEE||'-')+'">' + window.esc(r.EMPLOYEE || '-') + '</td>';
-      
-    displayCols.forEach(function(c, colIdx) {
-       const obj = (r[dataKey] || {})[c] || {t:0, a:0};
-       let prevObj;
-       if (window.comparisonMode !== 'none' && colIdx + 1 < displayCols.length) {
-           const prevC = displayCols[colIdx + 1];
-           prevObj = (r[dataKey] || {})[prevC] || {t:0, a:0};
-       }
-       html += window._targetTd(obj.t, obj.a, prevObj ? prevObj.t : undefined, prevObj ? prevObj.a : undefined);
-    });
-    
-    htmlStr += '<tr>' + html + '</tr>';
-  });
-  tbody.innerHTML = htmlStr;
-};
-
 window.openCompareModal = function(type) {
     const modal = document.getElementById('compare-modal');
     const body = document.getElementById('compare-modal-body');
@@ -670,12 +374,11 @@ window.openCompareModal = function(type) {
     const subEl = document.getElementById('compare-modal-sub');
     if (!modal || !body) return;
 
-    const isHod = (type === 'hodtargets');
-    const selectedKeys = isHod ? window.selectedHodCompareRows : window.selectedTargetCompareRows;
+    const selectedKeys = window.selectedHodCompareRows;
     const allData = window.App.lastTableData[type] || [];
 
     const selectedRows = allData.filter(r => {
-        const key = isHod ? ((r.HOD || '') + '||' + (r.STATE || '')) : ((r.EMPLOYEE || '') + '||' + (r.HOD || '') + '||' + (r.STATE || ''));
+        const key = (r.HOD || '') + '||' + (r.STATE || '');
         return selectedKeys.has(key);
     });
 
@@ -684,13 +387,10 @@ window.openCompareModal = function(type) {
         return;
     }
 
-    const titleText = isHod ? 'HOD Performance Comparison' : 'Executive Targets Comparison';
-    if (titleEl) titleEl.textContent = titleText;
-    if (subEl) subEl.textContent = `Comparing ${selectedRows.length} selected ${isHod ? 'HODs' : 'Executives'} side-by-side`;
+    if (titleEl) titleEl.textContent = 'HOD Performance Comparison';
+    if (subEl) subEl.textContent = `Comparing ${selectedRows.length} selected HODs side-by-side`;
 
-    const dataKey = isHod 
-        ? (window.hodTargetView === 'year' ? 'YEARLY' : window.hodTargetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY')
-        : (window.targetView === 'year' ? 'YEARLY' : window.targetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY');
+    const dataKey = window.hodTargetView === 'year' ? 'YEARLY' : window.hodTargetView === 'quarter' ? 'QUARTERLY' : 'MONTHLY';
 
     // Collect all unique period keys across selected rows
     let periodKeys = new Set();
@@ -723,7 +423,7 @@ window.openCompareModal = function(type) {
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
             <div class="kpi-card" style="--kpi-color:var(--brand-text); padding:14px;">
                 <div class="kpi-label">COMPARING</div>
-                <div class="kpi-value" style="font-size:22px;">${selectedRows.length} ${isHod ? 'HODs' : 'Executives'}</div>
+                <div class="kpi-value" style="font-size:22px;">${selectedRows.length} HODs</div>
                 <div class="kpi-sub">Period: ${latestPeriod.replace('_', ' ')}</div>
             </div>
             <div class="kpi-card" style="--kpi-color:var(--accent); padding:14px;">
@@ -747,8 +447,8 @@ window.openCompareModal = function(type) {
     // 2. Side-by-Side Cards
     html += `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">`;
     selectedRows.forEach(r => {
-        const name = isHod ? (r.HOD || 'Unknown') : (r.EMPLOYEE || 'Unknown');
-        const subInfo = isHod ? (r.STATE || '-') : (`HOD: ${r.HOD || '-'} (${r.STATE || '-'})`);
+        const name = r.HOD || 'Unknown';
+        const subInfo = r.STATE || '-';
         const latest = (r[dataKey] || {})[latestPeriod] || {t:0, a:0};
         const target = latest.t || 0;
         const achv = latest.a || 0;
@@ -833,7 +533,7 @@ window.openCompareModal = function(type) {
                     </thead>
                     <tbody>
                         ${selectedRows.map(r => {
-                            const name = isHod ? (r.HOD || 'Unknown') : (r.EMPLOYEE || 'Unknown');
+                            const name = r.HOD || 'Unknown';
                             return `
                                 <tr style="border-bottom:1px solid var(--border);">
                                     <td style="padding:8px 12px; font-weight:700; color:var(--text-main); white-space:nowrap;">${window.esc(name)}</td>
@@ -875,7 +575,6 @@ window.setTargetDensity = function(mode, btn) {
      b.className = (mode === 'detailed') ? 'btn btn-sm btn-primary btn-density-detailed' : 'btn btn-sm btn-ghost btn-density-detailed';
    });
    if (typeof window.loadHodTargets === 'function') window.loadHodTargets(window.hodTargetPage || 1);
-   if (typeof window.loadTargets === 'function') window.loadTargets(window.targetPage || 1);
 };
 
 window._targetTd = function(target, achv, prevTarget, prevAchv) {
@@ -1116,9 +815,6 @@ window.setComparisonMode = function(mode, btn) {
   }
   if (document.getElementById('page-hodtargets') && document.getElementById('page-hodtargets').classList.contains('active')) {
     if (typeof window.loadHodTargets === 'function') window.loadHodTargets(1);
-  }
-  if (document.getElementById('page-targets') && document.getElementById('page-targets').classList.contains('active')) {
-    if (typeof window.loadTargets === 'function') window.loadTargets(1);
   }
 };
 
@@ -2465,6 +2161,12 @@ window.loadTargetActual = async function () {
 
     window.App.lastTableData['tgtactual'] = list;
 
+    const periodLabel = function (c) {
+      return group === 'QUARTERLY' ? c.replace('_', ' ').replace('FY ', 'FY-') : c;
+    };
+    // What the Export button writes out — see exportTargetCSV.
+    window._tgtExport['tgtactual'] = { list: list, group: group, cols: cols, labels: cols.map(periodLabel) };
+
     // Same geometry as the HOD Performance table.
     const stN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:44px;padding:8px 12px;';
     const stHod = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:200px;max-width:200px;padding:8px 12px;';
@@ -2479,8 +2181,7 @@ window.loadTargetActual = async function () {
       + '<th style="' + stSt + '">HOD STATE</th>'
       + cols.map(function (c) {
           const cur = isCurrent(c);
-          const label = group === 'QUARTERLY' ? c.replace('_', ' ').replace('FY ', 'FY-') : c;
-          return window._hodTh(label, cur, cur ? 'current' : '', false);
+          return window._hodTh(periodLabel(c), cur, cur ? 'current' : '', false);
         }).join('')
       + '</tr>';
 
@@ -2512,4 +2213,224 @@ window.loadTargetActual = async function () {
   } catch (e) {
     tbody.innerHTML = window._errorRow(8, e.message);
   }
+};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Executive Target vs Sales
+   ──────────────────────────────────────────────────────────────────────────
+   The HOD Target vs Sales table one level down: the same TARGET_DATA targets
+   and the same sales-derived achievement, but one row per executive rather
+   than per HOD (getTargetVsAchievement with groupBy:'employee').
+
+   Achievement is the executive's OWN retail sales -- project business is
+   subtracted server-side so these rows add up to their HOD's line on the HOD
+   table. An executive with sales but no target row appears at a zero target,
+   for the same reason a HOD in that position does.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+window.execTgtView = 'quarter';
+
+window.setExecTgtView = function (v, btn) {
+  window.execTgtView = v;
+  document.querySelectorAll('#exectgt-toggles .btn').forEach(function (b) {
+    b.className = 'btn btn-sm btn-ghost';
+  });
+  if (btn) btn.className = 'btn btn-sm btn-primary';
+  window.loadExecTargetActual();
+};
+
+window.loadExecTargetActual = async function () {
+  const tbody = document.getElementById('tbl-exectgt-body');
+  const thead = document.getElementById('tbl-exectgt-head');
+  if (!tbody || !thead) return;
+  tbody.innerHTML = window._loadingRow(8);
+
+  try {
+    const rows = await window.api('getTargetVsAchievement', { options: { groupBy: 'employee' } });
+    if (!rows || !rows.length) {
+      tbody.innerHTML = window._emptyRow(8, 'No targets found. Check the TARGET_DATA sheet.');
+      return;
+    }
+
+    const view = window.execTgtView || 'quarter';
+    const group = view === 'year' ? 'YEARLY' : (view === 'month' ? 'MONTHLY' : 'QUARTERLY');
+    const curFY = window._currentFY();
+    const curQ = window._currentQuarter();
+
+    let list = rows;
+    const sq = (window.searchQueries['exectgt'] || '').toLowerCase();
+    if (sq) {
+      list = list.filter(function (r) {
+        return ((r.EMPLOYEE || '') + ' ' + (r.HOD || '') + ' ' + (r.STATE || '')).toLowerCase().indexOf(sq) !== -1;
+      });
+    }
+
+    // Period columns, newest first.
+    const colSet = {};
+    list.forEach(function (r) { Object.keys(r[group] || {}).forEach(function (k) { colSet[k] = 1; }); });
+    let cols = Object.keys(colSet).sort(function (a, b) {
+      if (group === 'MONTHLY') return window._tgtMonKey(b).localeCompare(window._tgtMonKey(a));
+      return b.localeCompare(a);
+    });
+
+    const nowMon = (function () {
+      const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const d = new Date();
+      return M[d.getMonth()] + '-' + String(d.getFullYear()).slice(2);
+    })();
+    const isCurrent = function (c) {
+      if (group === 'YEARLY') return c === curFY;
+      if (group === 'QUARTERLY') return c === curFY + '_' + curQ;
+      return c === nowMon;
+    };
+
+    // Targets are set for the whole year up front, so future periods carry a
+    // target and no sales and would read as a row of 0%. Cut the table off at
+    // the period we are actually in.
+    cols = cols.filter(function (c) {
+      if (group === 'YEARLY') return c <= curFY;
+      if (group === 'QUARTERLY') return c <= curFY + '_' + curQ;
+      return window._tgtMonKey(c) <= window._tgtMonKey(nowMon);
+    });
+
+    // Periods with neither a target nor a sale anywhere add nothing but width,
+    // except the current one, which stays visible before its first sale lands.
+    cols = cols.filter(function (c) {
+      return isCurrent(c) || list.some(function (r) { const v = r[group][c]; return v && (v.t || v.a); });
+    });
+
+    list = list.slice().sort(function (a, b) {
+      const k = cols[0];
+      return ((b[group][k] || {}).a || 0) - ((a[group][k] || {}).a || 0);
+    });
+
+    window.App.lastTableData['exectgt'] = list;
+
+    const periodLabel = function (c) {
+      return group === 'QUARTERLY' ? c.replace('_', ' ').replace('FY ', 'FY-') : c;
+    };
+    // What the Export button writes out — see exportTargetCSV.
+    window._tgtExport['exectgt'] = { list: list, group: group, cols: cols, labels: cols.map(periodLabel) };
+
+    // Same geometry as the HOD table, with an extra sticky HOD column.
+    const stN   = 'position:sticky;left:0;top:0;z-index:15;background:var(--brand-primary);width:44px;padding:8px 12px;';
+    const stEmp = 'position:sticky;left:44px;top:0;z-index:15;background:var(--brand-primary);min-width:210px;max-width:210px;padding:8px 12px;';
+    const stHod = 'position:sticky;left:254px;top:0;z-index:15;background:var(--brand-primary);min-width:180px;max-width:180px;padding:8px 12px;';
+    const stSt  = 'position:sticky;left:434px;top:0;z-index:15;background:var(--brand-primary);min-width:150px;border-right:1px solid var(--border);padding:8px 12px;';
+    const rN    = 'position:sticky;left:0;z-index:5;background:var(--bg-card);width:44px;padding:6px 12px;';
+    const rEmp  = 'position:sticky;left:44px;z-index:5;background:var(--bg-card);min-width:210px;max-width:210px;padding:6px 12px;font-weight:600;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    const rHod  = 'position:sticky;left:254px;z-index:5;background:var(--bg-card);min-width:180px;max-width:180px;padding:6px 12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    const rSt   = 'position:sticky;left:434px;z-index:5;background:var(--bg-card);min-width:150px;border-right:1px solid var(--border);padding:6px 12px;color:var(--text-muted);white-space:nowrap;';
+
+    thead.innerHTML = '<tr>'
+      + '<th style="' + stN + '">#</th>'
+      + '<th style="' + stEmp + '">EXECUTIVE</th>'
+      + '<th style="' + stHod + '">HOD</th>'
+      + '<th style="' + stSt + '">STATE</th>'
+      + cols.map(function (c) {
+          const cur = isCurrent(c);
+          return window._hodTh(periodLabel(c), cur, cur ? 'current' : '', false);
+        }).join('')
+      + '</tr>';
+
+    if (!list.length) { tbody.innerHTML = window._emptyRow(cols.length + 4, 'No data.'); return; }
+
+    let html = '';
+    list.forEach(function (r, i) {
+      html += '<tr>'
+        + '<td style="' + rN + '">' + (i + 1) + '</td>'
+        + '<td style="' + rEmp + '" title="' + window.esc(r.EMPLOYEE) + '">' + window.esc(r.EMPLOYEE) + '</td>'
+        + '<td style="' + rHod + '" title="' + window.esc(r.HOD) + '">' + window.esc(r.HOD || '-') + '</td>'
+        + '<td style="' + rSt + '">' + window.esc(r.STATE || '-') + '</td>'
+        + cols.map(function (c) {
+            const v = r[group][c] || { t: 0, a: 0 };
+            return window._tgtCell(v.t, v.a, isCurrent(c));
+          }).join('')
+        + '</tr>';
+    });
+    tbody.innerHTML = html;
+
+    const hods = {};
+    list.forEach(function (r) { if (r.HOD) hods[r.HOD] = 1; });
+    const noTgt = list.filter(function (r) { return r.NO_TARGET; }).length;
+    const zero = list.filter(function (r) { return !r.NO_TARGET && !r.MATCHED; }).length;
+    const el = document.getElementById('pagination-exectgt');
+    if (el) {
+      el.innerHTML = '<div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);'
+        + 'font-size:11.5px;font-weight:600;color:var(--text-muted)">'
+        + list.length + ' executives · ' + Object.keys(hods).length + ' HODs'
+        + ' (' + zero + ' with no matching sales, ' + noTgt + ' selling with no target)'
+        + ' <span style="opacity:.7">— targets from TARGET_DATA, achievement from actual retail sales</span></div>';
+    }
+  } catch (e) {
+    tbody.innerHTML = window._errorRow(8, e.message);
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Target vs Sales export
+   ──────────────────────────────────────────────────────────────────────────
+   These two tables pack three figures into every period cell — achieved,
+   target and attainment — stacked as <div>s. The generic DOM scrape joins a
+   cell's text with no separator, so a spreadsheet received one unusable
+   string per period ("1,16,395of 50,000233%"), grouped digits and all.
+
+   So they export from the data behind the table instead: three real numeric
+   columns per period, unformatted, plus the Total row. Each loader parks what
+   it rendered in _tgtExport under its page key, so the file matches what is
+   on screen — the same view, the same columns, the same search filter.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+window._tgtExport = {};
+
+window._csvTxt = function (v) {
+  return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+};
+
+window.exportTargetCSV = function (key, filename) {
+  const st = window._tgtExport[key];
+  if (!st || !st.list.length) { window.toast('No table data to export.', 'error'); return; }
+
+  const lead = key === 'exectgt'
+    ? [['EXECUTIVE', function (r) { return r.EMPLOYEE; }],
+       ['HOD',       function (r) { return r.HOD; }],
+       ['STATE',     function (r) { return r.STATE || '-'; }]]
+    : [['HOD NAME',  function (r) { return r.HOD; }],
+       ['HOD STATE', function (r) { return r.STATE || '-'; }]];
+
+  const head = ['"#"'].concat(lead.map(function (c) { return window._csvTxt(c[0]); }));
+  st.labels.forEach(function (l) {
+    head.push(window._csvTxt(l + ' Target'), window._csvTxt(l + ' Achieved'), window._csvTxt(l + ' %'));
+  });
+  const rows = [head.join(',')];
+
+  // Raw integers, no grouping separators: the point of the export is that the
+  // receiving spreadsheet can add them up.
+  const cells = function (r) {
+    const out = [];
+    st.cols.forEach(function (c) {
+      const v = (r[st.group] || {})[c] || { t: 0, a: 0 };
+      out.push(v.t, v.a, v.t > 0 ? Math.round((v.a / v.t) * 100) : '');
+    });
+    return out;
+  };
+
+  st.list.forEach(function (r, i) {
+    rows.push([i + 1].concat(lead.map(function (c) { return window._csvTxt(c[1](r)); }))
+      .concat(cells(r)).join(','));
+  });
+
+  const totals = {};
+  totals[st.group] = {};
+  st.cols.forEach(function (c) {
+    let t = 0, a = 0;
+    st.list.forEach(function (r) { const v = (r[st.group] || {})[c]; if (v) { t += v.t || 0; a += v.a || 0; } });
+    totals[st.group][c] = { t: t, a: a };
+  });
+  const totalLead = lead.map(function (c, i) {
+    return window._csvTxt(i === 0 ? 'TOTAL' : (i === lead.length - 1 ? st.list.length + ' rows' : ''));
+  });
+  rows.push(['""'].concat(totalLead).concat(cells(totals)).join(','));
+
+  window._downloadCSV(rows, filename, st.list.length);
 };

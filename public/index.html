@@ -98,11 +98,11 @@
             <span class="nav-chevron"><i class="ph ph-caret-right"></i></span>
           </div>
           <div class="nav-submenu" id="target-achv-submenu">
-            <div class="nav-item" data-page="targets" onclick="navigate('targets')">
-              <span class="nav-label">Executive Wise</span>
-            </div>
             <div class="nav-item" data-page="tgtactual" onclick="navigate('tgtactual')">
               <span class="nav-label">HOD Target vs Sales</span>
+            </div>
+            <div class="nav-item" data-page="exectgt" onclick="navigate('exectgt')">
+              <span class="nav-label">Executive Target vs Sales</span>
             </div>
           </div>
         </div>
@@ -453,54 +453,6 @@
         </div>
       </section>
 
-      <section id="page-targets" class="page">
-        <div id="targets-kpi-grid" class="kpi-grid stagger-1"></div>
-        <div class="table-card stagger-2">
-          <div class="table-toolbar">
-            <span class="table-title"><i class="ph ph-target"></i> Targets Executive wise</span>
-            <div style="position:relative; margin-left:auto;">
-              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-              <input type="text" id="search-targets" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Executive or State..." onkeyup="handleSearch('targets')">
-            </div>
-            <div class="btn-group" id="target-toggles" style="margin-left:12px;">
-              <button class="btn btn-sm btn-primary" id="target-btn-month" onclick="setTargetView('month',this)">Month</button>
-              <button class="btn btn-sm btn-ghost" id="target-btn-quarter" onclick="setTargetView('quarter',this)">Quarter</button>
-              <button class="btn btn-sm btn-ghost" id="target-btn-year" onclick="setTargetView('year',this)">Year</button>
-            </div>
-            <select id="target-fy-select" class="form-select" style="padding:4px 10px; font-size:12px; min-height:30px; border-radius:100px; margin-left:6px; background:var(--bg-elevated);" onchange="window.setTargetFY(this.value)">
-              <option value="All">All FYs (24 Months)</option>
-              <option value="FY 26-27">FY 26-27</option>
-              <option value="FY 25-26">FY 25-26</option>
-            </select>
-            <div class="btn-group" style="margin-left:4px;">
-              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Left" onclick="window.scrollTableHoriz('page-targets', -350)"><i class="ph ph-caret-left"></i></button>
-              <button class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Scroll Right" onclick="window.scrollTableHoriz('page-targets', 350)"><i class="ph ph-caret-right"></i></button>
-            </div>
-            <div class="btn-group comp-toggles" style="margin-left:8px;">
-              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
-              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
-              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
-            </div>
-            <div class="btn-group" id="density-toggles-targets" style="margin-left:8px;">
-              <button class="btn btn-sm btn-primary btn-density-simple" title="Simple Mode: Actual + Badge" onclick="setTargetDensity('simple', this)">Simple</button>
-              <button class="btn btn-sm btn-ghost btn-density-detailed" title="Detailed Mode: Target, Actual & Badge" onclick="setTargetDensity('detailed', this)">Detailed</button>
-            </div>
-            <select id="target-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadTargets(1)"></select>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('targets', 'Executive Targets')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('targets', 'tbl-targets-head', function(){ window.loadTargets(window.targetPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-targets-head', 'tbl-targets-body', 'Executive_Targets')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon" style="color:var(--brand-primary);" onclick="actionSyncTargets(event)" title="Sync" aria-label="Sync"><i class="ph ph-arrows-clockwise"></i></button>
-          </div>
-          <div class="table-wrap">
-            <table style="border-collapse:separate">
-              <thead id="tbl-targets-head"></thead>
-              <tbody id="tbl-targets-body"></tbody>
-            </table>
-          </div>
-          <div id="pagination-targets"></div>
-        </div>
-      </section>
-
       <section id="page-tgtactual" class="page">
         <div class="table-card stagger-1">
           <div class="table-toolbar">
@@ -516,7 +468,7 @@
             </div>
             
             <button class="btn btn-sm btn-ghost btn-icon" onclick="openTableAI('tgtactual', 'HOD Target vs Sales')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-            <button class="btn btn-sm btn-ghost btn-icon" onclick="exportTableToCSV('tbl-tgtactual-head', 'tbl-tgtactual-body', 'HOD_Target_vs_Sales')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" onclick="exportTargetCSV('tgtactual', 'HOD_Target_vs_Sales')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
           </div>
           <div class="table-wrap">
             <table style="border-collapse:separate">
@@ -525,6 +477,33 @@
             </table>
           </div>
           <div id="pagination-tgtactual"></div>
+        </div>
+      </section>
+
+      <section id="page-exectgt" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-target"></i> Executive Target vs Sales</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-exectgt" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:240px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Executive, HOD or State..." onkeyup="handleSearch('exectgt')">
+            </div>
+            <div class="btn-group" id="exectgt-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setExecTgtView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setExecTgtView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setExecTgtView('year',this)">Year</button>
+            </div>
+
+            <button class="btn btn-sm btn-ghost btn-icon" onclick="openTableAI('exectgt', 'Executive Target vs Sales')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon" onclick="exportTargetCSV('exectgt', 'Executive_Target_vs_Sales')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table style="border-collapse:separate">
+              <thead id="tbl-exectgt-head"></thead>
+              <tbody id="tbl-exectgt-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-exectgt"></div>
         </div>
       </section>
 
@@ -1546,9 +1525,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=47b92863"></script>
-<script defer src="/js/javascript1.min.js?v=96a5ca5e"></script>
-<script defer src="/js/javascript2.min.js?v=be68060f"></script>
+<script defer src="/js/javascript.min.js?v=284862b2"></script>
+<script defer src="/js/javascript1.min.js?v=40612419"></script>
+<script defer src="/js/javascript2.min.js?v=4dd585ab"></script>
 <script defer src="/js/fms.min.js?v=5605d69c"></script>
 
 </body>

@@ -1558,10 +1558,13 @@ async function getTargetVsAchievement(f, opts) {
 
     const byPerson = {};      // EMP -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} }
     const personHodSqft = {}; // EMP -> { hod: sqft }  (pick the dominant one)
+    const personStateSqft = {}; // EMP -> { state: sqft }  (label only, same rule)
+    const personName = {};    // EMP -> the sales data's own spelling of the name
     const stateHodSqft = {};  // STATE -> { hod: sqft }
     const hodStateSqft = {};  // HOD -> { state: sqft }  (state as the sales data has it)
     const byHodSales = {};    // HOD -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} } -- ALL of the HOD's sales
     const salesHods = {};
+    const byEmployee = (opts.groupBy || 'hod') === 'employee';
 
     salesRows.forEach(function (r) {
       const emp = String(_s(r, 'sales_person') || '').trim().toUpperCase();
@@ -1579,6 +1582,8 @@ async function getTargetVsAchievement(f, opts) {
       }
       if (!emp) return;
       if (hod) { (personHodSqft[emp] = personHodSqft[emp] || {})[hod] = (personHodSqft[emp][hod] || 0) + sqft; }
+      if (st) { (personStateSqft[emp] = personStateSqft[emp] || {})[st] = (personStateSqft[emp][st] || 0) + sqft; }
+      if (!personName[emp]) personName[emp] = String(_s(r, 'sales_person') || '').trim();
 
       const b = byPerson[emp] = byPerson[emp] || { MONTHLY: {}, QUARTERLY: {}, YEARLY: {} };
       if (mo) b.MONTHLY[mo] = (b.MONTHLY[mo] || 0) + sqft;
@@ -1617,6 +1622,33 @@ async function getTargetVsAchievement(f, opts) {
           if (q) { const k = fy + '_' + q; hb.QUARTERLY[k] = (hb.QUARTERLY[k] || 0) + sqft; }
         }
       });
+
+    // A HOD's achievement above is retail-only. vw_executive_sale_agg carries no
+    // sales_type, so the person-wise totals still include project business and
+    // the executive rows would not add up to their HOD's. vw_project_sale_agg
+    // is the same shape limited to projects, so subtracting it person-by-person
+    // puts both levels on the same (retail) basis. Only fetched for the
+    // Executive Target vs Sales page -- the HOD page never reads these numbers.
+    if (byEmployee) {
+      (await _fetchAgg('vw_project_sale_agg', _q(f, ['month', 'fy', 'quarter'])))
+        .filter(function (r) { return _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' })); })
+        .forEach(function (r) {
+          const emp = String(_s(r, 'sales_person') || '').trim().toUpperCase();
+          const b = byPerson[emp];
+          if (!b) return;
+          const sqft = _sqft(r);
+          const mo = _mo(r);
+          const fy = _robustFy(r);
+          const q = _Q_OF_MONTH[_mon3(mo)];
+          const cut = function (bucket, k) {
+            if (!k || !bucket[k]) return;
+            bucket[k] = Math.max(0, bucket[k] - sqft);
+          };
+          cut(b.MONTHLY, mo);
+          cut(b.YEARLY, fy);
+          if (fy && q) cut(b.QUARTERLY, fy + '_' + q);
+        });
+    }
 
     // Resolve each target employee onto a sales-side name (see _personMatcher).
     const resolve = _personMatcher(Object.keys(byPerson));
@@ -1701,9 +1733,71 @@ async function getTargetVsAchievement(f, opts) {
 
     let out = Object.values(map);
 
+    // Executive Target vs Sales, mirroring what the HOD roll-up below does for
+    // HODs: a period the targets never mentioned still shows if there were
+    // sales in it, and an executive who sells without carrying a target row at
+    // all appears at a zero target rather than silently vanishing. Without
+    // this the page would disagree with Executive Sales.
+    if (byEmployee) {
+      // The target sheet spells the same person more than one way in places
+      // ('MOHIT KUMAR' and 'MOHIT KUMAR SINGH'), so two rows can resolve to a
+      // single sales person. Left apart they would each be credited that
+      // person's full sales and the page would overstate achievement. Merge
+      // them: the targets add up, the sales are counted once.
+      const seen = {};
+      const merged = [];
+      out.forEach(function (r) {
+        const key = r.MATCHED_TO;
+        const prev = key && seen[key];
+        if (!prev) { if (key) seen[key] = r; merged.push(r); return; }
+        ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (grp) {
+          Object.keys(r[grp]).forEach(function (k) {
+            if (!prev[grp][k]) prev[grp][k] = { t: 0, a: r[grp][k].a };
+            prev[grp][k].t += r[grp][k].t;
+          });
+        });
+        // Show the spelling the sales data itself agrees with.
+        if (prev.MATCHED_BY !== 'exact' && r.MATCHED_BY === 'exact') {
+          prev.EMPLOYEE = r.EMPLOYEE;
+          prev.MATCHED_BY = r.MATCHED_BY;
+        }
+        prev.ALIASES = (prev.ALIASES || []).concat(r.EMPLOYEE);
+      });
+      out = merged;
+
+      const claimed = {};
+      out.forEach(function (r) {
+        if (!r.MATCHED_TO) return;
+        claimed[r.MATCHED_TO] = true;
+        const sales = byPerson[r.MATCHED_TO];
+        ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (grp) {
+          Object.keys(sales[grp]).forEach(function (k) {
+            if (!r[grp][k]) r[grp][k] = { t: 0, a: 0 };
+            r[grp][k].a = sales[grp][k];
+          });
+        });
+      });
+      Object.keys(byPerson).forEach(function (key) {
+        if (claimed[key]) return;
+        const sales = byPerson[key];
+        const hod = dominant(personHodSqft[key]) || 'Unknown';
+        const row = {
+          EMPLOYEE: personName[key] || key, HOD: hod,
+          STATE: HOD_TO_STATE[hod] || dominant(personStateSqft[key]) || 'Unknown',
+          MATCHED: true, MATCHED_BY: 'sales-only', MATCHED_TO: key,
+          HOD_SOURCE: 'sales', NO_TARGET: true,
+          YEARLY: {}, QUARTERLY: {}, MONTHLY: {}
+        };
+        ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(function (grp) {
+          Object.keys(sales[grp]).forEach(function (k) { row[grp][k] = { t: 0, a: sales[grp][k] }; });
+        });
+        out.push(row);
+      });
+    }
+
     // Roll employees up to their (current) HOD. Default for the HOD Target vs
     // Sales page; pass groupBy:'employee' for the per-person breakdown.
-    if ((opts.groupBy || 'hod') === 'hod') {
+    if (!byEmployee) {
       const byHod = {};
       out.forEach(function (r) {
         const h = r.HOD || 'Unknown';

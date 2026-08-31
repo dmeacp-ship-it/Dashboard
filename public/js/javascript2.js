@@ -1523,6 +1523,23 @@ window.renderMonthlyChart = function(rows) {
 
 window.overviewTargetPeriod = 'month';
 
+/**
+ * Rows for the overview's Target vs Actual card.
+ *
+ * The card ranks the level BELOW whoever is signed in: an admin or zonal head
+ * compares HODs, but for a HOD the HOD-grouped answer is a single row about
+ * themselves, so they get their own executives instead. The server already
+ * scopes both shapes to what the user may see (_applyScopeFilters), so asking
+ * for the employee grouping returns that HOD's team and nobody else's.
+ *
+ * The only place the role is consulted — renderTargetAchievementOverview reads
+ * the row shape rather than the role.
+ */
+window._fetchOverviewTargets = function() {
+  const role = (window.App && window.App.currentUser && window.App.currentUser.role) || '';
+  return window.api('getTargetVsAchievement', role === 'hod' ? { options: { groupBy: 'employee' } } : {});
+};
+
 window.setOverviewTargetPeriod = function(period, btn) {
   window.overviewTargetPeriod = period;
   const toggles = document.querySelectorAll('#overview-target-view-toggles .btn');
@@ -1535,7 +1552,7 @@ window.setOverviewTargetPeriod = function(period, btn) {
     if (container) {
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;gap:8px;color:var(--text-muted);font-size:12px;"><i class="ph ph-spinner" style="font-size:22px;animation:spinCW 1s linear infinite;color:var(--brand-primary);"></i> Loading targets...</div>';
     }
-    window.api('getTargetVsAchievement').then(t => {
+    window._fetchOverviewTargets().then(t => {
       if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = t;
       window.renderTargetAchievementOverview(t);
     }).catch(() => {});
@@ -1782,14 +1799,21 @@ window.renderTargetAchievementOverview = function(targets) {
 
   const periodType = window.overviewTargetPeriod === 'year' ? 'YEARLY' : window.overviewTargetPeriod === 'quarter' ? 'QUARTERLY' : 'MONTHLY';
   
-  // Aggregate by HOD
+  // Executive rows carry EMPLOYEE, HOD rows do not — that is what tells the two
+  // groupings apart (see _fetchOverviewTargets). Everything below is identical
+  // either way; only the name on each line and the heading change.
+  const isExec = targets.some(t => t.EMPLOYEE);
+  const unit = isExec ? 'Executive' : 'HOD';
+
   const hodMap = {};
   targets.forEach(t => {
-    const hod = window._normalizeHOD ? window._normalizeHOD(t.HOD) : (t.HOD || 'Unknown');
+    const name = isExec
+      ? (t.EMPLOYEE || 'Unknown')
+      : (window._normalizeHOD ? window._normalizeHOD(t.HOD) : (t.HOD || 'Unknown'));
     const state = window._normalizeState ? window._normalizeState(t.STATE) : (t.STATE || 'Unknown');
-    const key = hod + '||' + state;
+    const key = name + '||' + state;
     if (!hodMap[key]) {
-      hodMap[key] = { HOD: hod, STATE: state, target: 0, actual: 0, YEARLY: {}, QUARTERLY: {}, MONTHLY: {} };
+      hodMap[key] = { NAME: name, STATE: state, target: 0, actual: 0, YEARLY: {}, QUARTERLY: {}, MONTHLY: {} };
     }
     ['YEARLY', 'QUARTERLY', 'MONTHLY'].forEach(pt => {
       if (t[pt]) {
@@ -1875,7 +1899,7 @@ window.renderTargetAchievementOverview = function(targets) {
     totalActual += aVal;
     if (tVal > 0 || aVal > 0) {
       rankedHODs.push({
-        hod: h.HOD,
+        hod: h.NAME,
         state: h.STATE,
         target: tVal,
         actual: aVal,
@@ -1977,9 +2001,9 @@ window.renderTargetAchievementOverview = function(targets) {
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <div style="display:flex; align-items:center; gap:5px;">
             <i class="ph ph-medal" style="color:var(--brand-primary); font-size:14px;"></i>
-            <span style="font-size:10.5px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">HOD Performance (${window.esc(activePeriod.replace('_', ' '))})</span>
+            <span style="font-size:10.5px; font-weight:800; color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">${unit} Performance (${window.esc(activePeriod.replace('_', ' '))})</span>
           </div>
-          <span style="font-size:10px; font-weight:700; color:var(--text-muted); background:var(--surface2); padding:1px 6px; border-radius:100px; border:1px solid var(--border);">${rankedHODs.length} HODs</span>
+          <span style="font-size:10px; font-weight:700; color:var(--text-muted); background:var(--surface2); padding:1px 6px; border-radius:100px; border:1px solid var(--border);">${rankedHODs.length} ${unit}s</span>
         </div>
         <div style="display:flex; flex-direction:column; overflow-y:auto; max-height:175px; padding-right:3px; scrollbar-width:thin;">
           ${leaderboardHtml}
@@ -2305,7 +2329,7 @@ window.loadOverview = async function(useCache) {
     if (window.App.data.overview.targets && window.App.data.overview.targets.length) {
       if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(window.App.data.overview.targets);
     } else {
-      window.api('getTargetVsAchievement').then(targets => {
+      window._fetchOverviewTargets().then(targets => {
         if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
         if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(targets || []);
       }).catch(() => {
