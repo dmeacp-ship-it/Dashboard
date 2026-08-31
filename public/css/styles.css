@@ -645,16 +645,30 @@ nav { padding: 2px 0; flex: 1; }
 .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
 
 /* ── KPI STRIP ── */
+/* One row that scrolls sideways instead of squeezing. Every card keeps a
+   readable width when the rail expands or the window narrows -- previously the
+   whole strip shared the width, so pinning the sidebar shrank all seven cards.
+   overflow-y is clip (not hidden) so the hover lift and its shadow still paint
+   outside the strip; browsers without overflow-clip-margin just clip at the
+   padding edge. */
 .kpi-grid { 
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-flow: column;
+  /* 240px is the width the cards sit at with the rail collapsed, so pinning the
+     sidebar scrolls the strip instead of shaving every card down. */
+  grid-auto-columns: minmax(240px, 1fr);
   gap: 12px;
-  padding: 6px 2px 2px 2px;
-  margin: 0 0 16px 0;
+  padding: 8px 2px 8px 2px;
+  margin: 0 0 12px 0;
+  overflow-x: auto;
+  overflow-y: clip;
+  overflow-clip-margin: 24px;
+  overscroll-behavior-x: contain;
   transform: translateZ(0); 
   position: relative;
   z-index: 5;
   background: transparent;
+  scrollbar-width: none;
 }
 .kpi-grid::-webkit-scrollbar {
   display: none !important;
@@ -1040,9 +1054,6 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
 @keyframes au-drift2 { 0%{transform:translate(0,0) scale(1);} 33%{transform:translate(-4%,-3%) scale(1.04);} 66%{transform:translate(2%,-1%) scale(0.98);} 100%{transform:translate(0,0) scale(1);} }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 1400px) {
-  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-}
 @media (max-width: 1200px) {
   .chart-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
@@ -1061,7 +1072,10 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   #content { padding: 12px 16px; gap: 12px; }
   #header { padding: 0 12px; }
   .kpi-grid {
+    grid-auto-flow: row !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
     gap: 10px !important;
     margin: 0 0 12px 0 !important;
     padding: 0 !important;

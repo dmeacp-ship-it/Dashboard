@@ -208,14 +208,9 @@ window._renderSkuTypeTable = function(hodMap, periods, skuTypes, tbody, thead, p
   window._renderPagination({ page, totalPages, total: sorted.length }, 'setSkuTypeSalePage', 'pagination-skutypeqoq');
 };
 
-window.setOutstandingPage = function(p) { 
-  window.outstandingPage = p; 
-  window._renderOutstandingTable(); 
-};
-
 window.outAgingFilter = 'all';
 window.setOutAging = function(f, btn) {
-  window.outAgingFilter = f; window.outstandingPage = 1;
+  window.outAgingFilter = f;
   document.querySelectorAll('#out-aging-toggle .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
   if (btn) btn.className = 'btn btn-sm btn-primary';
   window._renderOutstandingTable();
@@ -268,6 +263,25 @@ window.loadOutstanding = async function() {
   }
 };
 
+// Rows appended per scroll batch on the outstanding table.
+window.OUT_CHUNK = 50;
+window._outMore = null;
+
+window._outStatus = function(shown, total) {
+  const el = document.getElementById('pagination-outstanding');
+  if (!el) return;
+  if (!total) { el.innerHTML = ''; return; }
+  el.innerHTML =
+    '<div style="display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 16px;'
+    + 'border-top:1px solid var(--border);background:var(--bg-surface);font-size:11.5px;'
+    + 'font-weight:600;color:var(--text-muted)">'
+    + (shown >= total
+        ? 'All ' + total + ' rows loaded'
+        : '<i class="ph ph-arrow-down" style="font-size:13px"></i> Showing ' + shown + ' of ' + total
+          + ' <span style="opacity:0.6">— scroll for more</span>')
+    + '</div>';
+};
+
 window._renderOutstandingTable = function() {
   const tbody = document.getElementById('tbl-outstanding-body'); const thead = document.getElementById('tbl-outstanding-head');
   if (!tbody || !thead) return;
@@ -296,30 +310,63 @@ window._renderOutstandingTable = function() {
   thead.innerHTML = '<tr><th style="' + stickyN + '">#</th><th style="' + stickyST + '">HOD State</th><th style="' + stickyHOD + '">HOD Name</th>'
     + '<th style="min-width:200px;padding:8px 12px;">Customer Name</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Credit Limit</th><th style="min-width:120px;text-align:right;padding:8px 12px;">Outstanding</th><th style="min-width:110px;text-align:right;padding:8px 12px;">Below 45d</th><th style="min-width:110px;text-align:right;color:#fcd34d;padding:8px 12px;">Above 45d</th><th style="min-width:100px;text-align:right;color:#fca5a5;padding:8px 12px;">90+ Days</th><th style="min-width:80px;text-align:right;padding:8px 12px;">Risk %</th></tr>';
 
-  if (!rows.length) { tbody.innerHTML = window._emptyRow(10, 'No outstanding data matching criteria.'); window._renderPagination(null, '', 'pagination-outstanding'); return; }
-
-  const exportAll = window.App.exportAll === 'outstanding';
-  const ps = exportAll ? (rows.length || 1) : 50; const totalPages = Math.ceil(rows.length / ps);
-  if (window.outstandingPage > totalPages) window.outstandingPage = totalPages;
-  const page = exportAll ? 1 : window.outstandingPage;
+  if (!rows.length) { tbody.innerHTML = window._emptyRow(10, 'No outstanding data matching criteria.'); window._outMore = null; window._outStatus(0, 0); return; }
 
   if (window.tableSortRules['outstanding'] && window.tableSortRules['outstanding'].length > 0) {
     rows = window.applyMultiSort(rows, 'outstanding');
   }
 
-  const displayRows = rows.slice((page - 1) * ps, page * ps);
-  window.App.lastTableData['outstanding'] = displayRows;
+  // The CSV/AI scrapers read the rendered DOM, so an export pass has to emit
+  // every row up front rather than waiting for a scroll that never happens.
+  const exportAll = window.App.exportAll === 'outstanding';
+  window.App.lastTableData['outstanding'] = rows;
 
-  let htmlStr = '';
-  displayRows.forEach(function(r, i) {
-    const total  = r.CURRENT_OUTSTANDING || 0;
-    const risk   = total > 0 ? ((r.DAYS_90_PLUS || 0) / total * 100).toFixed(1) : '0.0';
-    const rColor = parseFloat(risk) >= 30 ? 'var(--danger)' : parseFloat(risk) >= 15 ? '#f97316' : 'var(--accent3)';
-    const idx    = ((page - 1) * ps) + i + 1;
-    htmlStr += '<tr><td style="' + stickyRowN + '">' + idx + '</td><td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + window.esc(r.HOD || '-') + '</td><td style="font-weight:700;color:var(--text-main);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;">' + window.esc(r.CUSTOMER_NAME || '-') + '</td><td style="text-align:right;color:var(--text-muted);padding:6px 12px;">' + window.fmt.num(r.CREDIT_LIMIT) + '</td><td style="text-align:right;font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(total) + '</td><td style="text-align:right;color:var(--accent3);padding:6px 12px;">' + window.fmt.num(r.BELOW_45) + '</td><td style="text-align:right;color:#f97316;padding:6px 12px;">' + window.fmt.num(r.ABOVE_45) + '</td><td style="text-align:right;font-weight:700;color:var(--danger);padding:6px 12px;">' + window.fmt.num(r.DAYS_90_PLUS) + '</td><td style="text-align:right;font-weight:700;color:' + rColor + ';padding:6px 12px;">' + risk + '%</td></tr>';
-  });
-  tbody.innerHTML = htmlStr;
-  window._renderPagination({ page: window.outstandingPage, totalPages: totalPages, total: rows.length }, 'setOutstandingPage', 'pagination-outstanding');
+  const body = function(list, offset) {
+    let htmlStr = '';
+    list.forEach(function(r, i) {
+      const total  = r.CURRENT_OUTSTANDING || 0;
+      const risk   = total > 0 ? ((r.DAYS_90_PLUS || 0) / total * 100).toFixed(1) : '0.0';
+      const rColor = parseFloat(risk) >= 30 ? 'var(--danger)' : parseFloat(risk) >= 15 ? '#f97316' : 'var(--accent3)';
+      const idx    = offset + i + 1;
+      htmlStr += '<tr><td style="' + stickyRowN + '">' + idx + '</td><td style="color:var(--text-muted);white-space:nowrap;' + stickyRowST + '">' + window.esc(r.STATE || '-') + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowHOD + '">' + window.esc(r.HOD || '-') + '</td><td style="font-weight:700;color:var(--text-main);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;">' + window.esc(r.CUSTOMER_NAME || '-') + '</td><td style="text-align:right;color:var(--text-muted);padding:6px 12px;">' + window.fmt.num(r.CREDIT_LIMIT) + '</td><td style="text-align:right;font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(total) + '</td><td style="text-align:right;color:var(--accent3);padding:6px 12px;">' + window.fmt.num(r.BELOW_45) + '</td><td style="text-align:right;color:#f97316;padding:6px 12px;">' + window.fmt.num(r.ABOVE_45) + '</td><td style="text-align:right;font-weight:700;color:var(--danger);padding:6px 12px;">' + window.fmt.num(r.DAYS_90_PLUS) + '</td><td style="text-align:right;font-weight:700;color:' + rColor + ';padding:6px 12px;">' + risk + '%</td></tr>';
+    });
+    return htmlStr;
+  };
+
+  const wrap = document.querySelector('#page-outstanding .table-wrap');
+  let shown = 0;
+  const renderMore = function() {
+    if (shown >= rows.length) return false;
+    const next = exportAll ? rows.length : Math.min(shown + window.OUT_CHUNK, rows.length);
+    tbody.insertAdjacentHTML('beforeend', body(rows.slice(shown, next), shown));
+    shown = next;
+    window._outStatus(shown, rows.length);
+    return true;
+  };
+
+  tbody.innerHTML = '';
+  renderMore();
+  window._outMore = renderMore;
+
+  if (wrap) {
+    wrap.scrollTop = 0;
+    // Keep filling while the rows do not yet overflow the container -- with no
+    // scrollbar there is nothing to scroll, so the next batch could never be
+    // requested.
+    let guard = 0;
+    while (!exportAll && guard++ < 40 && shown < rows.length
+           && wrap.scrollHeight <= wrap.clientHeight) {
+      if (!renderMore()) break;
+    }
+    if (!wrap.dataset.outScrollBound) {
+      wrap.dataset.outScrollBound = '1';
+      wrap.addEventListener('scroll', function() {
+        if (!window._outMore) return;
+        // 300px of runway so the next batch is in place before the bottom.
+        if (wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 300) window._outMore();
+      }, { passive: true });
+    }
+  }
 };
 
 window.setCustSort = function(s, btn) {

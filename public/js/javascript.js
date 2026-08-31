@@ -96,9 +96,46 @@ window.scrollTableHoriz = function(pageId, offset) {
   if (wrap) wrap.scrollBy({ left: offset, behavior: 'smooth' });
 };
 
-window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', skutypeqoq: '', outstanding: '', targets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
-window.outstandingPage = 1;
+// Nearest ancestor that can actually take a vertical scroll.
+window._scrollParent = function(el) {
+  let p = el.parentElement;
+  while (p && p !== document.body) {
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    p = p.parentElement;
+  }
+  return null;
+};
 
+// The KPI strip is a single row that scrolls sideways, so a vertical wheel over
+// it means "move along the strip" -- a mouse has no other way to reach the
+// cards the rail pushes off-screen. Being a scroll container, the strip also
+// swallows the wheel once it runs out of sideways travel, so the leftover
+// delta is handed to the page by hand rather than left to scroll chaining.
+window.bindKpiWheelScroll = function(root) {
+  (root || document).querySelectorAll('.kpi-grid').forEach(function(strip) {
+    if (strip.dataset.wheelBound) return;
+    strip.dataset.wheelBound = '1';
+    strip.addEventListener('wheel', function(e) {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;   // already sideways
+      // Phone layout wraps the strip instead of scrolling it; the wheel then
+      // reaches the page on its own.
+      if (getComputedStyle(strip).overflowX === 'visible') return;
+
+      const max    = strip.scrollWidth - strip.clientWidth;
+      const target = Math.max(0, Math.min(max, strip.scrollLeft + e.deltaY));
+      if (target !== strip.scrollLeft) {
+        strip.scrollLeft = target;
+        e.preventDefault();
+        return;
+      }
+      const pane = window._scrollParent(strip);
+      if (pane) { pane.scrollTop += e.deltaY; e.preventDefault(); }
+    }, { passive: false });
+  });
+};
+
+window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', skutypeqoq: '', outstanding: '', targets: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
 window.copilotHistory = [];
 window.tableAIHistory = {};
 
@@ -279,7 +316,6 @@ window.handleSearch = function(pageId) {
     const input = document.getElementById('search-' + pageId);
     if (input) {
       window.searchQueries[pageId] = input.value.trim();
-      if (pageId === 'outstanding') window.outstandingPage = 1;
       if (pageId === 'custqoq')     window.custSalePage    = 1;
       if (pageId === 'execqoq')     window.execSalePage    = 1;
       if (pageId === 'projqoq' && window._personTables) window._personTables.projqoq.page = 1;
@@ -2558,6 +2594,7 @@ window.addEventListener('DOMContentLoaded', function() {
   if (window.initTheme) window.initTheme();
   if (window.initTooltip) window.initTooltip();
   if (window.onRoleChange) window.onRoleChange();
+  if (window.bindKpiWheelScroll) window.bindKpiWheelScroll(document);
 
   // Make the existing markup keyboard-reachable, then keep doing so as pages,
   // the FMS nav and modals get injected. Debounced because table renders emit
