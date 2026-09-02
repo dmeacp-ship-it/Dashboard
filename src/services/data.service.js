@@ -706,7 +706,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v9_' + _stableStringify(f), async function () {
+  return cached('kpis_v10_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
@@ -819,6 +819,11 @@ async function getKPIs(f) {
     // Sales Type Split (Retail vs Projects)
     let retailSqm = 0, projectSqm = 0;
     let retailQty = 0, projectQty = 0;
+    // Same split narrowed to the current month, so the card can show how the
+    // latest month leans against the FY-to-date mix above it.
+    const splitMoKey = sortedM[cIdx] || curM || '';
+    let retailSqmMo = 0, projectSqmMo = 0;
+    let retailQtyMo = 0, projectQtyMo = 0;
     try {
       // Bounded: this card is optional, but vw_sales_type_agg is the one
       // dashboard view with no mv_ snapshot, so it reads sales_data directly
@@ -834,12 +839,15 @@ async function getKPIs(f) {
       splitRows.filter(function (r) {
         return _rowMatches(r, f) && (!curF || _robustFy(r) === curF);
       }).forEach(function (r) {
+        const isCurMo = splitMoKey && _mo(r) === splitMoKey;
         if (r.sales_type === 'Projects') {
           projectSqm += _sqm(r);
           projectQty += _qty(r);
+          if (isCurMo) { projectSqmMo += _sqm(r); projectQtyMo += _qty(r); }
         } else {
           retailSqm += _sqm(r);
           retailQty += _qty(r);
+          if (isCurMo) { retailSqmMo += _sqm(r); retailQtyMo += _qty(r); }
         }
       });
     } catch (e) {
@@ -876,6 +884,11 @@ async function getKPIs(f) {
       projectSqft: Math.round(projectSqm * SQFT_PER_SQM),
       retailQty: retailQty,
       projectQty: projectQty,
+      retailSqftMonth: Math.round(retailSqmMo * SQFT_PER_SQM),
+      projectSqftMonth: Math.round(projectSqmMo * SQFT_PER_SQM),
+      retailQtyMonth: retailQtyMo,
+      projectQtyMonth: projectQtyMo,
+      salesTypeMonth: splitMoKey,
       cust30d: cust30d,
       cust60d: cust60d,
       cust90Plus: cust90Plus,
