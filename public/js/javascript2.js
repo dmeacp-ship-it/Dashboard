@@ -1268,6 +1268,28 @@ window.renderKPIs = function(k, monthly) {
     const splitTotal = (k.retailSqft || 0) + (k.projectSqft || 0);
     const retPct = splitTotal > 0 ? ((k.retailSqft / splitTotal) * 100).toFixed(1) : '0.0';
     const projPct = splitTotal > 0 ? ((k.projectSqft / splitTotal) * 100).toFixed(1) : '0.0';
+
+    // Current-month slice of the same split, shown under each FY figure.
+    const moRetail = k.retailSqftMonth  || 0;
+    const moProj   = k.projectSqftMonth || 0;
+    const moTotal  = moRetail + moProj;
+    const moLabel  = k.salesTypeMonth || k.currentMonth || '';
+    // Panels are ~85px wide inside their padding, so this stays to two short
+    // nowrap lines: month + its share, then the month's sqft. The qty is
+    // deliberately left out -- the FY line above already carries one.
+    function _moBlock(sqft, clr) {
+      const pct = moTotal > 0 ? ((sqft / moTotal) * 100).toFixed(1) : null;
+      return `<div style="border-top:1px dashed var(--border); padding-top:5px; margin-bottom:5px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:3px; white-space:nowrap;">
+          <span style="font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:var(--text-faint);">${moLabel || 'THIS MO'}</span>
+          <span style="font-size:10.5px; font-weight:800; color:${pct === null ? 'var(--text-muted)' : clr};">${pct === null ? '—' : pct + '%'}</span>
+        </div>
+        <div style="font-size:9.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(sqft)}</span> sqft
+        </div>
+      </div>`;
+    }
+
     return `<div class="kpi-card" style="--kpi-color:var(--brand-primary);">
       <div class="kpi-header-row">
         <div class="kpi-head-left">
@@ -1289,6 +1311,7 @@ window.renderKPIs = function(k, monthly) {
           <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
             sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.retailQty || 0)}</span> qty
           </div>
+          ${_moBlock(moRetail, 'var(--brand-primary)')}
           <div style="margin-top:auto;">
             <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
               <span>SHARE</span>
@@ -1310,6 +1333,7 @@ window.renderKPIs = function(k, monthly) {
           <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
             sqft &middot; <span style="color:var(--text-main); font-weight:700;">${window.fmt.short(k.projectQty || 0)}</span> qty
           </div>
+          ${_moBlock(moProj, '#8b5cf6')}
           <div style="margin-top:auto;">
             <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#8b5cf6; margin-bottom:4px;">
               <span>SHARE</span>
