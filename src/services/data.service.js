@@ -1565,9 +1565,23 @@ function _mon3(v) {
 async function getTargetVsAchievement(f, opts) {
   opts = opts || {};
   return cached('tgt_actual_v1_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
+    // Every sales read below is deliberately WIDE. The time filters are dropped
+    // because this table is a period series that shows every period whatever
+    // month/FY/quarter is selected. The geography/HOD selection is dropped
+    // because it must not reach the HOD resolution: with only one HOD's sales
+    // in hand, every other target employee falls through to the "dominant HOD
+    // of their state" fallback and lands on the selected HOD, which then
+    // reports that HOD's employees and target several times over. Who an
+    // employee's HOD is cannot depend on what the viewer happens to be looking
+    // at, so the selection is applied afterwards, to the resolved label (see
+    // the narrowing step below). _scope is left untouched, so the role
+    // restrictions still bound every fetch.
+    const fWide = Object.assign({}, f, { zone: 'All', state: 'All', hod: 'All' });
+    const wideMatch = Object.assign({}, fWide, { fy: 'All', quarter: 'All', month: 'All' });
+
     // ── actual sales, person-wise ───────────────────────────────────────────
-    const salesRows = (await _fetchAgg('vw_executive_sale_agg', _q(f, ['month', 'fy', 'quarter'])))
-      .filter(function (r) { return _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' })); });
+    const salesRows = (await _fetchAgg('vw_executive_sale_agg', _q(fWide, ['month', 'fy', 'quarter'])))
+      .filter(function (r) { return _rowMatches(r, wideMatch); });
 
     const byPerson = {};      // EMP -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} }
     const personHodSqft = {}; // EMP -> { hod: sqft }  (pick the dominant one)
@@ -1575,6 +1589,7 @@ async function getTargetVsAchievement(f, opts) {
     const personName = {};    // EMP -> the sales data's own spelling of the name
     const stateHodSqft = {};  // STATE -> { hod: sqft }
     const hodStateSqft = {};  // HOD -> { state: sqft }  (state as the sales data has it)
+    const hodZoneSqft = {};   // HOD -> { zone: sqft }   (only used to resolve a zone filter)
     const byHodSales = {};    // HOD -> { MONTHLY:{}, QUARTERLY:{}, YEARLY:{} } -- ALL of the HOD's sales
     const salesHods = {};
     const byEmployee = (opts.groupBy || 'hod') === 'employee';
@@ -1592,6 +1607,10 @@ async function getTargetVsAchievement(f, opts) {
       if (hod && st) {
         (stateHodSqft[st] = stateHodSqft[st] || {})[hod] = (stateHodSqft[st][hod] || 0) + sqft;
         (hodStateSqft[hod] = hodStateSqft[hod] || {})[st] = (hodStateSqft[hod][st] || 0) + sqft;
+      }
+      if (hod) {
+        const zn = String(_s(r, 'zone') || '').trim().toUpperCase();
+        if (zn) (hodZoneSqft[hod] = hodZoneSqft[hod] || {})[zn] = (hodZoneSqft[hod][zn] || 0) + sqft;
       }
       if (!emp) return;
       if (hod) { (personHodSqft[emp] = personHodSqft[emp] || {})[hod] = (personHodSqft[emp][hod] || 0) + sqft; }
@@ -1616,10 +1635,10 @@ async function getTargetVsAchievement(f, opts) {
     // separately on the Project Sales page. vw_sales_type_agg is the only
     // aggregate carrying sales_type; it is snapshot-backed (migration 10) so
     // this stays fast.
-    (await _fetchAgg('vw_sales_type_agg', _q(f, ['month', 'fy', 'quarter'])))
+    (await _fetchAgg('vw_sales_type_agg', _q(fWide, ['month', 'fy', 'quarter'])))
       .filter(function (r) {
         return String(_s(r, 'sales_type')).trim().toLowerCase() !== 'projects'
-          && _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' }));
+          && _rowMatches(r, wideMatch);
       })
       .forEach(function (r) {
         const hod = _hod(r);
@@ -1643,8 +1662,8 @@ async function getTargetVsAchievement(f, opts) {
     // puts both levels on the same (retail) basis. Only fetched for the
     // Executive Target vs Sales page -- the HOD page never reads these numbers.
     if (byEmployee) {
-      (await _fetchAgg('vw_project_sale_agg', _q(f, ['month', 'fy', 'quarter'])))
-        .filter(function (r) { return _rowMatches(r, Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' })); })
+      (await _fetchAgg('vw_project_sale_agg', _q(fWide, ['month', 'fy', 'quarter'])))
+        .filter(function (r) { return _rowMatches(r, wideMatch); })
         .forEach(function (r) {
           const emp = String(_s(r, 'sales_person') || '').trim().toUpperCase();
           const b = byPerson[emp];
@@ -1746,6 +1765,56 @@ async function getTargetVsAchievement(f, opts) {
 
     let out = Object.values(map);
 
+    // ── geography / HOD narrowing ───────────────────────────────────────────
+    // The selection is applied HERE, to each row's resolved HOD, rather than to
+    // the fetches above (see fWide). Doing it in the fetch corrupted the
+    // resolution itself: filtering to one HOD made every other target employee
+    // resolve onto that HOD through the state fallback, so the page showed 42
+    // employees and ten times the real target for a HOD that has 6.
+    //
+    // It cannot be applied to the target sheet read either -- the sheet's own
+    // hod_name is the unreliable column this function exists to work around
+    // ('DINESH PRABHUBHAI GOTHI' where sales say 'DINESH P GOTHI') -- so it is
+    // resolved into a set of HOD names first, and the rows are matched to that.
+    //
+    // A State selection is a HOD territory (HOD_TO_STATE), and a Zone selection
+    // is read off the sales data the same way every other label here is. Filters
+    // intersect, matching the AND that _q applies on the query side.
+    const _upper = function (v) { return String(v == null ? '' : v).trim().toUpperCase(); };
+    const selections = [];
+
+    const fHods = _vals(f.hod);
+    if (fHods) selections.push(fHods.map(_upper));
+
+    const fStates = _vals(f.state);
+    if (fStates) {
+      const viaTerritory = _hodsForStates(fStates);
+      selections.push(viaTerritory
+        ? viaTerritory.map(_upper)
+        // No territory mapping for this value: fall back to the HODs actually
+        // selling in those states, which is what _rowMatches would have kept.
+        : Object.keys(hodStateSqft)
+            .filter(function (h) { return fStates.map(_upper).indexOf(_upper(dominant(hodStateSqft[h]))) !== -1; })
+            .map(_upper));
+    }
+
+    const fZones = _vals(f.zone);
+    if (fZones) {
+      selections.push(Object.keys(hodZoneSqft)
+        .filter(function (h) { return fZones.map(_upper).indexOf(_upper(dominant(hodZoneSqft[h]))) !== -1; })
+        .map(_upper));
+    }
+
+    // Used by every place that can put a HOD on the page, including the two
+    // passes below that top the list up straight from the (wide) sales data.
+    const inSelection = function (hodName) {
+      if (!selections.length) return true;
+      const h = _upper(hodName);
+      return selections.every(function (set) { return set.indexOf(h) !== -1; });
+    };
+
+    out = out.filter(function (r) { return inSelection(r.HOD); });
+
     // Executive Target vs Sales, mirroring what the HOD roll-up below does for
     // HODs: a period the targets never mentioned still shows if there were
     // sales in it, and an executive who sells without carrying a target row at
@@ -1794,6 +1863,7 @@ async function getTargetVsAchievement(f, opts) {
         if (claimed[key]) return;
         const sales = byPerson[key];
         const hod = dominant(personHodSqft[key]) || 'Unknown';
+        if (!inSelection(hod)) return;
         const row = {
           EMPLOYEE: personName[key] || key, HOD: hod,
           STATE: HOD_TO_STATE[hod] || dominant(personStateSqft[key]) || 'Unknown',
@@ -1843,7 +1913,7 @@ async function getTargetVsAchievement(f, opts) {
       // make the page disagree with HOD Sales, so they appear with a zero
       // target rather than silently vanishing.
       Object.keys(byHodSales).forEach(function (h) {
-        if (byHod[h]) return;
+        if (byHod[h] || !inSelection(h)) return;
         byHod[h] = {
           HOD: h,
           STATE: HOD_TO_STATE[h] || dominant(hodStateSqft[h]) || '-',
