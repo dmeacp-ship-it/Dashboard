@@ -1394,10 +1394,12 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     const sq = (window.searchQueries['custqoq'] || '').toLowerCase();
     const map = {};
     rows.forEach(r => {
-      const key = r.STATE + '||' + r.HOD + '||' + r.CUSTOMER;
-      if (sq && key.toLowerCase().indexOf(sq) === -1) return;
-      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER };
-      if (recent.indexOf(r.MONTH) !== -1) map[key][r.MONTH] = r.TOTAL_SQFT;
+      const code = r.CUSTOMER_CODE || r.CUSTOMER;
+      const key = r.STATE + '||' + r.HOD + '||' + code;
+      const searchTarget = (r.STATE + '||' + r.HOD + '||' + r.CUSTOMER + '||' + (r.CUSTOMER_CODE || '')).toLowerCase();
+      if (sq && searchTarget.indexOf(sq) === -1) return;
+      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER, CODE: r.CUSTOMER_CODE || '' };
+      if (recent.indexOf(r.MONTH) !== -1) map[key][r.MONTH] = (map[key][r.MONTH] || 0) + (r.TOTAL_SQFT || 0);
     });
 
     let sorted = Object.values(map).sort((a,b) => (b[recent[0]]||0) - (a[recent[0]]||0));
@@ -1445,7 +1447,8 @@ window._loadCustByMonth = async function(tbody, thead, page) {
     
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
+      const custTitle = window.esc(r.C) + (r.CODE ? ' (' + window.esc(r.CODE) + ')' : '');
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + custTitle + '">' + window.esc(r.C) + '</td>'
         + displayMonths.map((m, mi) => {
             const val = r[m] || 0;
             let prevVal;
@@ -1486,7 +1489,8 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
     sortedFYsList.forEach(fy => fyData[fy] = {});
     dataList.forEach(r => {
       if (fyData[r.FY]) {
-        const k = r.STATE + '||' + r.HOD + '||' + r.CUSTOMER;
+        const code = r.CUSTOMER_CODE || r.CUSTOMER;
+        const k = r.STATE + '||' + r.HOD + '||' + code;
         if (!fyData[r.FY][k]) fyData[r.FY][k] = r;
         else {
           fyData[r.FY][k].Q1_SQFT = (fyData[r.FY][k].Q1_SQFT || 0) + (r.Q1_SQFT || 0);
@@ -1517,8 +1521,9 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
     sortedFYsList.forEach(fy => {
       Object.keys(fyData[fy] || {}).forEach(k => {
         const r = fyData[fy][k];
-        if (sq && k.toLowerCase().indexOf(sq) === -1) return;
-        if (!allKeys[k]) allKeys[k] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER };
+        const searchTarget = (r.STATE + '||' + r.HOD + '||' + r.CUSTOMER + '||' + (r.CUSTOMER_CODE || '')).toLowerCase();
+        if (sq && searchTarget.indexOf(sq) === -1) return;
+        if (!allKeys[k]) allKeys[k] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER, CODE: r.CUSTOMER_CODE || '' };
       });
     });
 
@@ -1589,7 +1594,8 @@ window._loadCustByQuarter = async function(tbody, thead, page) {
 
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
+      const custTitle = window.esc(r.C) + (r.CODE ? ' (' + window.esc(r.CODE) + ')' : '');
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + custTitle + '">' + window.esc(r.C) + '</td>'
         + displayCols.map((c, mi) => {
             const val = r[c.key] || 0;
             let prevVal;
@@ -1622,10 +1628,12 @@ window._loadCustByYear = async function(tbody, thead, page) {
     const sq = (window.searchQueries['custqoq'] || '').toLowerCase();
     const map = {};
     dataList.forEach(r => {
-      const key = r.STATE + '||' + r.HOD + '||' + r.CUSTOMER;
-      if (sq && key.toLowerCase().indexOf(sq) === -1) return;
-      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER };
-      map[key][r.FY] = r.TOTAL_SQFT;
+      const code = r.CUSTOMER_CODE || r.CUSTOMER;
+      const key = r.STATE + '||' + r.HOD + '||' + code;
+      const searchTarget = (r.STATE + '||' + r.HOD + '||' + r.CUSTOMER + '||' + (r.CUSTOMER_CODE || '')).toLowerCase();
+      if (sq && searchTarget.indexOf(sq) === -1) return;
+      if (!map[key]) map[key] = { ST: r.STATE, HOD: r.HOD, C: r.CUSTOMER, CODE: r.CUSTOMER_CODE || '' };
+      map[key][r.FY] = (map[key][r.FY] || 0) + (r.TOTAL_SQFT || 0);
     });
 
     let sorted = Object.values(map).sort((a,b) => (b[curFY]||0) - (a[curFY]||0));
@@ -1669,7 +1677,8 @@ window._loadCustByYear = async function(tbody, thead, page) {
     
     let html = '';
     displayRows.forEach(r => {
-      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + window.esc(r.C) + '">' + window.esc(r.C) + '</td>'
+      const custTitle = window.esc(r.C) + (r.CODE ? ' (' + window.esc(r.CODE) + ')' : '');
+      html += '<tr><td style="' + stickyRowST + '">' + window.esc(r.ST) + '</td><td style="' + stickyRowHOD + '">' + r.HOD + '</td><td style="' + stickyRowC + ';font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + custTitle + '">' + window.esc(r.C) + '</td>'
         + displayFYs.map((fy, mi) => {
             const val = r[fy] || 0;
             let prevVal;
