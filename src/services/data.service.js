@@ -261,6 +261,16 @@ function _vals(val) {
   return [val];
 }
 
+// PostgREST in.(...) list with every value double-quoted. Unquoted, a ')' in a
+// value -- 'BHARAT LAL GURJAR (PROJECT)' -- closes the list early, and PostgREST
+// ignores the rest instead of rejecting the query: a HOD scoped to 13 HODs got
+// only the one listed ahead of it. Inside quotes, " and \ must be escaped.
+function _inList(vals) {
+  return 'in.(' + vals.map(function (v) {
+    return encodeURIComponent('"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"');
+  }).join(',') + ')';
+}
+
 // Client FY 'FY 24-25' -> DB fy_year 'FY-24-25'. Returns null if unparseable
 // so the caller can skip the push-down and rely on _rowMatches alone.
 function _fyToDb(v) {
@@ -297,7 +307,7 @@ function _q(f, exclude) {
     if (!val || val === 'All') return;
     if (Array.isArray(val)) {
       if (val.length === 0 || val.indexOf('All') !== -1) return;
-      p.push(col + '=in.(' + val.map(encodeURIComponent).join(',') + ')');
+      p.push(col + '=' + _inList(val));
     } else {
       p.push(col + '=eq.' + encodeURIComponent(val));
     }
@@ -340,23 +350,23 @@ function _q(f, exclude) {
   // so this intersects naturally with any explicit HOD filter below.
   if (exclude.indexOf('state') === -1) {
     const stHods = _hodsForStates(_vals(f.state));
-    if (stHods) p.push('hod_name=in.(' + stHods.map(encodeURIComponent).join(',') + ')');
+    if (stHods) p.push('hod_name=' + _inList(stHods));
   }
   if (exclude.indexOf('hod') === -1) addFilter('hod_name', f.hod);
 
   const scope = f._scope || {};
   if (scope.hod_name) p.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
   if (scope.allowed_hods && scope.allowed_hods.length) {
-    p.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+    p.push('hod_name=' + _inList(scope.allowed_hods));
   }
   if (exclude.indexOf('zone') === -1 && scope.allowed_zones && scope.allowed_zones.length) {
-    p.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+    p.push('zone=' + _inList(scope.allowed_zones));
   }
   if (scope.allowed_states && scope.allowed_states.length) {
     const scHods = _hodsForStates(scope.allowed_states);
     p.push(scHods
-      ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
-      : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+      ? 'hod_name=' + _inList(scHods)
+      : 'state=' + _inList(scope.allowed_states));
   }
   // PostgREST allows one top-level or=; multiple groups get wrapped in and=().
   if (orGroups.length === 1) {
@@ -549,22 +559,22 @@ async function _fetchOutstanding(f) {
   const parts = [];
   if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
   if (scope.allowed_hods && scope.allowed_hods.length) {
-    parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+    parts.push('hod_name=' + _inList(scope.allowed_hods));
   }
   if (scope.allowed_zones && scope.allowed_zones.length) {
-    parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+    parts.push('zone=' + _inList(scope.allowed_zones));
   }
   if (scope.allowed_states && scope.allowed_states.length) {
     const scHods = _hodsForStates(scope.allowed_states);
     parts.push(scHods
-      ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
-      : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+      ? 'hod_name=' + _inList(scHods)
+      : 'state=' + _inList(scope.allowed_states));
   }
   function addF(col, val) {
     if (!val || val === 'All') return;
     if (Array.isArray(val)) {
       if (val.length === 0 || val.indexOf('All') !== -1) return;
-      parts.push(col + '=in.(' + val.map(encodeURIComponent).join(',') + ')');
+      parts.push(col + '=' + _inList(val));
     } else {
       parts.push(col + '=eq.' + encodeURIComponent(val));
     }
@@ -1698,16 +1708,16 @@ async function getTargetVsAchievement(f, opts) {
     const parts = [];
     if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
     if (scope.allowed_hods && scope.allowed_hods.length) {
-      parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+      parts.push('hod_name=' + _inList(scope.allowed_hods));
     }
     if (scope.allowed_zones && scope.allowed_zones.length) {
-      parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+      parts.push('zone=' + _inList(scope.allowed_zones));
     }
     if (scope.allowed_states && scope.allowed_states.length) {
       const scHods = _hodsForStates(scope.allowed_states);
       parts.push(scHods
-        ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
-        : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+        ? 'hod_name=' + _inList(scHods)
+        : 'state=' + _inList(scope.allowed_states));
     }
     if (parts.length) qs = '?' + parts.join('&');
     const tRows = await fetchAll(DB_TABLES.TARGETS || 'target_master', qs);
@@ -1966,22 +1976,22 @@ async function getExecutiveTargets(f, opts) {
     const parts = [];
     if (scope.hod_name) parts.push('hod_name=eq.' + encodeURIComponent(scope.hod_name));
     if (scope.allowed_hods && scope.allowed_hods.length) {
-      parts.push('hod_name=in.(' + scope.allowed_hods.map(encodeURIComponent).join(',') + ')');
+      parts.push('hod_name=' + _inList(scope.allowed_hods));
     }
     if (scope.allowed_zones && scope.allowed_zones.length) {
-      parts.push('zone=in.(' + scope.allowed_zones.map(encodeURIComponent).join(',') + ')');
+      parts.push('zone=' + _inList(scope.allowed_zones));
     }
     if (scope.allowed_states && scope.allowed_states.length) {
       const scHods = _hodsForStates(scope.allowed_states);
       parts.push(scHods
-        ? 'hod_name=in.(' + scHods.map(encodeURIComponent).join(',') + ')'
-        : 'state=in.(' + scope.allowed_states.map(encodeURIComponent).join(',') + ')');
+        ? 'hod_name=' + _inList(scHods)
+        : 'state=' + _inList(scope.allowed_states));
     }
     function addF(col, val) {
       if (!val || val === 'All') return;
       if (Array.isArray(val)) {
         if (val.length === 0 || val.indexOf('All') !== -1) return;
-        parts.push(col + '=in.(' + val.map(encodeURIComponent).join(',') + ')');
+        parts.push(col + '=' + _inList(val));
       } else {
         parts.push(col + '=eq.' + encodeURIComponent(val));
       }
