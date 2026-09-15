@@ -468,6 +468,13 @@ window._applyRoleUI = function() {
     var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
     if (el) el.style.display = isAdmin ? '' : 'none';
   });
+
+  // Data sync controls marked data-admin-only (Append New Data, Sync
+  // Outstanding, Sync Targets, Hard Reset) are for Admins and Super Admins.
+  // Every role keeps Refresh Cache; the API refuses the rest to other roles.
+  document.querySelectorAll('[data-admin-only]').forEach(function(el) {
+    el.style.display = isAdmin ? '' : 'none';
+  });
   
   // If not admin, default settings tab to Account Profile
   var sheetsTab = document.querySelector('.settings-tab[data-tab="tab-sheets"]');

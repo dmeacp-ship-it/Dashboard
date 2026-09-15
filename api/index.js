@@ -153,10 +153,11 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Admin-only: sync actions
-    if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
-    if (action === 'syncOutstanding') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncOutstandingData())); return; }
-    if (action === 'syncTargets') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncTargetData())); return; }
+    // Sync actions: Admins and Super Admins. Every role may still refresh the
+    // cache (clearServerCache, above).
+    if (action === 'processAggregation') { _requireAdmin(userProfile); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
+    if (action === 'syncOutstanding') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncOutstandingData())); return; }
+    if (action === 'syncTargets') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncTargetData())); return; }
 
     // Settings
     if (action === 'getSettings') { res.json(_ok(await SettingsService.getSettings())); return; }
