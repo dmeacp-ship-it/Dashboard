@@ -953,6 +953,9 @@
             <div class="settings-tab" data-tab="tab-users" onclick="switchSettingsTab('tab-users')">
               <i class="ph ph-users"></i> User Management
             </div>
+            <div class="settings-tab" data-tab="tab-activity" onclick="switchSettingsTab('tab-activity')">
+              <i class="ph ph-clock-counter-clockwise"></i> Login Activity
+            </div>
             <div class="settings-tab" data-tab="tab-roles" onclick="switchSettingsTab('tab-roles')">
               <i class="ph ph-mask-happy"></i> Role Simulator
             </div>
@@ -1200,6 +1203,83 @@
                     <tbody id="tbl-users-body"></tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+
+            <!-- TAB: Login Activity (Super Admin) -->
+            <div id="tab-activity" class="settings-pane" style="display:none;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;">
+                <div>
+                  <div style="font-size:15px;font-weight:700;">Login Activity</div>
+                  <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">Who signs in, when each person last used the dashboard, and who hasn't.</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="loadLoginActivity()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+              </div>
+
+              <div id="la-setup" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.08);color:var(--text-main);font-size:12px;line-height:1.5;"></div>
+
+              <div id="la-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px;"></div>
+
+              <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+                  <span style="font-size:12.5px;font-weight:700;color:var(--text);">Usage by User</span>
+                  <button class="btn btn-ghost btn-sm" onclick="window.exportLoginSummaryCSV()"><i class="ph ph-download-simple"></i> Export CSV</button>
+                </div>
+                <div style="max-height:360px;overflow:auto;">
+                  <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+                    <thead style="background:var(--surface3);position:sticky;top:0;z-index:10;">
+                      <tr>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">User</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Role</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Usage</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Last Seen</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Last Login</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;text-align:right;">Active Days (30d)</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;text-align:right;">Logins (30d)</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;text-align:right;">Failed (7d)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbl-login-summary-body"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div style="border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+                  <span style="font-size:12.5px;font-weight:700;color:var(--text);">Login Log</span>
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                    <select class="form-select" id="la-user" onchange="loadLoginLogs()" style="width:auto;min-width:170px;font-size:12px;"><option value="">All users</option></select>
+                    <select class="form-select" id="la-event" onchange="loadLoginLogs()" style="width:auto;font-size:12px;">
+                      <option value="">All events</option>
+                      <option value="login">Signed in</option>
+                      <option value="session">Opened app</option>
+                      <option value="logout">Signed out</option>
+                      <option value="login_failed">Failed sign-in</option>
+                    </select>
+                    <select class="form-select" id="la-days" onchange="loadLoginLogs()" style="width:auto;font-size:12px;">
+                      <option value="7">Last 7 days</option>
+                      <option value="30" selected>Last 30 days</option>
+                      <option value="90">Last 90 days</option>
+                    </select>
+                    <button class="btn btn-ghost btn-sm" onclick="window.exportLoginLogsCSV()"><i class="ph ph-download-simple"></i> Export CSV</button>
+                  </div>
+                </div>
+                <div style="max-height:420px;overflow:auto;">
+                  <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+                    <thead style="background:var(--surface3);position:sticky;top:0;z-index:10;">
+                      <tr>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Time</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">User</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Event</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Details</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">IP</th>
+                        <th style="padding:8px 14px;color:var(--text3);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;white-space:nowrap;">Device</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbl-login-logs-body"></tbody>
+                  </table>
+                </div>
+                <div id="la-log-foot" style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);"></div>
               </div>
             </div>
 
@@ -1525,7 +1605,7 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=c47fa37f"></script>
+<script defer src="/js/javascript.min.js?v=6211663d"></script>
 <script defer src="/js/javascript1.min.js?v=40612419"></script>
 <script defer src="/js/javascript2.min.js?v=ed850b39"></script>
 <script defer src="/js/fms.min.js?v=1632f0aa"></script>
