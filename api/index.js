@@ -36,6 +36,13 @@ function _requireRole(profile, requiredRole) {
   if (profile.role !== requiredRole) throw new Error('ACCESS_DENIED: Action requires higher privileges.');
 }
 
+// Admins and Super Admins pass; every other role is refused.
+function _requireAdmin(profile) {
+  if (profile.role !== ROLES.SUPER_ADMIN && profile.role !== ROLES.ADMIN) {
+    throw new Error('ACCESS_DENIED: Action requires higher privileges.');
+  }
+}
+
 // Client errors carry an explicit status so the catch block doesn't report a
 // bad request or a failed sign-in as a 500.
 function _bad(msg, status) {
@@ -146,10 +153,11 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Admin-only: sync actions
-    if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
-    if (action === 'syncOutstanding') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncOutstandingData())); return; }
-    if (action === 'syncTargets') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncTargetData())); return; }
+    // Sync actions: Admins and Super Admins. Every role may still refresh the
+    // cache (clearServerCache, above).
+    if (action === 'processAggregation') { _requireAdmin(userProfile); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
+    if (action === 'syncOutstanding') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncOutstandingData())); return; }
+    if (action === 'syncTargets') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncTargetData())); return; }
 
     // Settings
     if (action === 'getSettings') { res.json(_ok(await SettingsService.getSettings())); return; }
@@ -208,15 +216,20 @@ module.exports = async function handler(req, res) {
       getSheetTabs: () => DataService.getSheetTabs(opts),
 
       // ── FMS / OMS live sheet tables ──────────────────────────────────────
-      getFmsTable: () => FmsService.getFmsTable(opts, null),
+      // Every role gets the FMS Dashboard, All Orders and Order Lifecycle
+      // (getFmsDashboard, getFmsOrders, getFmsOrderDetail). Every other FMS
+      // report is Admin / Super Admin only, so its endpoint refuses anyone
+      // else. Reference Orders is built from getFmsOrders, so it can only be
+      // hidden in the UI (public/js/fms.js).
+      getFmsTable: () => { _requireAdmin(userProfile); return FmsService.getFmsTable(opts, null); },
       listFmsTables: () => FmsService.listFmsTables(),
       getFmsOrders: () => FmsService.getFmsOrders(opts, null),
       getFmsDashboard: () => FmsService.getFmsDashboard(null),
       getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts, null),
-      getFmsPartySummary: () => FmsService.getFmsPartySummary(null),
-      getFmsMonthWise: () => FmsService.getFmsMonthWise(null),
-      getFmsDelivery: () => FmsService.getFmsDelivery(null),
-      getFmsPlantItems: () => FmsService.getFmsPlantItems(null),
+      getFmsPartySummary: () => { _requireAdmin(userProfile); return FmsService.getFmsPartySummary(null); },
+      getFmsMonthWise: () => { _requireAdmin(userProfile); return FmsService.getFmsMonthWise(null); },
+      getFmsDelivery: () => { _requireAdmin(userProfile); return FmsService.getFmsDelivery(null); },
+      getFmsPlantItems: () => { _requireAdmin(userProfile); return FmsService.getFmsPlantItems(null); },
       getItems: () => FmsService.getItems()
     };
 

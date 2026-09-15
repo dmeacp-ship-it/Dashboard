@@ -168,15 +168,21 @@
   // Every FMS view lives under one sidebar group.
   // Top-level entry, sits beside the main Dashboard rather than in the group.
   var DASH_NAV = { v: 'dash', ic: 'ph-gauge', lb: 'FMS Dashboard' };
+  // Every role gets All Orders and Order Lifecycle. Reports flagged admin are
+  // for Admins and Super Admins only: FMS.applyRole hides them from the menu,
+  // render() refuses them, and the API refuses the endpoints behind them
+  // (Reference Orders shares getFmsOrders, so it is gated here only).
   var REPORTS = [
     { v: 'all-orders',        ic: 'ph-list-bullets',            lb: 'All Orders' },
     { v: 'order-lifecycle',   ic: 'ph-clock',                   lb: 'Order Lifecycle' },
-    { v: 'month-wise',        ic: 'ph-calendar',                lb: 'Month-Wise Report' },
-    { v: 'reference-orders',  ic: 'ph-link',                    lb: 'Reference Orders' },
-    { v: 'plant',             ic: 'ph-factory',                 lb: 'Plant & Dispatch' },
-    { v: 'dispatch-history',  ic: 'ph-clock-counter-clockwise', lb: 'Dispatch History' },
-    { v: 'delivery-tracking', ic: 'ph-seal-check',              lb: 'Delivery Tracking' }
+    { v: 'month-wise',        ic: 'ph-calendar',                lb: 'Month-Wise Report', admin: true },
+    { v: 'reference-orders',  ic: 'ph-link',                    lb: 'Reference Orders',  admin: true },
+    { v: 'plant',             ic: 'ph-factory',                 lb: 'Plant & Dispatch',  admin: true },
+    { v: 'dispatch-history',  ic: 'ph-clock-counter-clockwise', lb: 'Dispatch History',  admin: true },
+    { v: 'delivery-tracking', ic: 'ph-seal-check',              lb: 'Delivery Tracking', admin: true }
   ];
+  var ADMIN_ONLY = {};
+  REPORTS.forEach(function (s) { if (s.admin) ADMIN_ONLY[s.v] = s.lb; });
   // Queue views are reachable from the dashboard action pills, but are not
   // sidebar entries of their own.
   var QUEUES = {
@@ -276,25 +282,27 @@
   }
   function render() {
     var v = FMS.state.view;
+    if (ADMIN_ONLY[v] && !_isAdmin()) {
+      return setC(empt('ph-lock', 'Restricted', ADMIN_ONLY[v] + ' is available to Admins and Super Admins only.'));
+    }
     if (v === 'dash') return viewDash();
     if (QUEUES[v]) return viewOrders(v, QUEUES[v].lb, QUEUES[v].ic, false);
     if (v === 'order-lifecycle') return viewLifecycle();
     if (v === 'month-wise') return viewMonthWise();
     if (v === 'reference-orders') return viewReferenceOrders();
-    if (v === 'plant') {
-      if (!_isAdmin()) return setC(empt('ph-lock', 'Restricted', 'Plant & Dispatch is available to Admins only.'));
-      return viewPlantItems();
-    }
+    if (v === 'plant') return viewPlantItems();
     if (v === 'dispatch-history') return viewSheet('dispatch-history');
     if (v === 'delivery-tracking') return viewDelivery();
     // default + 'all-orders' → the table on its own; KPI cards live on Dashboard
     return viewOrders('all', 'All Orders', 'ph-list-bullets', false);
   }
 
-  // Plant & Dispatch exposes factory-floor data — hide it for non-admins.
+  // Hides the admin-only reports (see REPORTS) from everyone else's menu.
   FMS.applyRole = function () {
-    var el = document.querySelector('#fms-rep-submenu .nav-item[data-fms="plant"]');
-    if (el) el.style.display = _isAdmin() ? '' : 'none';
+    var admin = _isAdmin();
+    document.querySelectorAll('#fms-rep-submenu .nav-item[data-fms]').forEach(function (el) {
+      el.style.display = (ADMIN_ONLY[el.dataset.fms] && !admin) ? 'none' : '';
+    });
   };
 
   /* ───────────────────────── DASHBOARD ───────────────────────── */
