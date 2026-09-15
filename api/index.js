@@ -216,15 +216,15 @@ module.exports = async function handler(req, res) {
       getSheetTabs: () => DataService.getSheetTabs(opts),
 
       // ── FMS / OMS live sheet tables ──────────────────────────────────────
-      // Every role gets the FMS Dashboard, All Orders and Order Lifecycle
-      // (getFmsDashboard, getFmsOrders, getFmsOrderDetail). Every other FMS
-      // report is Admin / Super Admin only, so its endpoint refuses anyone
-      // else. Reference Orders is built from getFmsOrders, so it can only be
-      // hidden in the UI (public/js/fms.js).
+      // Every role gets All Orders and Order Lifecycle (getFmsOrders,
+      // getFmsOrderDetail). Everything else, the FMS Dashboard included, is
+      // Admin / Super Admin only, so its endpoint refuses anyone else.
+      // Reference Orders and the dashboard's queues are built from
+      // getFmsOrders, so they can only be hidden in the UI (public/js/fms.js).
       getFmsTable: () => { _requireAdmin(userProfile); return FmsService.getFmsTable(opts, null); },
       listFmsTables: () => FmsService.listFmsTables(),
       getFmsOrders: () => FmsService.getFmsOrders(opts, null),
-      getFmsDashboard: () => FmsService.getFmsDashboard(null),
+      getFmsDashboard: () => { _requireAdmin(userProfile); return FmsService.getFmsDashboard(null); },
       getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts, null),
       getFmsPartySummary: () => { _requireAdmin(userProfile); return FmsService.getFmsPartySummary(null); },
       getFmsMonthWise: () => { _requireAdmin(userProfile); return FmsService.getFmsMonthWise(null); },

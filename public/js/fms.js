@@ -167,11 +167,12 @@
   /* ───────────────────────── nav config ───────────────────────── */
   // Every FMS view lives under one sidebar group.
   // Top-level entry, sits beside the main Dashboard rather than in the group.
-  var DASH_NAV = { v: 'dash', ic: 'ph-gauge', lb: 'FMS Dashboard' };
-  // Every role gets All Orders and Order Lifecycle. Reports flagged admin are
-  // for Admins and Super Admins only: FMS.applyRole hides them from the menu,
-  // render() refuses them, and the API refuses the endpoints behind them
-  // (Reference Orders shares getFmsOrders, so it is gated here only).
+  var DASH_NAV = { v: 'dash', ic: 'ph-gauge', lb: 'FMS Dashboard', admin: true };
+  // Every role gets All Orders and Order Lifecycle. Views flagged admin -- the
+  // FMS Dashboard (with its queues) and the other reports -- are for Admins and
+  // Super Admins only: FMS.applyRole hides them from the sidebar, render()
+  // refuses them, and the API refuses the endpoints behind them. Reference
+  // Orders and the queues are built from getFmsOrders, so they are gated here only.
   var REPORTS = [
     { v: 'all-orders',        ic: 'ph-list-bullets',            lb: 'All Orders' },
     { v: 'order-lifecycle',   ic: 'ph-clock',                   lb: 'Order Lifecycle' },
@@ -181,8 +182,6 @@
     { v: 'dispatch-history',  ic: 'ph-clock-counter-clockwise', lb: 'Dispatch History',  admin: true },
     { v: 'delivery-tracking', ic: 'ph-seal-check',              lb: 'Delivery Tracking', admin: true }
   ];
-  var ADMIN_ONLY = {};
-  REPORTS.forEach(function (s) { if (s.admin) ADMIN_ONLY[s.v] = s.lb; });
   // Queue views are reachable from the dashboard action pills, but are not
   // sidebar entries of their own.
   var QUEUES = {
@@ -193,6 +192,10 @@
   var VIEW_TITLE = {};
   REPORTS.concat([DASH_NAV]).forEach(function (s) { VIEW_TITLE[s.v] = s.lb; });
   Object.keys(QUEUES).forEach(function (k) { VIEW_TITLE[k] = QUEUES[k].lb; });
+  var ADMIN_ONLY = {};
+  REPORTS.concat([DASH_NAV]).forEach(function (s) { if (s.admin) ADMIN_ONLY[s.v] = s.lb; });
+  // The queues only open from the dashboard, so they share its restriction.
+  Object.keys(QUEUES).forEach(function (k) { ADMIN_ONLY[k] = QUEUES[k].lb; });
 
   // generic sheet-table views (server-paginated)
   var SHEET_VIEWS = {
@@ -261,7 +264,7 @@
 
   /* ───────────────────────── public nav ───────────────────────── */
   FMS.open = function (view) {
-    if (!VIEW_TITLE[view]) view = 'dash';
+    if (!VIEW_TITLE[view]) view = _isAdmin() ? 'dash' : 'all-orders';
     FMS.state.view = view;
     document.querySelectorAll('.nav-submenu.open').forEach(function (m) { m.classList.remove('open'); });
     document.querySelectorAll('.nav-group-btn.open').forEach(function (b) { b.classList.remove('open'); });
@@ -297,10 +300,10 @@
     return viewOrders('all', 'All Orders', 'ph-list-bullets', false);
   }
 
-  // Hides the admin-only reports (see REPORTS) from everyone else's menu.
+  // Hides the admin-only views (see REPORTS) from everyone else's sidebar.
   FMS.applyRole = function () {
     var admin = _isAdmin();
-    document.querySelectorAll('#fms-rep-submenu .nav-item[data-fms]').forEach(function (el) {
+    document.querySelectorAll('.nav-item[data-fms]').forEach(function (el) {
       el.style.display = (ADMIN_ONLY[el.dataset.fms] && !admin) ? 'none' : '';
     });
   };
