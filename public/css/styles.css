@@ -1246,8 +1246,27 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   #last-updated-val { display: none !important; }
 
   /* Squeeze the toolbar further: on an 812px-tall screen every row it takes is
-     a row of data you cannot see. */
-  .table-toolbar { gap: 6px; padding: 8px 10px; }
+     a row of data you cannot see. Four rows (title, search, period, comparison)
+     become three -- the two pill groups were 153px + 216px, just over the
+     341px available, so the comparison labels get short forms here. The
+     buttons keep their real text in the markup for screen readers; it simply
+     isn't painted. */
+  .table-toolbar .comp-toggles .btn { font-size: 0 !important; padding: 4px 8px; }
+  .table-toolbar .comp-toggles .btn::after { font-size: 10.5px; font-weight: inherit; letter-spacing: 0; }
+  .table-toolbar .comp-toggles .btn:nth-child(1)::after { content: 'Std'; }
+  .table-toolbar .comp-toggles .btn:nth-child(2)::after { content: 'vs Prev'; }
+  .table-toolbar .comp-toggles .btn:nth-child(3)::after { content: 'vs LY'; }
+  .table-toolbar .form-input { min-height: 30px !important; height: 30px; }
+
+  /* Chart cards: title on one line beside its legend, and less padding, so
+     more of the card is actually chart. */
+  .chart-card { padding: 12px 14px; }
+  .chart-header { margin-bottom: 10px; gap: 8px; }
+  .chart-title { font-size: 10px; letter-spacing: 0.04em; line-height: 1.25; }
+  .chart-header > div:not(.chart-title) { font-size: 10px; white-space: nowrap; }
+  .chart-header .btn-group .btn { padding: 4px 8px; font-size: 10px; }
+
+  .table-toolbar { gap: 5px; padding: 6px 10px; }
   .table-title { font-size: 10px; letter-spacing: 0.06em; }
   .table-toolbar .btn-group .btn { padding: 4px 8px; font-size: 10.5px; }
   .table-toolbar .btn-sm { padding: 4px 8px; font-size: 10.5px; }
