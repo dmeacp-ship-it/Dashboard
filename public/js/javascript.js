@@ -133,7 +133,7 @@ window.bindKpiWheelScroll = function(root) {
   });
 };
 
-window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', exectgt: '', skutypeqoq: '', outstanding: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
+window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', stateqoq: '', cityqoq: '', tgtactual: '', exectgt: '', skutypeqoq: '', outstanding: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
 window.copilotHistory = [];
 window.tableAIHistory = {};
 
@@ -325,6 +325,8 @@ window.handleSearch = function(pageId) {
       else if (pageId === 'tgtactual' && window.loadTargetActual) window.loadTargetActual();
       else if (pageId === 'exectgt' && window.loadExecTargetActual) window.loadExecTargetActual();
       else if (pageId === 'projqoq' && window.loadProjSale) window.loadProjSale(1);
+      else if (pageId === 'stateqoq' && window.loadStateSale) window.loadStateSale(1);
+      else if (pageId === 'cityqoq' && window.loadCitySale) window.loadCitySale(1);
       else if (pageId === 'skutypeqoq' && window.loadSkuTypeSale) window.loadSkuTypeSale(1);
       else if (pageId === 'customers' && window.loadTopCustomers) window.loadTopCustomers(1);
       else if (pageId === 'rfm' && window.loadRFM) window.loadRFM(1);
@@ -1267,6 +1269,8 @@ window._EXPORT_TABLES = {
   'tbl-custqoq-body':     { key: 'custqoq',     reload: function () { return window.loadCustSale(window.custSalePage || 1); } },
   'tbl-execqoq-body':     { key: 'execqoq',     reload: function () { return window.loadExecSale(window.execSalePage || 1); } },
   'tbl-projqoq-body':     { key: 'projqoq',     reload: function () { return window.loadProjSale(1); } },
+  'tbl-stateqoq-body':    { key: 'stateqoq',    reload: function () { return window.loadStateSale(1); } },
+  'tbl-cityqoq-body':     { key: 'cityqoq',     reload: function () { return window.loadCitySale(1); } },
   'tbl-customers-body':   { key: 'customers',   reload: function () { return window.loadTopCustomers(1); } },
   'tbl-rfm-body':         { key: 'rfm',         reload: function () { return window.loadRFM(1); } },
   'tbl-declining-body':   { key: 'declining',   reload: function () { return window.loadDeclining(1); } },
@@ -1592,6 +1596,8 @@ window.loadPage = function(id, page = 1, useCache = false) {
     tgtactual:    () => typeof window.loadTargetActual === 'function' ? window.loadTargetActual() : null,
     exectgt:      () => typeof window.loadExecTargetActual === 'function' ? window.loadExecTargetActual() : null,
     projqoq:      () => typeof window.loadProjSale === 'function' ? window.loadProjSale(page) : null,
+    stateqoq:     () => typeof window.loadStateSale === 'function' ? window.loadStateSale(page) : null,
+    cityqoq:      () => typeof window.loadCitySale === 'function' ? window.loadCitySale(page) : null,
     settings:     () => { 
       if (typeof window.loadUsers === 'function') window.loadUsers(); 
       if (typeof window.loadGoogleSheetsConfig === 'function') window.loadGoogleSheetsConfig(); 

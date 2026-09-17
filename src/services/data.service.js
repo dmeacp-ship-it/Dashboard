@@ -1175,10 +1175,10 @@ async function getCustomerQoQ(f) {
       const c = _s(r, 'customer_name') || 'Unknown';
       const code = _s(r, 'customer_code') || codeMaps.nameToCode.get(c.trim().toLowerCase()) || c;
       const canonicalName = codeMaps.codeToName.get(code) || c;
-      const st = _state(r); const h = _hod(r);
+      const st = _state(r); const h = _hod(r); const city = _s(r, 'city') || '-';
       if (!code || code === 'Unknown') return;
       const key = st + '||' + h + '||' + code;
-      if (!map[key]) map[key] = { STATE: st, HOD: h, CUSTOMER: canonicalName, CUSTOMER_CODE: code, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      if (!map[key]) map[key] = { STATE: st, HOD: h, CITY: city, CUSTOMER: canonicalName, CUSTOMER_CODE: code, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
       const s = _sqm(r); const rev = _rev(r);
       map[key].T += s; map[key].NET_REVENUE += rev;
       const qt = _qtr(r);
@@ -1189,7 +1189,7 @@ async function getCustomerQoQ(f) {
     });
     return Object.values(map).map(function (c) {
       return {
-        STATE: c.STATE, HOD: c.HOD, CUSTOMER: c.CUSTOMER, CUSTOMER_CODE: c.CUSTOMER_CODE,
+        STATE: c.STATE, HOD: c.HOD, CITY: c.CITY, CUSTOMER: c.CUSTOMER, CUSTOMER_CODE: c.CUSTOMER_CODE,
         TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
         Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
@@ -1220,10 +1220,10 @@ async function getCustomerAllFYSummary(f) {
       const c = _s(r, 'customer_name') || 'Unknown';
       const code = _s(r, 'customer_code') || codeMaps.nameToCode.get(c.trim().toLowerCase()) || c;
       const canonicalName = codeMaps.codeToName.get(code) || c;
-      const st = _state(r); const h = _hod(r); const fy = _robustFy(r);
+      const st = _state(r); const h = _hod(r); const fy = _robustFy(r); const city = _s(r, 'city') || '-';
       if (!code || code === 'Unknown' || !fy) return;
       const key = st + '||' + h + '||' + code + '||' + fy;
-      if (!map[key]) map[key] = { STATE: st, HOD: h, CUSTOMER: canonicalName, CUSTOMER_CODE: code, FY: fy, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      if (!map[key]) map[key] = { STATE: st, HOD: h, CITY: city, CUSTOMER: canonicalName, CUSTOMER_CODE: code, FY: fy, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
       const s = _sqm(r); const rev = _rev(r);
       map[key].T += s; map[key].NET_REVENUE += rev;
       const qt = _qtr(r);
@@ -1234,7 +1234,7 @@ async function getCustomerAllFYSummary(f) {
     });
     return Object.values(map).map(function (c) {
       return {
-        STATE: c.STATE, HOD: c.HOD, CUSTOMER: c.CUSTOMER, CUSTOMER_CODE: c.CUSTOMER_CODE, FY: c.FY,
+        STATE: c.STATE, HOD: c.HOD, CITY: c.CITY, CUSTOMER: c.CUSTOMER, CUSTOMER_CODE: c.CUSTOMER_CODE, FY: c.FY,
         TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
         NET_REVENUE: Math.round(c.NET_REVENUE),
         Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
@@ -1259,15 +1259,15 @@ async function getCustomerMonthlySummary(f) {
       const c = _s(r, 'customer_name') || 'Unknown';
       const code = _s(r, 'customer_code') || codeMaps.nameToCode.get(c.trim().toLowerCase()) || c;
       const canonicalName = codeMaps.codeToName.get(code) || c;
-      const st = _state(r); const h = _hod(r); const mo = _mo(r);
+      const st = _state(r); const h = _hod(r); const mo = _mo(r); const city = _s(r, 'city') || '-';
       if (!code || code === 'Unknown' || !mo) return;
       const key = st + '||' + h + '||' + code + '||' + mo;
-      if (!map[key]) map[key] = { STATE: st, HOD: h, CUSTOMER: canonicalName, CUSTOMER_CODE: code, MONTH: mo, SORT_KEY: _mSk(mo), SQM: 0, SQFT: 0, NET_REVENUE: 0 };
+      if (!map[key]) map[key] = { STATE: st, HOD: h, CITY: city, CUSTOMER: canonicalName, CUSTOMER_CODE: code, MONTH: mo, SORT_KEY: _mSk(mo), SQM: 0, SQFT: 0, NET_REVENUE: 0 };
       map[key].SQM += _sqm(r); map[key].SQFT += _sqft(r); map[key].NET_REVENUE += _rev(r);
     });
     return Object.values(map).map(function (r) {
       return {
-        STATE: r.STATE, HOD: r.HOD, CUSTOMER: r.CUSTOMER, CUSTOMER_CODE: r.CUSTOMER_CODE, MONTH: r.MONTH, SORT_KEY: r.SORT_KEY,
+        STATE: r.STATE, HOD: r.HOD, CITY: r.CITY, CUSTOMER: r.CUSTOMER, CUSTOMER_CODE: r.CUSTOMER_CODE, MONTH: r.MONTH, SORT_KEY: r.SORT_KEY,
         TOTAL_SQFT: Math.round(r.SQFT), TOTAL_SQM: +r.SQM.toFixed(2), NET_REVENUE: Math.round(r.NET_REVENUE)
       };
     }).sort(function (a, b) {
@@ -1398,6 +1398,197 @@ const getExecutiveMonthlySummary = _personMonthly('vw_executive_sale_agg', 'exec
 const getProjectQoQ             = _personQoQ('vw_project_sale_agg', 'proj');
 const getProjectAllFYSummary    = _personAllFY('vw_project_sale_agg', 'proj');
 const getProjectMonthlySummary  = _personMonthly('vw_project_sale_agg', 'proj');
+
+// ── State Sales ─────────────────────────────────────────────────────────────
+async function getStateQoQ(f) {
+  return cached('state_qoq_' + _stableStringify(f), async function () {
+    const q = _q(f, ['month', 'zone']);
+    const rows = (await _fetchAgg('vw_state_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r);
+      const key = st;
+      if (!map[key]) map[key] = { STATE: st, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      const sq = _sqm(r); const rev = _rev(r);
+      map[key].T += sq; map[key].NET_REVENUE += rev;
+      const qt = _qtr(r);
+      if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+      if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+      if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+      if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+    });
+    return Object.values(map).map(function (c) {
+      return {
+        STATE: c.STATE,
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+        NET_REVENUE: Math.round(c.NET_REVENUE),
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+      };
+    }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+  });
+}
+
+async function getStateAllFYSummary(f) {
+  const scopeF = {
+    _scope: (f && f._scope) || {},
+    zone: (f && f.zone && f.zone !== 'All') ? f.zone : 'All',
+    state: (f && f.state && f.state !== 'All') ? f.state : 'All'
+  };
+  return cached('state_all_fy_v2_' + _stableStringify(scopeF), async function () {
+    const q = _q(f, ['month', 'fy', 'quarter']);
+    const rows = (await _fetchAgg('vw_state_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r); const fy = _robustFy(r);
+      if (!st || st === 'Unknown' || !fy) return;
+      const key = st + '||' + fy;
+      if (!map[key]) map[key] = { STATE: st, FY: fy, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      const sq = _sqm(r); const rev = _rev(r);
+      map[key].T += sq; map[key].NET_REVENUE += rev;
+      const qt = _qtr(r);
+      if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+      if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+      if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+      if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+    });
+    return Object.values(map).map(function (c) {
+      return {
+        STATE: c.STATE, FY: c.FY,
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+        NET_REVENUE: Math.round(c.NET_REVENUE),
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+      };
+    }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+  });
+}
+
+async function getStateMonthlySummary(f) {
+  return cached('state_monthly_' + _stableStringify(f), async function () {
+    const q = _q(f, ['quarter', 'zone']);
+    const rows = (await _fetchAgg('vw_state_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r); const m = _s(r, 'month_year');
+      if (!st || st === 'Unknown' || !m) return;
+      const sk = _mSk(m);
+      const key = st + '||' + sk;
+      if (!map[key]) map[key] = { STATE: st, MONTH: m, SORT_KEY: sk, SQM: 0, NET_REVENUE: 0 };
+      map[key].SQM += _sqm(r); map[key].NET_REVENUE += _rev(r);
+    });
+    return Object.values(map).map(function (r) {
+      return {
+        STATE: r.STATE, MONTH: r.MONTH, SORT_KEY: r.SORT_KEY,
+        TOTAL_SQFT: Math.round(r.SQM * SQFT_PER_SQM), TOTAL_SQM: +r.SQM.toFixed(2), NET_REVENUE: Math.round(r.NET_REVENUE)
+      };
+    }).sort(function (a, b) {
+      const sk = b.SORT_KEY.localeCompare(a.SORT_KEY);
+      if (sk !== 0) return sk;
+      return a.STATE.localeCompare(b.STATE);
+    });
+  });
+}
+
+// ── City Sales ──────────────────────────────────────────────────────────────
+async function getCityQoQ(f) {
+  return cached('city_qoq_' + _stableStringify(f), async function () {
+    const q = _q(f, ['month', 'zone']);
+    const rows = (await _fetchAgg('vw_city_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r); const city = _s(r, 'city') || 'Unknown';
+      const key = st + '||' + city;
+      if (!map[key]) map[key] = { STATE: st, CITY: city, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      const sq = _sqm(r); const rev = _rev(r);
+      map[key].T += sq; map[key].NET_REVENUE += rev;
+      const qt = _qtr(r);
+      if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+      if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+      if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+      if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+    });
+    return Object.values(map).map(function (c) {
+      return {
+        STATE: c.STATE, CITY: c.CITY,
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+        NET_REVENUE: Math.round(c.NET_REVENUE),
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+      };
+    }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+  });
+}
+
+async function getCityAllFYSummary(f) {
+  const scopeF = {
+    _scope: (f && f._scope) || {},
+    zone: (f && f.zone && f.zone !== 'All') ? f.zone : 'All',
+    state: (f && f.state && f.state !== 'All') ? f.state : 'All'
+  };
+  return cached('city_all_fy_v2_' + _stableStringify(scopeF), async function () {
+    const q = _q(f, ['month', 'fy', 'quarter']);
+    const rows = (await _fetchAgg('vw_city_sale_agg', q)).filter(function (r) { return _rowMatches(r, scopeF); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r); const city = _s(r, 'city') || 'Unknown'; const fy = _robustFy(r);
+      if (!st || st === 'Unknown' || !fy) return;
+      const key = st + '||' + city + '||' + fy;
+      if (!map[key]) map[key] = { STATE: st, CITY: city, FY: fy, T: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0, NET_REVENUE: 0 };
+      const sq = _sqm(r); const rev = _rev(r);
+      map[key].T += sq; map[key].NET_REVENUE += rev;
+      const qt = _qtr(r);
+      if (qt.indexOf('1') !== -1) map[key].Q1 += sq;
+      if (qt.indexOf('2') !== -1) map[key].Q2 += sq;
+      if (qt.indexOf('3') !== -1) map[key].Q3 += sq;
+      if (qt.indexOf('4') !== -1) map[key].Q4 += sq;
+    });
+    return Object.values(map).map(function (c) {
+      return {
+        STATE: c.STATE, CITY: c.CITY, FY: c.FY,
+        TOTAL_SQFT: Math.round(c.T * SQFT_PER_SQM),
+        NET_REVENUE: Math.round(c.NET_REVENUE),
+        Q1_SQFT: Math.round(c.Q1 * SQFT_PER_SQM),
+        Q2_SQFT: Math.round(c.Q2 * SQFT_PER_SQM),
+        Q3_SQFT: Math.round(c.Q3 * SQFT_PER_SQM),
+        Q4_SQFT: Math.round(c.Q4 * SQFT_PER_SQM)
+      };
+    }).sort(function (a, b) { return b.TOTAL_SQFT - a.TOTAL_SQFT; });
+  });
+}
+
+async function getCityMonthlySummary(f) {
+  return cached('city_monthly_' + _stableStringify(f), async function () {
+    const q = _q(f, ['quarter', 'zone']);
+    const rows = (await _fetchAgg('vw_city_sale_agg', q)).filter(function (r) { return _rowMatches(r, f); });
+    const map = {};
+    rows.forEach(function (r) {
+      const st = _state(r); const city = _s(r, 'city') || 'Unknown'; const m = _s(r, 'month_year');
+      if (!st || st === 'Unknown' || !m) return;
+      const sk = _mSk(m);
+      const key = st + '||' + city + '||' + sk;
+      if (!map[key]) map[key] = { STATE: st, CITY: city, MONTH: m, SORT_KEY: sk, SQM: 0, NET_REVENUE: 0 };
+      map[key].SQM += _sqm(r); map[key].NET_REVENUE += _rev(r);
+    });
+    return Object.values(map).map(function (r) {
+      return {
+        STATE: r.STATE, CITY: r.CITY, MONTH: r.MONTH, SORT_KEY: r.SORT_KEY,
+        TOTAL_SQFT: Math.round(r.SQM * SQFT_PER_SQM), TOTAL_SQM: +r.SQM.toFixed(2), NET_REVENUE: Math.round(r.NET_REVENUE)
+      };
+    }).sort(function (a, b) {
+      const sk = b.SORT_KEY.localeCompare(a.SORT_KEY);
+      if (sk !== 0) return sk;
+      return a.CITY.localeCompare(b.CITY);
+    });
+  });
+}
+
 
 async function getSkuTypeQoQ(f) {
   return cached('sku_type_qoq_' + _stableStringify(f), async function () {
@@ -2645,6 +2836,12 @@ module.exports = {
   getProjectQoQ,
   getProjectAllFYSummary,
   getProjectMonthlySummary,
+  getStateQoQ,
+  getStateAllFYSummary,
+  getStateMonthlySummary,
+  getCityQoQ,
+  getCityAllFYSummary,
+  getCityMonthlySummary,
   getSkuTypeQoQ,
   getSkuTypeAllFYSummary,
   getSkuTypeMonthlySummary,

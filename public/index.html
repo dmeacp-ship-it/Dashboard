@@ -20,7 +20,7 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=20cd111a"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=be398c7f"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=e2d94cfe"/>
 </head>
 
@@ -122,6 +122,12 @@
             </div>
             <div class="nav-item" data-page="projqoq" onclick="navigate('projqoq')">
               <span class="nav-label">Project Sales</span>
+            </div>
+            <div class="nav-item" data-page="stateqoq" onclick="navigate('stateqoq')">
+              <span class="nav-label">State Sales</span>
+            </div>
+            <div class="nav-item" data-page="cityqoq" onclick="navigate('cityqoq')">
+              <span class="nav-label">City Sales</span>
             </div>
             <div class="nav-item" data-page="custqoq" onclick="navigate('custqoq')">
               <span class="nav-label">Customer Sales</span>
@@ -450,6 +456,72 @@
             </table>
           </div>
           <div id="pagination-projqoq"></div>
+        </div>
+      </section>
+
+      <section id="page-stateqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-map-pin"></i> State Wise Sale</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-stateqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search State..." onkeyup="handleSearch('stateqoq')">
+            </div>
+            <div class="btn-group" id="stateqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setStateView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setStateView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setStateView('year',this)">Year</button>
+            </div>
+            <div class="btn-group comp-toggles" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <select id="state-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadStateSale(window._stateSalePage || 1)"></select>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('stateqoq', 'State Wise Sale')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('stateqoq', 'tbl-stateqoq-head', function(){ window.loadStateSale(window._stateSalePage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-stateqoq-head', 'tbl-stateqoq-body', 'State_Wise_Sale')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table style="border-collapse:separate">
+              <thead id="tbl-stateqoq-head"></thead>
+              <tbody id="tbl-stateqoq-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-stateqoq"></div>
+        </div>
+      </section>
+
+      <section id="page-cityqoq" class="page">
+        <div class="table-card stagger-1">
+          <div class="table-toolbar">
+            <span class="table-title"><i class="ph ph-buildings"></i> City Wise Sale</span>
+            <div style="position:relative; margin-left:auto;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+              <input type="text" id="search-cityqoq" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search City or State..." onkeyup="handleSearch('cityqoq')">
+            </div>
+            <div class="btn-group" id="cityqoq-toggles" style="margin-left:12px;">
+              <button class="btn btn-sm btn-ghost" onclick="setCityView('month',this)">Month</button>
+              <button class="btn btn-sm btn-primary" onclick="setCityView('quarter',this)">Quarter</button>
+              <button class="btn btn-sm btn-ghost" onclick="setCityView('year',this)">Year</button>
+            </div>
+            <div class="btn-group comp-toggles" style="margin-left:8px;">
+              <button class="btn btn-sm btn-primary" onclick="setComparisonMode('none', this)">Standard</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('pop', this)">vs Previous</button>
+              <button class="btn btn-sm btn-ghost" onclick="setComparisonMode('yoy', this)">vs Last Year</button>
+            </div>
+            <select id="city-comp-period" class="form-input" style="margin-left:8px; display:none; max-width:180px; padding:4px 28px 4px 10px; font-size:12px; height:28px; border-radius:100px; background:var(--bg-elevated);" onchange="window.loadCitySale(window._citySalePage || 1)"></select>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('cityqoq', 'City Wise Sale')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('cityqoq', 'tbl-cityqoq-head', function(){ window.loadCitySale(window._citySalePage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
+            <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV('tbl-cityqoq-head', 'tbl-cityqoq-body', 'City_Wise_Sale')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+          </div>
+          <div class="table-wrap">
+            <table style="border-collapse:separate">
+              <thead id="tbl-cityqoq-head"></thead>
+              <tbody id="tbl-cityqoq-body"></tbody>
+            </table>
+          </div>
+          <div id="pagination-cityqoq"></div>
         </div>
       </section>
 
@@ -1525,8 +1597,8 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=284862b2"></script>
-<script defer src="/js/javascript1.min.js?v=9b706799"></script>
+<script defer src="/js/javascript.min.js?v=756963a1"></script>
+<script defer src="/js/javascript1.min.js?v=ebd2b321"></script>
 <script defer src="/js/javascript2.min.js?v=ed850b39"></script>
 <script defer src="/js/fms.min.js?v=5605d69c"></script>
 
