@@ -350,7 +350,7 @@ var _apiInflight = new Map();
 var API_CACHE_TTL_MS = 5 * 60 * 1000;
 var API_FMS_TTL_MS = 60 * 1000; // FMS reads live sheets; keep its 60s freshness window
 var API_CACHE_MAX = 150;
-var API_NO_CACHE = { getProfile: 1, getSettings: 1, getConnections: 1 };
+var API_NO_CACHE = { getProfile: 1, getSettings: 1, getConnections: 1, getLoginSummary: 1, getLoginLogs: 1 };
 var API_MUTATING = { processAggregation: 1, syncOutstanding: 1, syncTargets: 1, clearServerCache: 1, updateSettings: 1, updateConnections: 1 };
 
 window.clearApiCache = function() { _apiCache.clear(); _apiInflight.clear(); };
@@ -463,12 +463,21 @@ window._applyRoleUI = function() {
   var settingsNav = document.querySelector('.nav-item[data-page="settings"]');
   if (settingsNav) settingsNav.style.display = ''; // Settings visible to all users
   
-  var usersTab = document.querySelector('.settings-tab[data-tab="tab-users"]');
-  if (usersTab) usersTab.style.display = (role === 'super_admin') ? '' : 'none';
+  ['tab-users', 'tab-activity'].forEach(function(t) {
+    var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
+    if (el) el.style.display = (role === 'super_admin') ? '' : 'none';
+  });
   
   ['tab-sheets', 'tab-connections', 'tab-sync', 'tab-roles'].forEach(function(t) {
     var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
     if (el) el.style.display = isAdmin ? '' : 'none';
+  });
+
+  // Data sync controls marked data-admin-only (Append New Data, Sync
+  // Outstanding, Sync Targets, Hard Reset) are for Admins and Super Admins.
+  // Every role keeps Refresh Cache; the API refuses the rest to other roles.
+  document.querySelectorAll('[data-admin-only]').forEach(function(el) {
+    el.style.display = isAdmin ? '' : 'none';
   });
   
   // If not admin, default settings tab to Account Profile
@@ -864,6 +873,8 @@ window.switchSettingsTab = function(tabId) {
   // Activate tab
   const tab = document.querySelector(`.settings-tab[data-tab="${tabId}"]`);
   if (tab) tab.classList.add('active');
+
+  if (tabId === 'tab-activity' && typeof window.loadLoginActivity === 'function') window.loadLoginActivity();
 };
 
 window.loadGoogleSheetsConfig = function() {
@@ -1602,6 +1613,8 @@ window.loadPage = function(id, page = 1, useCache = false) {
       if (typeof window.loadUsers === 'function') window.loadUsers(); 
       if (typeof window.loadGoogleSheetsConfig === 'function') window.loadGoogleSheetsConfig(); 
       if (typeof window.loadConnectionsConfig === 'function') window.loadConnectionsConfig();
+      var activityPane = document.getElementById('tab-activity');
+      if (activityPane && activityPane.style.display !== 'none' && typeof window.loadLoginActivity === 'function') window.loadLoginActivity();
     },
     skutypeqoq:   () => typeof window.loadSkuTypeSale === 'function' ? window.loadSkuTypeSale(page) : null, 
     outstanding:  () => typeof window.loadOutstanding === 'function' ? window.loadOutstanding() : null,
@@ -1888,6 +1901,243 @@ window._populateScopePickers = function() {
   fill('uf-zones', zones);
   fill('edit-user-hods', hods);
   fill('edit-user-zones', zones);
+};
+
+/* ── Login Activity (Settings, Super Admin) ────────────────────
+   Usage by user comes from getLoginSummary -- every account, including ones
+   that have never signed in -- and the log from getLoginLogs. Events: login,
+   login_failed, logout, and session ("opened app" on a saved sign-in, which
+   is how someone who stays signed in still shows up as using it). */
+window._loginActivity = { users: [], logs: [], req: 0 };
+
+window._LA_EVENT = {
+  login:        { label: 'Signed in',      cls: 'badge-green' },
+  session:      { label: 'Opened app',     cls: 'badge-blue' },
+  logout:       { label: 'Signed out',     cls: 'badge-gray' },
+  login_failed: { label: 'Failed sign-in', cls: 'badge-red' }
+};
+
+window._laWhen = function(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+window._laAgo = function(iso) {
+  if (!iso) return '';
+  var s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  var days = Math.floor(s / 86400);
+  return days === 1 ? 'yesterday' : days + 'd ago';
+};
+
+window._laWhenCell = function(iso) {
+  if (!iso) return '<span style="color:var(--text-muted);">—</span>';
+  return '<div style="color:var(--text-main);">' + window._laAgo(iso) + '</div>'
+    + '<div style="font-size:10.5px;color:var(--text-muted);">' + window._laWhen(iso) + '</div>';
+};
+
+// How recently someone used the dashboard, from their last sign-in or app open.
+window._laUsage = function(u) {
+  if (!u.last_seen) return { label: 'No sign-in yet', cls: 'badge-red' };
+  var seen = new Date(u.last_seen), now = new Date();
+  if (seen.toDateString() === now.toDateString()) return { label: 'Today', cls: 'badge-green' };
+  var days = (now - seen) / 86400000;
+  if (days <= 7) return { label: 'This week', cls: 'badge-blue' };
+  if (days <= 30) return { label: 'This month', cls: 'badge-amber' };
+  return { label: 'Inactive 30d+', cls: 'badge-red' };
+};
+
+window._laDevice = function(ua) {
+  ua = String(ua || '');
+  if (!ua) return '—';
+  var os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+    : /Windows/i.test(ua) ? 'Windows' : /Mac OS X|Macintosh/i.test(ua) ? 'macOS'
+      : /Linux/i.test(ua) ? 'Linux' : 'Other';
+  var browser = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera'
+    : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox'
+      : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  return browser + ' · ' + os;
+};
+
+window._laSetup = function(res) {
+  var el = document.getElementById('la-setup');
+  if (!el) return;
+  if (res && res.ready === false) {
+    el.innerHTML = '<i class="ph ph-warning" style="color:var(--warning);"></i> ' + window.esc(res.message || 'Login activity is not set up yet.');
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+};
+
+window._laRenderStats = function(users) {
+  var el = document.getElementById('la-stats');
+  if (!el) return;
+  var now = new Date();
+  var c = { total: users.length, today: 0, week: 0, idle: 0, never: 0, failed: 0 };
+  users.forEach(function(u) {
+    c.failed += u.failed_7d || 0;
+    if (!u.last_seen) { c.never++; c.idle++; return; }
+    var seen = new Date(u.last_seen), days = (now - seen) / 86400000;
+    if (seen.toDateString() === now.toDateString()) c.today++;
+    if (days <= 7) c.week++;
+    if (days > 30) c.idle++;
+  });
+  var card = function(label, value, color, hint) {
+    return '<div title="' + window._escAttr(hint) + '" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">'
+      + '<div style="font-size:9.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">' + label + '</div>'
+      + '<div style="font-size:20px;font-weight:800;color:' + color + ';margin-top:2px;">' + value + '</div></div>';
+  };
+  el.innerHTML = card('Accounts', c.total, 'var(--text-main)', 'All dashboard accounts')
+    + card('Used today', c.today, 'var(--success)', 'Signed in or opened the dashboard today')
+    + card('Used in 7 days', c.week, 'var(--brand-primary)', 'Signed in or opened the dashboard in the last 7 days')
+    + card('Not used in 30 days', c.idle, 'var(--danger)', 'No use in the last 30 days, including accounts with no sign-in yet')
+    + card('No sign-in yet', c.never, 'var(--danger)', 'No sign-in recorded since login tracking started')
+    + card('Failed sign-ins (7d)', c.failed, 'var(--warning)', 'Refused sign-ins in the last 7 days');
+};
+
+window._laFillUserFilter = function(users) {
+  var sel = document.getElementById('la-user');
+  if (!sel) return;
+  var current = sel.value;
+  sel.innerHTML = '<option value="">All users</option>' + users.slice().sort(function(a, b) {
+    return String(a.full_name || a.username).localeCompare(String(b.full_name || b.username));
+  }).map(function(u) {
+    return '<option value="' + window._escAttr(u.username) + '">' + window.esc((u.full_name || u.username) + ' (@' + u.username + ')') + '</option>';
+  }).join('');
+  sel.value = current;
+  if (sel.selectedIndex === -1) sel.value = '';
+};
+
+window.loadLoginActivity = async function() {
+  var tbody = document.getElementById('tbl-login-summary-body');
+  if (!tbody) return;
+  tbody.innerHTML = window._loadingRow(8);
+  try {
+    var res = await window.api('getLoginSummary');
+    window._laSetup(res);
+    // Most recently seen first; accounts with no sign-in yet at the bottom.
+    var users = ((res && res.users) || []).slice().sort(function(a, b) {
+      return String(b.last_seen || '').localeCompare(String(a.last_seen || ''));
+    });
+    window._loginActivity.users = users;
+    window._laRenderStats(users);
+    window._laFillUserFilter(users);
+    if (!users.length) {
+      tbody.innerHTML = window._emptyRow(8, 'No accounts found.');
+    } else {
+      var rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
+      var td = 'padding:8px 14px;vertical-align:middle;';
+      tbody.innerHTML = users.map(function(u) {
+        var usage = window._laUsage(u);
+        return '<tr style="border-bottom:1px solid var(--border);transition:background 0.15s ease;" onmouseover="this.style.background=\'var(--bg-hover, rgba(255,255,255,0.03))\'" onmouseout="this.style.background=\'transparent\'">'
+          + '<td style="' + td + '">'
+          + '<span style="font-weight:700;font-size:12px;color:var(--text-main);">' + window.esc(u.full_name || u.username) + '</span>'
+          + '<span style="color:var(--text-muted);font-size:11px;margin-left:6px;">@' + window.esc(u.username) + '</span>'
+          + (u.is_active === false ? '<span class="badge badge-gray" style="font-size:9.5px;padding:1px 6px;margin-left:6px;">Deactivated</span>' : '')
+          + '</td>'
+          + '<td style="' + td + '"><span class="badge ' + (rc[u.role] || 'badge-gray') + '" style="font-size:10px;padding:2px 8px;">' + window.esc(window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
+          + '<td style="' + td + '"><span class="badge ' + usage.cls + '" style="font-size:10px;padding:2px 8px;">' + usage.label + '</span></td>'
+          + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(u.last_seen) + '</td>'
+          + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(u.last_login) + '</td>'
+          + '<td style="' + td + 'text-align:right;font-weight:700;color:var(--text-main);">' + (u.active_days_30d || 0) + '</td>'
+          + '<td style="' + td + 'text-align:right;color:var(--text-main);">' + (u.logins_30d || 0) + '</td>'
+          + '<td style="' + td + 'text-align:right;font-weight:' + (u.failed_7d ? '700' : '400') + ';color:' + (u.failed_7d ? 'var(--danger)' : 'var(--text-muted)') + ';">' + (u.failed_7d || 0) + '</td>'
+          + '</tr>';
+      }).join('');
+    }
+  } catch (e) {
+    tbody.innerHTML = window._emptyRow(8, 'Could not load login activity.');
+    window.toast('Failed to load login activity: ' + e.message, 'error');
+  }
+  window.loadLoginLogs();
+};
+
+window.loadLoginLogs = async function() {
+  var tbody = document.getElementById('tbl-login-logs-body');
+  if (!tbody) return;
+  var val = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+  var opts = { username: val('la-user'), event: val('la-event'), days: val('la-days') || 30 };
+  var foot = document.getElementById('la-log-foot');
+  var my = ++window._loginActivity.req;
+  tbody.innerHTML = window._loadingRow(6);
+  if (foot) foot.textContent = '';
+  try {
+    var res = await window.api('getLoginLogs', { options: opts });
+    if (my !== window._loginActivity.req) return; // a newer filter change is on its way
+    var rows = (res && res.rows) || [];
+    window._loginActivity.logs = rows;
+    if (!rows.length) {
+      tbody.innerHTML = window._emptyRow(6, (res && res.ready === false) ? 'Login activity is not set up yet.' : 'No sign-in events for these filters.');
+      return;
+    }
+    if (foot) {
+      foot.textContent = 'Showing ' + rows.length + ' event' + (rows.length === 1 ? '' : 's') + ' from the last ' + res.days + ' days'
+        + (rows.length >= res.limit ? ' (newest ' + res.limit + ' only; narrow the filters to see older ones).' : '.');
+    }
+    var td = 'padding:8px 14px;vertical-align:middle;';
+    tbody.innerHTML = rows.map(function(r) {
+      var ev = window._LA_EVENT[r.event] || { label: r.event, cls: 'badge-gray' };
+      return '<tr style="border-bottom:1px solid var(--border);">'
+        + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(r.created_at) + '</td>'
+        + '<td style="' + td + '">'
+        + (r.full_name ? '<span style="font-weight:700;color:var(--text-main);">' + window.esc(r.full_name) + '</span> ' : '')
+        + '<span style="color:var(--text-muted);font-size:11px;">@' + window.esc(r.username) + '</span></td>'
+        + '<td style="' + td + '"><span class="badge ' + ev.cls + '" style="font-size:10px;padding:2px 8px;">' + window.esc(ev.label) + '</span></td>'
+        + '<td style="' + td + 'color:var(--text-muted);">' + (r.detail ? window.esc(r.detail) : '—') + '</td>'
+        + '<td style="' + td + 'font-family:monospace;font-size:11px;color:var(--text-muted);white-space:nowrap;">' + window.esc(r.ip || '—') + '</td>'
+        + '<td style="' + td + 'white-space:nowrap;" title="' + window._escAttr(r.user_agent || '') + '">' + window.esc(window._laDevice(r.user_agent)) + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch (e) {
+    if (my !== window._loginActivity.req) return;
+    tbody.innerHTML = window._emptyRow(6, 'Could not load the login log.');
+    window.toast('Failed to load the login log: ' + e.message, 'error');
+  }
+};
+
+// Quoted CSV cell. A leading = + - @ is neutralised: failed sign-ins record
+// whatever username was typed, and a spreadsheet would run it as a formula.
+window._laCsvCell = function(v) {
+  var s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+};
+
+window._laDownload = function(filename, lines) {
+  var blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
+window.exportLoginSummaryCSV = function() {
+  var users = window._loginActivity.users || [];
+  if (!users.length) return window.toast('Nothing to export yet.', 'error');
+  var lines = [['Username', 'Full Name', 'Role', 'Account', 'Usage', 'Last Seen', 'Last Login',
+    'Active Days (30d)', 'Logins (7d)', 'Logins (30d)', 'Failed Sign-ins (7d)'].map(window._laCsvCell).join(',')];
+  users.forEach(function(u) {
+    lines.push([u.username, u.full_name, window._ROLE_LABEL[u.role] || u.role, u.is_active === false ? 'Deactivated' : 'Active',
+      window._laUsage(u).label, window._laWhen(u.last_seen), window._laWhen(u.last_login),
+      u.active_days_30d || 0, u.logins_7d || 0, u.logins_30d || 0, u.failed_7d || 0].map(window._laCsvCell).join(','));
+  });
+  window._laDownload('login_usage_by_user.csv', lines);
+};
+
+window.exportLoginLogsCSV = function() {
+  var rows = window._loginActivity.logs || [];
+  if (!rows.length) return window.toast('Nothing to export yet.', 'error');
+  var lines = [['Time', 'Username', 'Full Name', 'Role', 'Event', 'Details', 'IP', 'Device', 'User Agent'].map(window._laCsvCell).join(',')];
+  rows.forEach(function(r) {
+    lines.push([window._laWhen(r.created_at), r.username, r.full_name, window._ROLE_LABEL[r.role] || r.role || '',
+      (window._LA_EVENT[r.event] || {}).label || r.event, r.detail, r.ip, window._laDevice(r.user_agent), r.user_agent].map(window._laCsvCell).join(','));
+  });
+  window._laDownload('login_log.csv', lines);
 };
 
 class CustomMultiSelect {

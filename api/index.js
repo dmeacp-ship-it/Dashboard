@@ -18,6 +18,7 @@ const SettingsService = require('../src/services/settings.service.js');
 const ConnectionService = require('../src/services/connection.service.js');
 const FmsService = require('../src/services/fms.service.js');
 const UsersService = require('../src/services/users.service.js');
+const LoginLog = require('../src/services/loginlog.service.js');
 const RateLimit = require('../src/services/ratelimit.js');
 const { getSalesRowCount } = require('../src/services/supabase.js');
 const { ROLES } = require('../src/config.js');
@@ -36,12 +37,24 @@ function _requireRole(profile, requiredRole) {
   if (profile.role !== requiredRole) throw new Error('ACCESS_DENIED: Action requires higher privileges.');
 }
 
+// Admins and Super Admins pass; every other role is refused.
+function _requireAdmin(profile) {
+  if (profile.role !== ROLES.SUPER_ADMIN && profile.role !== ROLES.ADMIN) {
+    throw new Error('ACCESS_DENIED: Action requires higher privileges.');
+  }
+}
+
 // Client errors carry an explicit status so the catch block doesn't report a
 // bad request or a failed sign-in as a 500.
 function _bad(msg, status) {
   const e = new Error(msg);
   e.status = status || 400;
   return e;
+}
+
+// Where a request came from, for the login activity log.
+function _clientMeta(req) {
+  return { ip: RateLimit.clientIp(req), user_agent: (req.headers && req.headers['user-agent']) || '' };
 }
 
 // Applies role-based data scoping. super_admin & admin are unrestricted; hod is
@@ -100,13 +113,31 @@ module.exports = async function handler(req, res) {
           Math.ceil(gate.retryAfterSec / 60) + ' minute(s).'));
         return;
       }
-      const result = await AuthService.login(req_.username, req_.password);
+      let result;
+      try {
+        result = await AuthService.login(req_.username, req_.password);
+      } catch (e) {
+        await LoginLog.recordFailure(req_.username, e, _clientMeta(req));
+        throw e;
+      }
       RateLimit.reset(rlKey);
+      await LoginLog.record('login', result.profile, _clientMeta(req));
       res.json(_ok(result));
       return;
     }
-    if (action === 'logout') { res.json(_ok(await AuthService.logout())); return; }
-    if (action === 'getProfile') { res.json(_ok(await AuthService.getProfile(req_.token))); return; }
+    if (action === 'logout') {
+      const who = AuthService.tryProfile(req_.token);
+      if (who) await LoginLog.record('logout', who, _clientMeta(req));
+      res.json(_ok(await AuthService.logout()));
+      return;
+    }
+    if (action === 'getProfile') {
+      const profile = await AuthService.getProfile(req_.token);
+      // Opening the dashboard on a saved sign-in counts as using it.
+      if (profile) await LoginLog.recordSession(profile, _clientMeta(req));
+      res.json(_ok(profile));
+      return;
+    }
     if (action === 'clearServerCache') {
       const ts = String(Date.now());
       CacheService.invalidate();
@@ -129,6 +160,10 @@ module.exports = async function handler(req, res) {
     if (action === 'createUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.createUser(req_.userData))); return; }
     if (action === 'updateUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.updateUser(req_.profileId, req_.userData))); return; }
     if (action === 'deleteUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.deleteUser(req_.profileId))); return; }
+
+    // Login activity (super admin): who signs in, and who doesn't
+    if (action === 'getLoginSummary') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await LoginLog.summary())); return; }
+    if (action === 'getLoginLogs') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await LoginLog.list(req_.options || {}))); return; }
     
     // User self-serve. Requires the current password: a session token alone
     // must not be enough to take permanent ownership of an account.
@@ -146,10 +181,11 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Admin-only: sync actions
-    if (action === 'processAggregation') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
-    if (action === 'syncOutstanding') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncOutstandingData())); return; }
-    if (action === 'syncTargets') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await SyncService.syncTargetData())); return; }
+    // Sync actions: Admins and Super Admins. Every role may still refresh the
+    // cache (clearServerCache, above).
+    if (action === 'processAggregation') { _requireAdmin(userProfile); res.json(_ok(await SyncService.processAggregation(req_.options || {}))); return; }
+    if (action === 'syncOutstanding') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncOutstandingData())); return; }
+    if (action === 'syncTargets') { _requireAdmin(userProfile); res.json(_ok(await SyncService.syncTargetData())); return; }
 
     // Settings
     if (action === 'getSettings') { res.json(_ok(await SettingsService.getSettings())); return; }
@@ -214,15 +250,20 @@ module.exports = async function handler(req, res) {
       getSheetTabs: () => DataService.getSheetTabs(opts),
 
       // ── FMS / OMS live sheet tables ──────────────────────────────────────
-      getFmsTable: () => FmsService.getFmsTable(opts, null),
+      // Every role gets All Orders and Order Lifecycle (getFmsOrders,
+      // getFmsOrderDetail). Everything else, the FMS Dashboard included, is
+      // Admin / Super Admin only, so its endpoint refuses anyone else.
+      // Reference Orders and the dashboard's queues are built from
+      // getFmsOrders, so they can only be hidden in the UI (public/js/fms.js).
+      getFmsTable: () => { _requireAdmin(userProfile); return FmsService.getFmsTable(opts, null); },
       listFmsTables: () => FmsService.listFmsTables(),
       getFmsOrders: () => FmsService.getFmsOrders(opts, null),
-      getFmsDashboard: () => FmsService.getFmsDashboard(null),
+      getFmsDashboard: () => { _requireAdmin(userProfile); return FmsService.getFmsDashboard(null); },
       getFmsOrderDetail: () => FmsService.getFmsOrderDetail(opts, null),
-      getFmsPartySummary: () => FmsService.getFmsPartySummary(null),
-      getFmsMonthWise: () => FmsService.getFmsMonthWise(null),
-      getFmsDelivery: () => FmsService.getFmsDelivery(null),
-      getFmsPlantItems: () => FmsService.getFmsPlantItems(null),
+      getFmsPartySummary: () => { _requireAdmin(userProfile); return FmsService.getFmsPartySummary(null); },
+      getFmsMonthWise: () => { _requireAdmin(userProfile); return FmsService.getFmsMonthWise(null); },
+      getFmsDelivery: () => { _requireAdmin(userProfile); return FmsService.getFmsDelivery(null); },
+      getFmsPlantItems: () => { _requireAdmin(userProfile); return FmsService.getFmsPlantItems(null); },
       getItems: () => FmsService.getItems()
     };
 
