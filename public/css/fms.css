@@ -235,6 +235,20 @@
   .fms-scope .dash-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Phones. The tables already scroll (.tbl-wrap), so this is about the chrome
+   around them: toolbars that otherwise stack into a tall block, and stat cards
+   that read better two-up than three-up. */
+@media (max-width: 700px) {
+  .fms-scope .tbl-top { padding: 10px 12px; gap: 8px; }
+  .fms-scope .tbl-ttl { font-size: 13px; }
+  .fms-scope .tbl-filters { margin-left: 0; gap: 6px; }
+  .fms-scope .btn { padding: 5px 9px; font-size: 11px; }
+  .fms-scope .stat { min-width: calc(50% - 5px); padding: 12px 6px; }
+  .fms-scope .stat-n { font-size: 20px; }
+  .fms-scope .stat-ic { font-size: 18px; margin-bottom: 6px; }
+  .fms-scope .detail-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 /* ── branch leaderboard ── */
 /* name pinned left, count pinned right — this is the run-together fix */
 .fms-scope .lbl-row {

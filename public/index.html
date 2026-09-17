@@ -20,8 +20,8 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=be398c7f"/>
-  <link rel="stylesheet" href="/css/fms.min.css?v=e2d94cfe"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=e4fe177f"/>
+  <link rel="stylesheet" href="/css/fms.min.css?v=06399e35"/>
 </head>
 
 <body>
@@ -1414,6 +1414,41 @@
           overflow-y: auto;
           box-shadow: var(--shadow-sm);
           border: 1px solid var(--border);
+        }
+
+        /* ── Settings on a phone ──
+           Side by side, the 240px tab rail and the padding left the pane about
+           75px wide at 375px, which crushed every form into vertical text. So
+           the rail becomes a scrolling strip of tabs above a full-width pane. */
+        @media (max-width: 900px) {
+          .settings-layout {
+            flex-direction: column;
+            height: auto;
+            gap: 12px;
+            padding: 12px;
+          }
+          .settings-sidebar {
+            width: 100%;
+            flex-direction: row;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* The header already reads "Settings". */
+          .settings-sidebar > div:first-child { display: none; }
+          .settings-tab {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            padding: 8px 12px;
+            font-size: 12px;
+          }
+          .settings-content { padding: 14px; }
+          /* switchSettingsTab pins the User Management pane to the old
+             full-height layout; let it grow with the page instead. */
+          .settings-pane { height: auto !important; }
+          .settings-pane table { min-width: 560px; }
+          /* Two-column control grids (Data Sync) go single file. */
+          .settings-pane [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
         }
       </style>
 

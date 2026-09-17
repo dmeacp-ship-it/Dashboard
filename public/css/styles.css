@@ -1161,8 +1161,118 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   .toast { width: 100%; max-width: none; transform: translateY(120%) scale(0.9); animation: toastPopMobile 0.45s var(--t-spring) forwards; }
   @keyframes toastPopMobile { to { transform: translateY(0) scale(1); opacity: 1; } }
 }
+/* ── Phones ──
+   Measured at 375px before these rules: the frozen identity columns on the sale
+   tables added up to 510px inside a 341px-wide scroller, so they covered the
+   figures they are meant to anchor; a table toolbar stood 240px tall before any
+   data; and the KPI cards sat in two 166px columns that clipped their titles. */
+@media (max-width: 700px) {
+  /* Let the identity columns scroll away with the rest of the table. They keep
+     their vertical stickiness, so the header row and TOTAL row still pin while
+     scrolling down -- only the horizontal freeze goes. */
+  .table-wrap th[style*="position:sticky"],
+  .table-wrap td[style*="position:sticky"] {
+    left: auto !important;
+    min-width: 0 !important;
+    max-width: 42vw !important;
+    white-space: normal !important;
+    box-shadow: none !important;
+  }
+
+  /* Compact toolbars: the search gets its own row, the rest shrinks to fit. */
+  .table-toolbar { gap: 8px; padding: 10px 12px; }
+  .table-toolbar > div[style*="position:relative"] { margin-left: 0 !important; flex: 1 1 100%; }
+  .table-toolbar .form-input { width: 100% !important; }
+  .table-toolbar select.form-input { max-width: none !important; }
+  .table-toolbar .btn-group { margin-left: 0 !important; }
+  .table-toolbar .btn-group .btn { padding: 5px 10px; font-size: 11px; }
+  .table-toolbar .btn-sm { padding: 5px 9px; font-size: 11px; }
+
+  /* Ride the icon buttons up onto the title row instead of letting them wrap
+     onto a line of their own; the search then takes the next line and the
+     period / comparison pills follow. */
+  .table-title { order: 0; flex: 1 1 auto; }
+  .table-toolbar .btn-sm.btn-icon { order: 1; }
+  .table-toolbar > div[style*="position:relative"] { order: 2; }
+  .table-toolbar .btn-group { order: 3; }
+  .table-toolbar select.form-input { order: 4; }
+
+  /* The filter panel is 461px wide and anchored to the right edge, so on a
+     375px screen it hung ~87px off the left side. Pin it to both edges and
+     stack the pickers, which sit three-up inside each pill on desktop. */
+  .filter-panel {
+    left: 8px; right: 8px; width: auto;
+    padding: 12px; gap: 10px;
+    border-radius: var(--radius);
+    transform-origin: top center;
+    max-height: calc(100vh - var(--header-h) - 16px);
+    overflow-y: auto;
+  }
+  .filter-panel .command-group {
+    flex-direction: column; align-items: stretch; gap: 4px;
+    border-radius: var(--radius-sm); padding: 8px 10px;
+  }
+  .filter-panel .command-icon { display: none; }
+  .filter-panel .command-divider { width: 100%; height: 1px; margin: 2px 0; }
+  .filter-panel .ms-wrap { min-width: 0; width: 100%; }
+  .filter-panel .ms-display { padding: 8px 10px; }
+  .filter-panel .ms-dropdown { max-height: 40vh; }
+
+  /* Sorting rules are a column picker plus a 130px direction picker on one
+     line, which ran off the edge of the modal. Give each its own line. */
+  .sort-rule-row { flex-wrap: wrap; }
+  .sort-rule-row .sort-field-select { flex: 1 1 100% !important; }
+  .sort-rule-row .sort-dir-select { flex: 1 1 auto !important; width: auto !important; }
+}
+
+/* KPI cards on mobile: one row that scrolls sideways, like the desktop strip.
+   The two-column grid gave each card 166px, which clipped its title and the
+   panels nested inside it. */
+@media (max-width: 900px) {
+  .kpi-grid {
+    grid-auto-flow: column !important;
+    grid-template-columns: none !important;
+    grid-auto-columns: 210px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px !important;
+  }
+  .kpi-card { scroll-snap-align: start; }
+}
+
 @media (max-width: 600px) {
   #last-updated-val { display: none !important; }
+
+  /* Squeeze the toolbar further: on an 812px-tall screen every row it takes is
+     a row of data you cannot see. */
+  .table-toolbar { gap: 6px; padding: 8px 10px; }
+  .table-title { font-size: 10px; letter-spacing: 0.06em; }
+  .table-toolbar .btn-group .btn { padding: 4px 8px; font-size: 10.5px; }
+  .table-toolbar .btn-sm { padding: 4px 8px; font-size: 10.5px; }
+  .table-toolbar .btn-sm.btn-icon { width: 28px; height: 28px; padding: 0; }
+
+  /* Keep the page title on one line and every header control on screen. */
+  .page-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-left { min-width: 0; flex: 1; }
+  .header-center-wrap { display: none; }
+  .header-right { gap: 8px; flex-shrink: 0; }
+
+  /* Smaller top bar: shorter, tighter, with every control scaled down. The
+     buttons carry inline sizes from the markup, hence the !important. */
+  :root { --header-h: 56px; }
+  #header { padding: 0 10px; gap: 10px; }
+  #toggle-sidebar { width: 30px !important; height: 30px !important; font-size: 14px !important; }
+  #copilot-toggle-btn { width: 30px !important; height: 30px !important; font-size: 15px !important; }
+  #filter-toggle-btn { width: 30px !important; height: 30px !important; font-size: 14px !important; }
+  .theme-switch-container { gap: 4px; }
+  .theme-switch-container i { font-size: 11px; }
+  .theme-switch { width: 42px; height: 24px; }
+  .theme-switch-handle { width: 20px; height: 20px; }
+  /* Travel = track - handle - borders, so it has to shrink with them. */
+  [data-theme="dark"] .theme-switch-handle { transform: translateX(18px); }
+  .theme-switch:active .theme-switch-handle { width: 26px; }
 }
 
 /* =========================================================================
