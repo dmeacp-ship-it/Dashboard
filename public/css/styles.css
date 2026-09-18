@@ -753,6 +753,7 @@ nav { padding: 2px 0; flex: 1; }
   background: transparent;
 }
 .table-title { font-size: 11px; font-weight: 800; flex: 1; display: flex; align-items: center; gap: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.la-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 
 .table-wrap { 
   overflow-y: auto; overflow-x: auto; flex: 1; 
@@ -1223,6 +1224,12 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
   .table-toolbar > div[style*="position:relative"] { order: 2; }
   .table-toolbar .btn-group { order: 3; }
   .table-toolbar select.form-input { order: 4; }
+
+  /* Login Log pickers: the user on a line of its own, event and period
+     sharing the next, instead of three full-width rows. */
+  .la-filters { order: 2; flex: 1 1 100%; margin-left: 0; }
+  .la-filters select.form-input { flex: 1 1 0; min-width: 0; width: auto !important; }
+  .la-filters #la-user { flex-basis: 100%; }
 
   /* The filter panel is 461px wide and anchored to the right edge, so on a
      375px screen it hung ~87px off the left side. Pin it to both edges and

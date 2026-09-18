@@ -461,9 +461,13 @@ window._applyRoleUI = function() {
   var settingsNav = document.querySelector('.nav-item[data-page="settings"]');
   if (settingsNav) settingsNav.style.display = ''; // Settings visible to all users
   
-  ['tab-users', 'tab-activity'].forEach(function(t) {
-    var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
-    if (el) el.style.display = (role === 'super_admin') ? '' : 'none';
+  var usersTab = document.querySelector('.settings-tab[data-tab="tab-users"]');
+  if (usersTab) usersTab.style.display = (role === 'super_admin') ? '' : 'none';
+
+  // Usage by User and Login Log (sidebar) are Super Admin pages; the API
+  // refuses their data to every other role.
+  document.querySelectorAll('[data-super-admin-only]').forEach(function(el) {
+    el.style.display = (role === 'super_admin') ? '' : 'none';
   });
   
   ['tab-sheets', 'tab-connections', 'tab-sync', 'tab-roles'].forEach(function(t) {
@@ -871,8 +875,6 @@ window.switchSettingsTab = function(tabId) {
   // Activate tab
   const tab = document.querySelector(`.settings-tab[data-tab="${tabId}"]`);
   if (tab) tab.classList.add('active');
-
-  if (tabId === 'tab-activity' && typeof window.loadLoginActivity === 'function') window.loadLoginActivity();
 };
 
 window.loadGoogleSheetsConfig = function() {
@@ -1607,9 +1609,9 @@ window.loadPage = function(id, page = 1, useCache = false) {
       if (typeof window.loadUsers === 'function') window.loadUsers(); 
       if (typeof window.loadGoogleSheetsConfig === 'function') window.loadGoogleSheetsConfig(); 
       if (typeof window.loadConnectionsConfig === 'function') window.loadConnectionsConfig();
-      var activityPane = document.getElementById('tab-activity');
-      if (activityPane && activityPane.style.display !== 'none' && typeof window.loadLoginActivity === 'function') window.loadLoginActivity();
     },
+    loginusage:   () => typeof window.loadLoginUsage === 'function' ? window.loadLoginUsage() : null,
+    loginlog:     () => typeof window.loadLoginLogs === 'function' ? window.loadLoginLogs() : null,
     skutypeqoq:   () => typeof window.loadSkuTypeSale === 'function' ? window.loadSkuTypeSale(page) : null, 
     outstanding:  () => typeof window.loadOutstanding === 'function' ? window.loadOutstanding() : null,
     pareto:       () => typeof window.loadTopCustomers === 'function' ? window.loadTopCustomers(page) : null,
@@ -1897,9 +1899,9 @@ window._populateScopePickers = function() {
   fill('edit-user-zones', zones);
 };
 
-/* ── Login Activity (Settings, Super Admin) ────────────────────
-   Usage by user comes from getLoginSummary -- every account, including ones
-   that have never signed in -- and the log from getLoginLogs. Events: login,
+/* ── Login Activity (sidebar pages, Super Admin) ───────────────
+   Usage by User comes from getLoginSummary -- every account, including ones
+   that have never signed in -- and Login Log from getLoginLogs. Events: login,
    login_failed, logout, and session ("opened app" on a saved sign-in, which
    is how someone who stays signed in still shows up as using it). */
 window._loginActivity = { users: [], logs: [], req: 0 };
@@ -1959,8 +1961,8 @@ window._laSetup = function(res) {
   var el = document.getElementById('la-setup');
   if (!el) return;
   if (res && res.ready === false) {
-    el.innerHTML = '<i class="ph ph-warning" style="color:var(--warning);"></i> ' + window.esc(res.message || 'Login activity is not set up yet.');
-    el.style.display = 'block';
+    el.innerHTML = '<i class="ph ph-warning"></i> ' + window.esc(res.message || 'Login activity is not set up yet.');
+    el.style.display = '';
   } else {
     el.style.display = 'none';
   }
@@ -1979,17 +1981,19 @@ window._laRenderStats = function(users) {
     if (days <= 7) c.week++;
     if (days > 30) c.idle++;
   });
-  var card = function(label, value, color, hint) {
-    return '<div title="' + window._escAttr(hint) + '" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">'
-      + '<div style="font-size:9.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">' + label + '</div>'
-      + '<div style="font-size:20px;font-weight:800;color:' + color + ';margin-top:2px;">' + value + '</div></div>';
+  // Same card as the other pages' KPI strips.
+  var card = function(label, value, color, icon, hint) {
+    return '<div class="kpi-card" style="--kpi-color:' + color + '" title="' + window._escAttr(hint) + '">'
+      + '<div class="kpi-header-row"><div class="kpi-icon" style="color:' + color + '"><i class="ph ' + icon + '"></i></div>'
+      + '<div class="kpi-label">' + label + '</div></div>'
+      + '<div class="kpi-value" style="font-size:24px;">' + value + '</div></div>';
   };
-  el.innerHTML = card('Accounts', c.total, 'var(--text-main)', 'All dashboard accounts')
-    + card('Used today', c.today, 'var(--success)', 'Signed in or opened the dashboard today')
-    + card('Used in 7 days', c.week, 'var(--brand-primary)', 'Signed in or opened the dashboard in the last 7 days')
-    + card('Not used in 30 days', c.idle, 'var(--danger)', 'No use in the last 30 days, including accounts with no sign-in yet')
-    + card('No sign-in yet', c.never, 'var(--danger)', 'No sign-in recorded since login tracking started')
-    + card('Failed sign-ins (7d)', c.failed, 'var(--warning)', 'Refused sign-ins in the last 7 days');
+  el.innerHTML = card('Accounts', c.total, 'var(--accent)', 'ph-users', 'All dashboard accounts')
+    + card('Used today', c.today, 'var(--accent3)', 'ph-check-circle', 'Signed in or opened the dashboard today')
+    + card('Used in 7 days', c.week, 'var(--brand-primary)', 'ph-calendar-check', 'Signed in or opened the dashboard in the last 7 days')
+    + card('Not used in 30 days', c.idle, '#f97316', 'ph-moon', 'No use in the last 30 days, including accounts with no sign-in yet')
+    + card('No sign-in yet', c.never, 'var(--danger)', 'ph-user-minus', 'No sign-in recorded since login tracking started')
+    + card('Failed sign-ins (7d)', c.failed, 'var(--accent4)', 'ph-warning-circle', 'Refused sign-ins in the last 7 days');
 };
 
 window._laFillUserFilter = function(users) {
@@ -2005,53 +2009,89 @@ window._laFillUserFilter = function(users) {
   if (sel.selectedIndex === -1) sel.value = '';
 };
 
-window.loadLoginActivity = async function() {
+// Keeps the accounts from getLoginSummary, most recently seen first and those
+// with no sign-in yet at the bottom, and refreshes the Login Log user picker.
+window._laSetUsers = function(res) {
+  var users = ((res && res.users) || []).slice().sort(function(a, b) {
+    return String(b.last_seen || '').localeCompare(String(a.last_seen || ''));
+  });
+  window._loginActivity.users = users;
+  window._laFillUserFilter(users);
+  return users;
+};
+
+// Usage by User page.
+window.loadLoginUsage = async function() {
   var tbody = document.getElementById('tbl-login-summary-body');
   if (!tbody) return;
   tbody.innerHTML = window._loadingRow(8);
   try {
     var res = await window.api('getLoginSummary');
     window._laSetup(res);
-    // Most recently seen first; accounts with no sign-in yet at the bottom.
-    var users = ((res && res.users) || []).slice().sort(function(a, b) {
-      return String(b.last_seen || '').localeCompare(String(a.last_seen || ''));
-    });
-    window._loginActivity.users = users;
-    window._laRenderStats(users);
-    window._laFillUserFilter(users);
-    if (!users.length) {
-      tbody.innerHTML = window._emptyRow(8, 'No accounts found.');
-    } else {
-      var rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
-      var td = 'padding:8px 14px;vertical-align:middle;';
-      tbody.innerHTML = users.map(function(u) {
-        var usage = window._laUsage(u);
-        return '<tr style="border-bottom:1px solid var(--border);transition:background 0.15s ease;" onmouseover="this.style.background=\'var(--bg-hover, rgba(255,255,255,0.03))\'" onmouseout="this.style.background=\'transparent\'">'
-          + '<td style="' + td + '">'
-          + '<span style="font-weight:700;font-size:12px;color:var(--text-main);">' + window.esc(u.full_name || u.username) + '</span>'
-          + '<span style="color:var(--text-muted);font-size:11px;margin-left:6px;">@' + window.esc(u.username) + '</span>'
-          + (u.is_active === false ? '<span class="badge badge-gray" style="font-size:9.5px;padding:1px 6px;margin-left:6px;">Deactivated</span>' : '')
-          + '</td>'
-          + '<td style="' + td + '"><span class="badge ' + (rc[u.role] || 'badge-gray') + '" style="font-size:10px;padding:2px 8px;">' + window.esc(window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
-          + '<td style="' + td + '"><span class="badge ' + usage.cls + '" style="font-size:10px;padding:2px 8px;">' + usage.label + '</span></td>'
-          + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(u.last_seen) + '</td>'
-          + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(u.last_login) + '</td>'
-          + '<td style="' + td + 'text-align:right;font-weight:700;color:var(--text-main);">' + (u.active_days_30d || 0) + '</td>'
-          + '<td style="' + td + 'text-align:right;color:var(--text-main);">' + (u.logins_30d || 0) + '</td>'
-          + '<td style="' + td + 'text-align:right;font-weight:' + (u.failed_7d ? '700' : '400') + ';color:' + (u.failed_7d ? 'var(--danger)' : 'var(--text-muted)') + ';">' + (u.failed_7d || 0) + '</td>'
-          + '</tr>';
-      }).join('');
-    }
+    window._laRenderStats(window._laSetUsers(res));
+    window._laRenderUsers();
   } catch (e) {
     tbody.innerHTML = window._emptyRow(8, 'Could not load login activity.');
     window.toast('Failed to load login activity: ' + e.message, 'error');
   }
-  window.loadLoginLogs();
 };
 
+window._laRenderUsers = function() {
+  var tbody = document.getElementById('tbl-login-summary-body');
+  if (!tbody) return;
+  var all = window._loginActivity.users || [];
+  var box = document.getElementById('search-loginusage');
+  var q = box ? box.value.trim().toLowerCase() : '';
+  var users = !q ? all : all.filter(function(u) {
+    return [u.full_name, u.username, window._ROLE_LABEL[u.role] || u.role, window._laUsage(u).label]
+      .join(' ').toLowerCase().indexOf(q) !== -1;
+  });
+  if (!users.length) {
+    tbody.innerHTML = window._emptyRow(8, all.length ? 'No accounts match "' + window.esc(q) + '".' : 'No accounts found.');
+    return;
+  }
+  var rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
+  // Clicking a row opens that person's entries in Login Log.
+  tbody.innerHTML = users.map(function(u) {
+    var usage = window._laUsage(u);
+    return '<tr style="cursor:pointer;" title="See this person\'s sign-ins in Login Log" data-user="' + window.esc(u.username) + '" onclick="window.openLoginLogFor(this.dataset.user)">'
+      + '<td style="width:auto;font-size:13px;">'
+      + '<span style="font-weight:700;color:var(--text-main);">' + window.esc(u.full_name || u.username) + '</span>'
+      + '<span style="color:var(--text-muted);font-size:11px;margin-left:6px;">@' + window.esc(u.username) + '</span>'
+      + (u.is_active === false ? '<span class="badge badge-gray" style="font-size:9.5px;padding:1px 6px;margin-left:6px;">Deactivated</span>' : '')
+      + '</td>'
+      + '<td><span class="badge ' + (rc[u.role] || 'badge-gray') + '" style="font-size:10px;padding:2px 8px;">' + window.esc(window._ROLE_LABEL[u.role] || u.role) + '</span></td>'
+      + '<td><span class="badge ' + usage.cls + '" style="font-size:10px;padding:2px 8px;white-space:nowrap;">' + usage.label + '</span></td>'
+      + '<td style="white-space:nowrap;">' + window._laWhenCell(u.last_seen) + '</td>'
+      + '<td style="white-space:nowrap;">' + window._laWhenCell(u.last_login) + '</td>'
+      + '<td style="text-align:right;font-weight:700;color:var(--text-main);">' + (u.active_days_30d || 0) + '</td>'
+      + '<td style="text-align:right;color:var(--text-main);">' + (u.logins_30d || 0) + '</td>'
+      + '<td style="text-align:right;font-weight:' + (u.failed_7d ? '700' : '400') + ';color:' + (u.failed_7d ? 'var(--danger)' : 'var(--text-muted)') + ';">' + (u.failed_7d || 0) + '</td>'
+      + '</tr>';
+  }).join('');
+};
+
+window.openLoginLogFor = function(username) {
+  var sel = document.getElementById('la-user');
+  if (sel) {
+    sel.value = username;
+    if (sel.selectedIndex === -1) sel.value = '';
+  }
+  window.navigate('loginlog');
+};
+
+// Login Log page.
 window.loadLoginLogs = async function() {
   var tbody = document.getElementById('tbl-login-logs-body');
   if (!tbody) return;
+  // Opened straight from the sidebar: the user picker is filled from the
+  // account list, which only the Usage by User page has fetched so far.
+  if (!(window._loginActivity.users || []).length && !window._loginActivity.usersReq) {
+    window._loginActivity.usersReq = window.api('getLoginSummary')
+      .then(window._laSetUsers)
+      .catch(function() {})
+      .finally(function() { window._loginActivity.usersReq = null; });
+  }
   var val = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
   var opts = { username: val('la-user'), event: val('la-event'), days: val('la-days') || 30 };
   var foot = document.getElementById('la-log-foot');
@@ -2071,18 +2111,17 @@ window.loadLoginLogs = async function() {
       foot.textContent = 'Showing ' + rows.length + ' event' + (rows.length === 1 ? '' : 's') + ' from the last ' + res.days + ' days'
         + (rows.length >= res.limit ? ' (newest ' + res.limit + ' only; narrow the filters to see older ones).' : '.');
     }
-    var td = 'padding:8px 14px;vertical-align:middle;';
     tbody.innerHTML = rows.map(function(r) {
       var ev = window._LA_EVENT[r.event] || { label: r.event, cls: 'badge-gray' };
-      return '<tr style="border-bottom:1px solid var(--border);">'
-        + '<td style="' + td + 'white-space:nowrap;">' + window._laWhenCell(r.created_at) + '</td>'
-        + '<td style="' + td + '">'
+      return '<tr>'
+        + '<td style="width:auto;font-size:13px;white-space:nowrap;">' + window._laWhenCell(r.created_at) + '</td>'
+        + '<td>'
         + (r.full_name ? '<span style="font-weight:700;color:var(--text-main);">' + window.esc(r.full_name) + '</span> ' : '')
         + '<span style="color:var(--text-muted);font-size:11px;">@' + window.esc(r.username) + '</span></td>'
-        + '<td style="' + td + '"><span class="badge ' + ev.cls + '" style="font-size:10px;padding:2px 8px;">' + window.esc(ev.label) + '</span></td>'
-        + '<td style="' + td + 'color:var(--text-muted);">' + (r.detail ? window.esc(r.detail) : '—') + '</td>'
-        + '<td style="' + td + 'font-family:monospace;font-size:11px;color:var(--text-muted);white-space:nowrap;">' + window.esc(r.ip || '—') + '</td>'
-        + '<td style="' + td + 'white-space:nowrap;" title="' + window._escAttr(r.user_agent || '') + '">' + window.esc(window._laDevice(r.user_agent)) + '</td>'
+        + '<td><span class="badge ' + ev.cls + '" style="font-size:10px;padding:2px 8px;white-space:nowrap;">' + window.esc(ev.label) + '</span></td>'
+        + '<td style="color:var(--text-muted);">' + (r.detail ? window.esc(r.detail) : '—') + '</td>'
+        + '<td style="font-family:monospace;font-size:11px;color:var(--text-muted);white-space:nowrap;">' + window.esc(r.ip || '—') + '</td>'
+        + '<td style="white-space:nowrap;" title="' + window._escAttr(r.user_agent || '') + '">' + window.esc(window._laDevice(r.user_agent)) + '</td>'
         + '</tr>';
     }).join('');
   } catch (e) {
