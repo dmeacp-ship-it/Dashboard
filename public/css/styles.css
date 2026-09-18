@@ -1179,6 +1179,33 @@ body.tab-hidden #app::before, body.tab-hidden #app::after {
     box-shadow: none !important;
   }
 
+  /* Tighter cells everywhere, so more columns fit per screenful. */
+  .table-wrap table { font-size: 12px; }
+  .table-wrap th, .table-wrap td { padding-left: 8px !important; padding-right: 8px !important; }
+
+  /* Time-Wise Sales, HOD x SKU and the Custom Report pivot carry an inline
+     min-width:800px so their columns stay comfortable on a desktop. On a phone
+     that is two and a half screens of forced scrolling even when the pivot has
+     only a few columns, so scale the floor down -- a table with more columns
+     still grows past it and the wrapper still scrolls. */
+  .table-wrap table[style*="min-width:800px"] { min-width: 560px !important; }
+
+  /* And keep the row label in view while scrolling through the numbers. One
+     frozen column is worth it here; the sale tables' four added up to more
+     than the screen, which is why those scroll away instead. */
+  .table-wrap table[style*="min-width:800px"] thead tr:first-child th:first-child,
+  .table-wrap table[style*="min-width:800px"] tbody td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    max-width: 130px;
+    z-index: 12;
+    background: var(--bg-card);
+  }
+  .table-wrap table[style*="min-width:800px"] thead tr:first-child th:first-child {
+    background: var(--bg-elevated);
+    z-index: 16;
+  }
+
   /* Compact toolbars: the search gets its own row, the rest shrinks to fit. */
   .table-toolbar { gap: 8px; padding: 10px 12px; }
   .table-toolbar > div[style*="position:relative"] { margin-left: 0 !important; flex: 1 1 100%; }
