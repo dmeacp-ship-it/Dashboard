@@ -1461,6 +1461,12 @@ window.onMonthlyAllTimeChange = function() {
   }
 };
 
+window.onMonthlyTargetToggle = function() {
+  if (window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) {
+    window.renderMonthlyChart(window.App.data.overview.monthly);
+  }
+};
+
 window.renderMonthlyChart = function(rows) {
   if (typeof Chart === 'undefined') return;
   if (!rows || !Array.isArray(rows)) rows = [];
@@ -1472,6 +1478,13 @@ window.renderMonthlyChart = function(rows) {
     toggleEl.dataset.initialized = 'true';
   }
   const showAllTime = toggleEl ? toggleEl.checked : (window.innerWidth >= 900);
+
+  const targetToggleEl = document.getElementById('toggle-monthly-target');
+  const showTarget = targetToggleEl ? targetToggleEl.checked : true;
+  const targetLegendEl = document.getElementById('legend-monthly-target');
+  if (targetLegendEl) {
+    targetLegendEl.style.opacity = showTarget ? '1' : '0.4';
+  }
 
   const filtered = rows.filter(function(r) {
     function _chk(val, fArr) { if (!fArr || fArr === 'All') return true; if (Array.isArray(fArr)) { if (fArr.length === 0 || fArr.indexOf('All') !== -1) return true; return fArr.indexOf(val) !== -1; } return val === fArr; }
@@ -1487,19 +1500,121 @@ window.renderMonthlyChart = function(rows) {
     labels.push(window.getAxisLabel(r)); 
     sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)); 
   });
+
+  // Extract monthly targets
+  const targets = (window.App && window.App.data && window.App.data.overview && window.App.data.overview.targets) || [];
+  
+  // If targets not fetched yet, trigger background fetch
+  if (!targets.length && !window._fetchingMonthlyTargets && typeof window._fetchOverviewTargets === 'function') {
+    window._fetchingMonthlyTargets = true;
+    window._fetchOverviewTargets().then(function(t) {
+      window._fetchingMonthlyTargets = false;
+      if (window.App && window.App.data && window.App.data.overview) {
+        window.App.data.overview.targets = t || [];
+      }
+      if (window.renderMonthlyChart && window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) {
+        window.renderMonthlyChart(window.App.data.overview.monthly);
+      }
+    }).catch(function() {
+      window._fetchingMonthlyTargets = false;
+    });
+  }
+
+  function _getMonthTargetFromRow(tRow, labelStr) {
+    if (!tRow || !tRow.MONTHLY) return 0;
+    if (tRow.MONTHLY[labelStr] && tRow.MONTHLY[labelStr].t !== undefined) {
+      return Number(tRow.MONTHLY[labelStr].t) || 0;
+    }
+    const clean = String(labelStr || '').trim().toLowerCase();
+    const cleanHyphen = clean.replace(/\s+/g, '-');
+    const cleanSpace = clean.replace(/-/g, ' ');
+    for (const k in tRow.MONTHLY) {
+      const kClean = String(k).trim().toLowerCase();
+      if (kClean === clean || kClean === cleanHyphen || kClean === cleanSpace) {
+        return Number(tRow.MONTHLY[k] && tRow.MONTHLY[k].t) || 0;
+      }
+    }
+    return 0;
+  }
+
+  const targetData = [];
+  let hasAnyTarget = false;
+  displayRows.forEach(function(r) {
+    const lbl = window.getAxisLabel(r);
+    let monthTargetSum = 0;
+    let found = false;
+    if (targets.length > 0) {
+      targets.forEach(function(tRow) {
+        const val = _getMonthTargetFromRow(tRow, lbl);
+        if (val > 0) {
+          monthTargetSum += val;
+          found = true;
+        }
+      });
+    }
+    if (found && monthTargetSum > 0) {
+      targetData.push(monthTargetSum);
+      hasAnyTarget = true;
+    } else {
+      targetData.push(null);
+    }
+  });
+
+  const isTargetVisible = showTarget && hasAnyTarget;
+
+  const actualDataset = {
+    label: 'Actual SQ FT',
+    data: sqftData,
+    yAxisID: 'y',
+    borderColor: '#4f46e5',
+    backgroundColor: 'rgba(79,70,229,0.15)',
+    tension: 0.45,
+    pointRadius: 4,
+    pointHoverRadius: 7,
+    pointBackgroundColor: '#4f46e5',
+    fill: true,
+    borderWidth: 3,
+    order: 2
+  };
+
+  const targetDataset = {
+    label: 'Target',
+    data: isTargetVisible ? targetData : [],
+    yAxisID: 'y',
+    borderColor: '#f59e0b',
+    backgroundColor: 'transparent',
+    borderDash: [6, 4],
+    tension: 0.35,
+    pointRadius: isTargetVisible ? 3.5 : 0,
+    pointHoverRadius: 6,
+    pointBackgroundColor: '#f59e0b',
+    pointBorderColor: '#ffffff',
+    pointBorderWidth: 1.5,
+    fill: false,
+    borderWidth: 2.5,
+    spanGaps: false,
+    hidden: !isTargetVisible,
+    order: 1
+  };
   
   if (window.App.charts.monthly) {
       window.App.charts.monthly.data.labels = labels; 
-      window.App.charts.monthly.data.datasets[0].data = sqftData; 
+      window.App.charts.monthly.data.datasets[0].data = sqftData;
+      window.App.charts.monthly.data.datasets[0].label = 'Actual SQ FT';
+      if (window.App.charts.monthly.data.datasets.length > 1) {
+        window.App.charts.monthly.data.datasets[1].data = isTargetVisible ? targetData : [];
+        window.App.charts.monthly.data.datasets[1].hidden = !isTargetVisible;
+        window.App.charts.monthly.data.datasets[1].pointRadius = isTargetVisible ? 3.5 : 0;
+      } else {
+        window.App.charts.monthly.data.datasets.push(targetDataset);
+      }
       window.App.charts.monthly.options.scales.x.ticks.color = window.tc();
       window.App.charts.monthly.options.scales.y.ticks.color = window.tc();
       window.App.charts.monthly.update('none');
   } else {
       window.App.charts.monthly = new Chart(ctx, {
         type: 'line', 
-        data: { labels: labels, datasets: [
-          { label: 'SQ FT', data: sqftData, yAxisID: 'y', borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.15)', tension: 0.45, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#4f46e5', fill: true, borderWidth: 3 }
-        ]},
+        data: { labels: labels, datasets: [actualDataset, targetDataset] },
         options: window._cDefaults({ 
           layout: { padding: { top: 25 } }, 
           plugins: {
@@ -1515,7 +1630,34 @@ window.renderMonthlyChart = function(rows) {
               padding: 12,
               cornerRadius: 10,
               titleFont: { size: 13, family: 'Inter', weight: 700 },
-              bodyFont: { size: 12, family: 'Inter', weight: 600 }
+              bodyFont: { size: 12, family: 'Inter', weight: 600 },
+              callbacks: {
+                label: function(item) {
+                  const dsLabel = item.dataset.label || '';
+                  const v = item.raw;
+                  if (v === null || v === undefined) return null;
+                  return ' ' + dsLabel + ': ' + window.fmt.num(v) + ' SQ FT (' + window.fmt.short(v) + ')';
+                },
+                afterBody: function(items) {
+                  if (!items || !items.length) return [];
+                  const idx = items[0].dataIndex;
+                  const chart = items[0].chart;
+                  const actual = chart.data.datasets[0] ? chart.data.datasets[0].data[idx] : null;
+                  const targetDs = chart.data.datasets[1];
+                  const target = (targetDs && !targetDs.hidden) ? targetDs.data[idx] : null;
+                  if (actual && target && target > 0) {
+                    const pct = ((actual / target) * 100).toFixed(1);
+                    const diff = actual - target;
+                    const diffSign = diff >= 0 ? '+' : '';
+                    const diffStr = diffSign + window.fmt.short(diff);
+                    return [
+                      '',
+                      ' Achievement: ' + pct + '% (' + diffStr + ' vs Target)'
+                    ];
+                  }
+                  return [];
+                }
+              }
             }
           },
           scales: {
@@ -1527,17 +1669,16 @@ window.renderMonthlyChart = function(rows) {
           id: 'customLabelsMonthly',
           afterDatasetsDraw: function(chart) {
             var ctx = chart.ctx;
-            chart.data.datasets.forEach(function(dataset, i) {
-              var meta = chart.getDatasetMeta(i);
-              meta.data.forEach(function(bar, index) {
-                var val = dataset.data[index];
-                if (!val) return;
-                ctx.fillStyle = window.tc();
-                ctx.font = 'bold 11px "Inter", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText(window.fmt.short(val), bar.x, bar.y - 8);
-              });
+            var meta = chart.getDatasetMeta(0);
+            if (!meta || meta.hidden) return;
+            meta.data.forEach(function(bar, index) {
+              var val = chart.data.datasets[0].data[index];
+              if (!val) return;
+              ctx.fillStyle = window.tc();
+              ctx.font = 'bold 11px "Inter", sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(window.fmt.short(val), bar.x, bar.y - 8);
             });
           }
         }]
@@ -1579,6 +1720,9 @@ window.setOverviewTargetPeriod = function(period, btn) {
     window._fetchOverviewTargets().then(t => {
       if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = t;
       window.renderTargetAchievementOverview(t);
+      if (window.renderMonthlyChart && window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) {
+        window.renderMonthlyChart(window.App.data.overview.monthly);
+      }
     }).catch(() => {});
   }
 };
@@ -2356,6 +2500,7 @@ window.loadOverview = async function(useCache) {
       window._fetchOverviewTargets().then(targets => {
         if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
         if(window.renderTargetAchievementOverview) window.renderTargetAchievementOverview(targets || []);
+        if(window.renderMonthlyChart && window.App.data.overview.monthly) window.renderMonthlyChart(window.App.data.overview.monthly);
       }).catch(() => {
         if (targetWrap) targetWrap.innerHTML = '<div style="color:var(--text-muted);font-size:11.5px;text-align:center;">Failed to load targets</div>';
       });

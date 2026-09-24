@@ -2674,6 +2674,9 @@ window._bootDashboard = async function() {
     window._fetchOverviewTargets().then(targets => {
       if (window.App && window.App.data && window.App.data.overview) window.App.data.overview.targets = targets || [];
       if (typeof window.renderTargetAchievementOverview === 'function') window.renderTargetAchievementOverview(targets || []);
+      if (typeof window.renderMonthlyChart === 'function' && window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) {
+        window.renderMonthlyChart(window.App.data.overview.monthly);
+      }
     }).catch(() => {
       if (targetWrap) targetWrap.innerHTML = '<div style="color:var(--text-muted);font-size:11.5px;text-align:center;">Failed to load targets</div>';
     });

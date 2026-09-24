@@ -296,14 +296,22 @@
         <div class="chart-grid">
           <!-- Tier 1: Monthly SQ FT & SQM Trend (Full-Width Hero) -->
           <div class="chart-card">
-            <div class="chart-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <div class="chart-title"><i class="ph ph-chart-line-up"></i> Monthly SQ FT &amp; SQM Trend</div>
-              <div style="display:flex; align-items:center; gap:16px;">
+              <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                 <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--text-main);">
                   <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#4f46e5;"></span>
                   <span>SQ FT</span>
                 </div>
-                <label class="chart-toggle-all-time" style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
+                <div id="legend-monthly-target" style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--text-main); transition: opacity 0.2s;">
+                  <span style="display:inline-block; width:14px; height:0; border-top:2.5px dashed #f59e0b;"></span>
+                  <span style="color:#f59e0b;">Target</span>
+                </div>
+                <label class="chart-toggle-target" style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
+                  <input type="checkbox" id="toggle-monthly-target" checked style="cursor:pointer;" onchange="window.onMonthlyTargetToggle()">
+                  <span>Target</span>
+                </label>
+                <label class="chart-toggle-all-time" style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
                   <input type="checkbox" id="toggle-monthly-all-time" style="cursor:pointer;" onchange="window.onMonthlyAllTimeChange()">
                   <span>All Time</span>
                 </label>
@@ -1628,9 +1636,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=2e2bd64f"></script>
+<script defer src="/js/javascript.min.js?v=52b69cc7"></script>
 <script defer src="/js/javascript1.min.js?v=b21e8393"></script>
-<script defer src="/js/javascript2.min.js?v=ed850b39"></script>
+<script defer src="/js/javascript2.min.js?v=92fab090"></script>
 <script defer src="/js/fms.min.js?v=1632f0aa"></script>
 
 </body>
