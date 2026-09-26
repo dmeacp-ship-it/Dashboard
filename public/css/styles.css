@@ -139,18 +139,20 @@ html, body {
   transition: background var(--t), color var(--t);
 }
 
-/* Hide all default scrollbars globally while keeping full touch / wheel / trackpad scrolling */
-* {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+/* Subtle scrollbars everywhere: a thin, faint thumb on a clear track that only
+   firms up under the pointer. Neutral grey at low alpha reads in both themes.
+   Chrome ignores ::-webkit-scrollbar once scrollbar-width/-color is set on an
+   element, so the standard properties go to Firefox alone. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.18);
+  border-radius: 100px;
 }
-::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  height: 0px !important;
+::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.38); }
+@supports (-moz-appearance: none) {
+  * { scrollbar-width: thin; scrollbar-color: rgba(128, 128, 128, 0.22) transparent; }
 }
-::-webkit-scrollbar-track { background: transparent !important; }
-::-webkit-scrollbar-thumb { background: transparent !important; }
 
 h1, h2, h3, .page-title, .brand-name, .kpi-value, .chart-title, .table-title {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -567,13 +569,10 @@ nav { padding: 2px 0; flex: 1; }
   isolation: isolate;
   transform: translateZ(0);
   contain: layout style;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
 }
 [data-theme="light"] #content {
   box-shadow: inset 4px 4px 16px rgba(0,0,0,0.04);
 }
-#content::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 
 .page { display: none; gap: 16px; min-width: 0; }
 .page.active { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
@@ -582,13 +581,6 @@ nav { padding: 2px 0; flex: 1; }
   overflow-x: hidden;
   padding-top: 8px;
   padding-right: 0px;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-#page-overview::-webkit-scrollbar, #page-settings::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
 }
 
 /* Animation optimizations (First paint only) */
@@ -611,7 +603,6 @@ nav { padding: 2px 0; flex: 1; }
 .chart-card, .table-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-top: 2px solid var(--brand-primary);
   border-radius: var(--radius-lg);
   display: flex; flex-direction: column;
   box-shadow: var(--shadow-sm);
@@ -621,8 +612,6 @@ nav { padding: 2px 0; flex: 1; }
 }
 [data-theme="light"] .chart-card, [data-theme="light"] .table-card { box-shadow: var(--shadow-sm); }
 .table-card { flex: 1; min-height: 0; overflow: hidden; }
-.chart-card:nth-child(2n) { border-top-color: var(--accent2); }
-.chart-card:nth-child(3n) { border-top-color: var(--accent3); }
 .chart-card:hover, .table-card:hover { box-shadow: var(--shadow-lg); }
 [data-theme="light"] .chart-card:hover, [data-theme="light"] .table-card:hover { box-shadow: var(--shadow); }
 
@@ -668,12 +657,6 @@ nav { padding: 2px 0; flex: 1; }
   position: relative;
   z-index: 5;
   background: transparent;
-  scrollbar-width: none;
-}
-.kpi-grid::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
 }
 
 .kpi-card {
@@ -681,7 +664,6 @@ nav { padding: 2px 0; flex: 1; }
   min-width: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-top: 2px solid var(--kpi-color, var(--brand-primary));
   border-radius: var(--radius-lg); padding: 12px 14px;
   position: relative;
   box-shadow: var(--shadow-sm);

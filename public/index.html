@@ -20,7 +20,7 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=0de5a063"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=62f4a262"/>
   <link rel="stylesheet" href="/css/fms.min.css?v=06399e35"/>
 </head>
 
@@ -166,14 +166,14 @@
         
         <div id="sidebar-custom-reports"></div>
 
-        <!-- Super Admin only: shown by _applyRoleUI. Kept as direct children of
+        <!-- Admin + Super Admin only: shown by _applyRoleUI. Kept as direct children of
              <nav> so the active-item indicator can find them. -->
-        <div class="nav-section" data-super-admin-only style="margin-top:12px;display:none;">User Activity</div>
-        <div class="nav-item" data-page="loginusage" data-super-admin-only style="display:none;" onclick="navigate('loginusage')">
+        <div class="nav-section" data-admin-only style="margin-top:12px;display:none;">User Activity</div>
+        <div class="nav-item" data-page="loginusage" data-admin-only style="display:none;" onclick="navigate('loginusage')">
           <span class="nav-icon"><i class="ph ph-user-check"></i></span>
           <span class="nav-label">Usage by User</span>
         </div>
-        <div class="nav-item" data-page="loginlog" data-super-admin-only style="display:none;" onclick="navigate('loginlog')">
+        <div class="nav-item" data-page="loginlog" data-admin-only style="display:none;" onclick="navigate('loginlog')">
           <span class="nav-icon"><i class="ph ph-clock-counter-clockwise"></i></span>
           <span class="nav-label">Login Log</span>
         </div>
@@ -958,7 +958,7 @@
         </div>
       </section>
 
-      <!-- Usage by User (Super Admin) -->
+      <!-- Usage by User (Admin, Super Admin) -->
       <section id="page-loginusage" class="page">
         <div id="la-setup" class="alert-warn" style="display:none;margin-bottom:12px;"></div>
         <div id="la-stats" class="kpi-grid stagger-1"></div>
@@ -981,7 +981,7 @@
         </div>
       </section>
 
-      <!-- Login Log (Super Admin) -->
+      <!-- Login Log (Admin, Super Admin) -->
       <section id="page-loginlog" class="page">
         <div class="table-card stagger-1">
           <div class="table-toolbar">
@@ -1636,9 +1636,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=52b69cc7"></script>
+<script defer src="/js/javascript.min.js?v=157fd5d5"></script>
 <script defer src="/js/javascript1.min.js?v=b21e8393"></script>
-<script defer src="/js/javascript2.min.js?v=92fab090"></script>
+<script defer src="/js/javascript2.min.js?v=f431d4d1"></script>
 <script defer src="/js/fms.min.js?v=1632f0aa"></script>
 
 </body>

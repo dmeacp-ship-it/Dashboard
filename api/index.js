@@ -161,9 +161,9 @@ module.exports = async function handler(req, res) {
     if (action === 'updateUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.updateUser(req_.profileId, req_.userData))); return; }
     if (action === 'deleteUser') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await AuthService.deleteUser(req_.profileId))); return; }
 
-    // Login activity (super admin): who signs in, and who doesn't
-    if (action === 'getLoginSummary') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await LoginLog.summary())); return; }
-    if (action === 'getLoginLogs') { _requireRole(userProfile, ROLES.SUPER_ADMIN); res.json(_ok(await LoginLog.list(req_.options || {}))); return; }
+    // Login activity (admins): who signs in, and who doesn't
+    if (action === 'getLoginSummary') { _requireAdmin(userProfile); res.json(_ok(await LoginLog.summary())); return; }
+    if (action === 'getLoginLogs') { _requireAdmin(userProfile); res.json(_ok(await LoginLog.list(req_.options || {}))); return; }
     
     // User self-serve. Requires the current password: a session token alone
     // must not be enough to take permanent ownership of an account.

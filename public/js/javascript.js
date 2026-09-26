@@ -464,19 +464,14 @@ window._applyRoleUI = function() {
   var usersTab = document.querySelector('.settings-tab[data-tab="tab-users"]');
   if (usersTab) usersTab.style.display = (role === 'super_admin') ? '' : 'none';
 
-  // Usage by User and Login Log (sidebar) are Super Admin pages; the API
-  // refuses their data to every other role.
-  document.querySelectorAll('[data-super-admin-only]').forEach(function(el) {
-    el.style.display = (role === 'super_admin') ? '' : 'none';
-  });
-  
   ['tab-sheets', 'tab-connections', 'tab-sync', 'tab-roles'].forEach(function(t) {
     var el = document.querySelector('.settings-tab[data-tab="' + t + '"]');
     if (el) el.style.display = isAdmin ? '' : 'none';
   });
 
-  // Data sync controls marked data-admin-only (Append New Data, Sync
-  // Outstanding, Sync Targets, Hard Reset) are for Admins and Super Admins.
+  // Controls marked data-admin-only (Append New Data, Sync Outstanding, Sync
+  // Targets, Hard Reset, and the User Activity pages) are for Admins and
+  // Super Admins.
   // Every role keeps Refresh Cache; the API refuses the rest to other roles.
   document.querySelectorAll('[data-admin-only]').forEach(function(el) {
     el.style.display = isAdmin ? '' : 'none';

@@ -1057,6 +1057,18 @@ window.renderKPIs = function(k, monthly) {
   const prevMoSqft = sortedM[1] ? (Number(sortedM[1]['SQ FT.']) || ((Number(sortedM[1]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
   const currMoSqm  = Math.round(currMoSqft / window.SQFT_PER_SQM);
 
+  // ── Last full month vs the best month on record ──────────────────────────
+  // sortedM[0] is the running month, so "last month" is sortedM[1]. The peak
+  // is searched across every month, the running one included.
+  const _moSqft  = function(r) { return Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM); };
+  const lastMoRow = sortedM[1] || null;
+  const peakRow   = sortedM.reduce(function(best, r) { return (!best || _moSqft(r) > _moSqft(best)) ? r : best; }, null);
+  const peakSqft  = peakRow ? _moSqft(peakRow) : 0;
+  const lastVsPeak = (lastMoRow && peakSqft) ? +((prevMoSqft - peakSqft) / peakSqft * 100).toFixed(1) : null;
+  const lastIsPeak = !!(lastMoRow && peakRow === lastMoRow);
+  const lastMoLbl  = lastMoRow ? window.getAxisLabel(lastMoRow) : 'N/A';
+  const peakLbl    = peakRow ? window.getAxisLabel(peakRow) : '—';
+
   function _dlt(v) {
     if (v === null || v === undefined || isNaN(v)) return '';
     return v >= 0
@@ -1178,8 +1190,39 @@ window.renderKPIs = function(k, monthly) {
 
   kpiGrid.innerHTML =
 
+  // ── Card 0 — LAST MONTH VS PEAK MONTH ────────────────────────────────────
+  `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:#0ea5e9;"><i class="ph ph-trophy"></i></div>
+        <div class="kpi-label">LAST MONTH VS PEAK</div>
+      </div>
+      ${lastIsPeak
+        ? `<span class="kpi-pill" style="background:rgba(16,185,129,0.12);color:var(--accent3);"><i class="ph ph-crown"></i>New peak</span>`
+        : _dlt(lastVsPeak)}
+    </div>
+    <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(prevMoSqft)}</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${lastMoLbl}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${lastMoRow && peakSqft ? Math.round(prevMoSqft / peakSqft * 100) + '% of best month' : 'No previous month'}</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
+      ${_cmpRow('Peak · ' + peakLbl, peakSqft ? window.fmt.short(peakSqft) + ' sqft' : '—', peakSqft, peakSqft, 'var(--accent3)', false)}
+      ${_cmpRow('Last month · ' + lastMoLbl, window.fmt.short(prevMoSqft) + ' sqft', prevMoSqft, peakSqft, '#0ea5e9', false)}
+    </div>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${_kv('Gap to peak', lastIsPeak || !peakSqft ? '—' : window.fmt.short(peakSqft - prevMoSqft) + ' sqft', lastIsPeak ? 'var(--text-muted)' : '#ef4444')}
+        ${_kv('Peak month', peakLbl, 'var(--text-sub)')}
+      </div>
+    </div>
+  </div>`
+
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
-  `<div class="kpi-card" style="--kpi-color:var(--accent3);">
+  + `<div class="kpi-card" style="--kpi-color:var(--accent3);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--accent3);"><i class="ph ph-ruler"></i></div>
@@ -1610,6 +1653,10 @@ window.renderMonthlyChart = function(rows) {
       }
       window.App.charts.monthly.options.scales.x.ticks.color = window.tc();
       window.App.charts.monthly.options.scales.y.ticks.color = window.tc();
+      // Targets usually land while the first draw is still animating. Left
+      // running, that animation keeps drawing the actual line against the old
+      // (targetless) y-scale, so it no longer lines up with the axis.
+      window.App.charts.monthly.stop();
       window.App.charts.monthly.update('none');
   } else {
       window.App.charts.monthly = new Chart(ctx, {
@@ -2173,7 +2220,7 @@ window.renderTargetAchievementOverview = function(targets) {
           </div>
           <span style="font-size:10px; font-weight:700; color:var(--text-muted); background:var(--surface2); padding:1px 6px; border-radius:100px; border:1px solid var(--border);">${rankedHODs.length} ${unit}s</span>
         </div>
-        <div style="display:flex; flex-direction:column; overflow-y:auto; max-height:175px; padding-right:3px; scrollbar-width:thin;">
+        <div style="display:flex; flex-direction:column; overflow-y:auto; max-height:175px; padding-right:3px;">
           ${leaderboardHtml}
         </div>
       </div>
