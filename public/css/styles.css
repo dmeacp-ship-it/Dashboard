@@ -357,6 +357,41 @@ nav { padding: 2px 0; flex: 1; }
 .sidebar-footer-btn:hover { background: var(--bg-hover); color: var(--text-main); }
 .sidebar-footer-btn i { font-size: 18px; flex-shrink: 0; }
 
+/* Signed-in user card with the sign-out button. Pinned open, it shows the
+   name and role beside the button; on the collapsed rail the card itself
+   disappears and only the button remains, sized like the other rail icons
+   (the card used to stay a ~60x50 pill around a small grey icon). */
+.sidebar-user {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 7px 7px 14px;
+  background: var(--bg-body); border: 1px solid var(--border-light); border-radius: var(--radius);
+  transition: padding var(--t-rail), background-color var(--t-rail), border-color var(--t-rail);
+}
+.sidebar-user-info {
+  white-space: nowrap; overflow: hidden; flex: 1; min-width: 0;
+  transition: opacity 0.22s ease, max-width 0.28s var(--ease-standard);
+}
+.sidebar-logout {
+  width: 34px; height: 34px; flex-shrink: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 10px; cursor: pointer; font: inherit;
+  color: var(--danger); background: rgba(239, 68, 68, 0.12);
+  transition: background-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+.sidebar-logout i { font-size: 18px; line-height: 1; }
+.sidebar-logout:hover { background: var(--danger); color: #fff; }
+.sidebar-logout:active { transform: scale(0.94); }
+
+@media (min-width: 901px) {
+  #sidebar:not(.pinned) .sidebar-user {
+    padding: 0; gap: 0; justify-content: center;
+    background: transparent; border-color: transparent;
+  }
+  #sidebar:not(.pinned) .sidebar-user-info { flex: 0 0 0; max-width: 0; opacity: 0; }
+  /* Name fades in once the rail has mostly widened, like the nav labels. */
+  #sidebar.pinned .sidebar-user-info { transition: opacity 0.28s ease 0.12s; }
+}
+
 /* ── MAIN PANEL & HEADER ── */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 10; background: var(--bg-surface); min-width: 0; }
 #header {
