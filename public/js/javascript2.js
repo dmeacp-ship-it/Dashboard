@@ -1069,6 +1069,14 @@ window.renderKPIs = function(k, monthly) {
   const lastMoLbl  = lastMoRow ? window.getAxisLabel(lastMoRow) : 'N/A';
   const peakLbl    = peakRow ? window.getAxisLabel(peakRow) : '—';
 
+  // ── Next 3 months forecast (same engine as the trend chart) ──────────────
+  const fc = window.computeSalesForecast(monthly, k.lastUpdated);
+  window.App.forecast = fc;
+  const fcMonths = fc ? fc.months : [];
+  const fcVsLy   = (fc && fc.lyTotal) ? +((fc.total - fc.lyTotal) / fc.lyTotal * 100).toFixed(1) : null;
+  const fcSpan   = fcMonths.length ? window.forecastLabel(fcMonths[0].sk) + ' – ' + window.forecastLabel(fcMonths[fcMonths.length - 1].sk) : '';
+  const fcMax    = Math.max.apply(null, fcMonths.map(function(m) { return m.value; }).concat([1]));
+
   function _dlt(v) {
     if (v === null || v === undefined || isNaN(v)) return '';
     return v >= 0
@@ -1219,6 +1227,45 @@ window.renderKPIs = function(k, monthly) {
         ${_kv('Peak month', peakLbl, 'var(--text-sub)')}
       </div>
     </div>
+  </div>`
+
+  // ── Card 0b — NEXT 3 MONTHS FORECAST ─────────────────────────────────────
+  + `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:#0ea5e9;"><i class="ph ph-trend-up"></i></div>
+        <div class="kpi-label">NEXT 3 MONTHS FORECAST</div>
+      </div>
+      ${_dlt(fcVsLy)}
+    </div>
+    ${fc && fcMonths.length ? `
+    <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(fc.total)}</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${fcSpan}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">sqft expected · ±${Math.round(fc.mape * 100)}% typical error</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:3px;">
+      ${fcMonths.map(function(m) {
+        return _cmpRow(window.forecastLabel(m.sk), window.fmt.short(m.value) + ' sqft', m.value, fcMax, '#0ea5e9', false);
+      }).join('')}
+    </div>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:1px 0;">
+          <span style="font-size:10.5px;color:var(--text-muted);font-weight:600;">vs Target</span>
+          <span id="kpi-fc-target" style="font-size:11px;font-weight:700;color:var(--text-muted);">—</span>
+        </div>
+        ${fc.partial
+          ? _kv(window.forecastLabel(fc.partial.sk) + ' projected', '~' + window.fmt.short(fc.partial.projected) + ' sqft', '#0ea5e9')
+          : _kv('vs same months LY', fc.lyTotal ? window.fmt.short(fc.lyTotal) + ' sqft' : '—', 'var(--text-muted)')}
+      </div>
+    </div>` : `
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;">
+      Needs at least three full months of sales to forecast.
+    </div>`}
   </div>`
 
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
@@ -1510,6 +1557,141 @@ window.onMonthlyTargetToggle = function() {
   }
 };
 
+/* ── Sales forecast (next 3 months) ─────────────────────────────────────────
+   Each month is half "same month last year x recent YoY growth" and half the
+   recent level (last three full months, weighted 3:2:1). With only a year and
+   a half of history anything cleverer would just be fitting noise.
+   - YoY growth compares up to the last six full months with the same months a
+     year earlier, clamped to 0.6-1.6 so one freak month can't run away.
+   - The running month (data is N-1) is projected as what is booked so far
+     plus the forecast for the days still to come.
+   - The range is the method's own error when replayed over past months
+     (mean absolute % error), widened by sqrt(months ahead).
+   Returns null when there are fewer than three full months to work from. */
+window.computeSalesForecast = function(monthly, lastUpdated, horizon) {
+  horizon = horizon || 3;
+  const bySk = {};
+  (monthly || []).forEach(function(r) {
+    const sk = window.getSortKey(r).slice(0, 7);
+    if (!sk) return;
+    bySk[sk] = (bySk[sk] || 0) + (Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM));
+  });
+  const sks = Object.keys(bySk).sort();
+  if (!sks.length) return null;
+
+  function _shift(sk, n) {
+    const y = +sk.slice(0, 4), m = +sk.slice(5, 7) - 1 + n;
+    const d = new Date(y, m, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  // How far into the latest month the data reaches.
+  const latest = sks[sks.length - 1];
+  let d = lastUpdated ? new Date(lastUpdated) : new Date();
+  if (isNaN(d.getTime())) d = new Date();
+  d.setDate(d.getDate() - 1);
+  const dSk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const fraction = (dSk === latest && d.getDate() < dim) ? d.getDate() / dim : 1;
+
+  const full = fraction < 1 ? sks.slice(0, -1) : sks.slice();
+  if (full.length < 3) return null;
+
+  // Forecast month t from the full months strictly before it.
+  function _predict(t, hist) {
+    const prior = hist.filter(function(s) { return s < t; });
+    if (prior.length < 3) return null;
+    const last3 = prior.slice(-3);
+    const level = (bySk[last3[2]] * 3 + bySk[last3[1]] * 2 + bySk[last3[0]]) / 6;
+    let cur = 0, ly = 0;
+    prior.slice(-6).forEach(function(s) {
+      const p = _shift(s, -12);
+      if (bySk[p] && hist.indexOf(p) !== -1) { cur += bySk[s]; ly += bySk[p]; }
+    });
+    const g = ly > 0 ? Math.min(1.6, Math.max(0.6, cur / ly)) : 1;
+    const lyVal = bySk[_shift(t, -12)];
+    return lyVal ? 0.5 * lyVal * g + 0.5 * level : level;
+  }
+
+  // Replay the method over past months to size the range.
+  const errs = [];
+  full.forEach(function(t) {
+    const p = _predict(t, full);
+    if (p && bySk[t] > 0) errs.push(Math.abs(p - bySk[t]) / bySk[t]);
+  });
+  const mape = errs.length >= 3
+    ? Math.min(0.35, Math.max(0.08, errs.reduce(function(a, b) { return a + b; }, 0) / errs.length))
+    : 0.15;
+
+  let partial = null;
+  if (fraction < 1) {
+    const rest = (_predict(latest, full) || 0) * (1 - fraction);
+    const projected = bySk[latest] + rest;
+    partial = { sk: latest, actual: bySk[latest], projected: projected, fraction: fraction,
+                low: bySk[latest] + rest * (1 - mape), high: bySk[latest] + rest * (1 + mape) };
+  }
+
+  const months = [];
+  let lyTotal = 0, lyAll = true;
+  for (let h = 1; h <= horizon; h++) {
+    const t = _shift(latest, h);
+    const v = _predict(t, full);
+    if (v === null) break;
+    const w = mape * Math.sqrt(h);
+    months.push({ sk: t, value: v, low: v * (1 - w), high: v * (1 + w) });
+    const lyv = bySk[_shift(t, -12)];
+    if (lyv) lyTotal += lyv; else lyAll = false;
+  }
+  return {
+    latest: latest, lastFull: full[full.length - 1], lastFullValue: bySk[full[full.length - 1]],
+    partial: partial, months: months, mape: mape,
+    total: months.reduce(function(a, m) { return a + m.value; }, 0),
+    lyTotal: lyAll ? lyTotal : null
+  };
+};
+
+// "2026-10" -> "Oct-26", matching the labels the monthly rows carry.
+window.forecastLabel = function(sk) {
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+sk.slice(5, 7) - 1];
+  return mo + '-' + sk.slice(2, 4);
+};
+
+// Sum of every visible target row's target for one month label ("Sep-26",
+// "Sep 26", ...). Null when no row has a target for it.
+window.monthTargetSum = function(labelStr) {
+  const targets = (window.App && window.App.data && window.App.data.overview && window.App.data.overview.targets) || [];
+  const clean = String(labelStr || '').trim().toLowerCase();
+  const variants = [clean, clean.replace(/\s+/g, '-'), clean.replace(/-/g, ' ')];
+  let sum = 0, found = false;
+  targets.forEach(function(tRow) {
+    if (!tRow || !tRow.MONTHLY) return;
+    let val = 0;
+    if (tRow.MONTHLY[labelStr] && tRow.MONTHLY[labelStr].t !== undefined) {
+      val = Number(tRow.MONTHLY[labelStr].t) || 0;
+    } else {
+      for (const k in tRow.MONTHLY) {
+        if (variants.indexOf(String(k).trim().toLowerCase()) !== -1) { val = Number(tRow.MONTHLY[k] && tRow.MONTHLY[k].t) || 0; break; }
+      }
+    }
+    if (val > 0) { sum += val; found = true; }
+  });
+  return found ? sum : null;
+};
+
+// The forecast KPI card renders before targets arrive; this fills in its
+// target row once they have.
+window.refreshForecastTarget = function() {
+  const el = document.getElementById('kpi-fc-target');
+  const fc = window.App && window.App.forecast;
+  if (!el || !fc || !fc.months.length) return;
+  let tSum = 0, all = true;
+  fc.months.forEach(function(m) { const t = window.monthTargetSum(window.forecastLabel(m.sk)); if (t === null) all = false; else tSum += t; });
+  if (!all || !tSum) { el.textContent = '—'; el.style.color = 'var(--text-muted)'; return; }
+  const pct = fc.total / tSum * 100;
+  el.textContent = Math.round(pct) + '% of ' + window.fmt.short(tSum);
+  el.style.color = pct >= 100 ? '#10b981' : (pct >= 80 ? '#f59e0b' : '#ef4444');
+};
+
 window.renderMonthlyChart = function(rows) {
   if (typeof Chart === 'undefined') return;
   if (!rows || !Array.isArray(rows)) rows = [];
@@ -1539,14 +1721,14 @@ window.renderMonthlyChart = function(rows) {
 
   const labels = [], sqftData = [];
   const displayRows = showAllTime ? filtered : filtered.slice(-12);
-  displayRows.forEach(function(r) { 
-    labels.push(window.getAxisLabel(r)); 
-    sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)); 
+  displayRows.forEach(function(r) {
+    labels.push(window.getAxisLabel(r));
+    sqftData.push(Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM));
   });
 
   // Extract monthly targets
   const targets = (window.App && window.App.data && window.App.data.overview && window.App.data.overview.targets) || [];
-  
+
   // If targets not fetched yet, trigger background fetch
   if (!targets.length && !window._fetchingMonthlyTargets && typeof window._fetchOverviewTargets === 'function') {
     window._fetchingMonthlyTargets = true;
@@ -1563,49 +1745,45 @@ window.renderMonthlyChart = function(rows) {
     });
   }
 
-  function _getMonthTargetFromRow(tRow, labelStr) {
-    if (!tRow || !tRow.MONTHLY) return 0;
-    if (tRow.MONTHLY[labelStr] && tRow.MONTHLY[labelStr].t !== undefined) {
-      return Number(tRow.MONTHLY[labelStr].t) || 0;
+  // ── Forecast: only when the chart runs up to the latest month, so a filter
+  // on an earlier FY or quarter doesn't sprout future months.
+  const forecastToggleEl = document.getElementById('toggle-monthly-forecast');
+  const showForecast = forecastToggleEl ? forecastToggleEl.checked : true;
+  const kpis = (window.App.data && window.App.data.overview && window.App.data.overview.kpis) || {};
+  const fc = window.computeSalesForecast(rows, kpis.lastUpdated);
+  const lastSk = displayRows.length ? window.getSortKey(displayRows[displayRows.length - 1]).slice(0, 7) : '';
+  const isForecastVisible = !!(showForecast && fc && fc.months.length && lastSk === fc.latest);
+
+  const n = labels.length;
+  const fcData = new Array(n).fill(null), fcLow = new Array(n).fill(null), fcHigh = new Array(n).fill(null);
+  const fcIdx = {};   // index -> 'partial' | 'future', for labels and tooltips
+  if (isForecastVisible) {
+    // Start the dotted line at the last full month so it joins the actual line.
+    const anchorIdx = fc.partial ? n - 2 : n - 1;
+    if (anchorIdx >= 0) { fcData[anchorIdx] = fcLow[anchorIdx] = fcHigh[anchorIdx] = sqftData[anchorIdx]; }
+    if (fc.partial) {
+      fcData[n - 1] = fc.partial.projected; fcLow[n - 1] = fc.partial.low; fcHigh[n - 1] = fc.partial.high;
+      fcIdx[n - 1] = 'partial';
     }
-    const clean = String(labelStr || '').trim().toLowerCase();
-    const cleanHyphen = clean.replace(/\s+/g, '-');
-    const cleanSpace = clean.replace(/-/g, ' ');
-    for (const k in tRow.MONTHLY) {
-      const kClean = String(k).trim().toLowerCase();
-      if (kClean === clean || kClean === cleanHyphen || kClean === cleanSpace) {
-        return Number(tRow.MONTHLY[k] && tRow.MONTHLY[k].t) || 0;
-      }
-    }
-    return 0;
+    fc.months.forEach(function(m) {
+      labels.push(window.forecastLabel(m.sk));
+      sqftData.push(null);
+      fcData.push(m.value); fcLow.push(m.low); fcHigh.push(m.high);
+      fcIdx[labels.length - 1] = 'future';
+    });
   }
 
   const targetData = [];
   let hasAnyTarget = false;
-  displayRows.forEach(function(r) {
-    const lbl = window.getAxisLabel(r);
-    let monthTargetSum = 0;
-    let found = false;
-    if (targets.length > 0) {
-      targets.forEach(function(tRow) {
-        const val = _getMonthTargetFromRow(tRow, lbl);
-        if (val > 0) {
-          monthTargetSum += val;
-          found = true;
-        }
-      });
-    }
-    if (found && monthTargetSum > 0) {
-      targetData.push(monthTargetSum);
-      hasAnyTarget = true;
-    } else {
-      targetData.push(null);
-    }
+  labels.forEach(function(lbl) {
+    const t = targets.length ? window.monthTargetSum(lbl) : null;
+    targetData.push(t);
+    if (t) hasAnyTarget = true;
   });
 
   const isTargetVisible = showTarget && hasAnyTarget;
 
-  const actualDataset = {
+  const datasets = [{
     label: 'Actual SQ FT',
     data: sqftData,
     yAxisID: 'y',
@@ -1618,9 +1796,7 @@ window.renderMonthlyChart = function(rows) {
     fill: true,
     borderWidth: 3,
     order: 2
-  };
-
-  const targetDataset = {
+  }, {
     label: 'Target',
     data: isTargetVisible ? targetData : [],
     yAxisID: 'y',
@@ -1638,32 +1814,70 @@ window.renderMonthlyChart = function(rows) {
     spanGaps: false,
     hidden: !isTargetVisible,
     order: 1
-  };
-  
+  }, {
+    label: 'Forecast',
+    data: isForecastVisible ? fcData : [],
+    yAxisID: 'y',
+    borderColor: '#0ea5e9',
+    backgroundColor: 'transparent',
+    borderDash: [2, 4],
+    tension: 0.35,
+    pointRadius: function(c) { return (window.App._monthlyFcIdx || {})[c.dataIndex] ? 4 : 0; },
+    pointHoverRadius: 6,
+    pointBackgroundColor: '#0ea5e9',
+    pointBorderColor: '#ffffff',
+    pointBorderWidth: 1.5,
+    fill: false,
+    borderWidth: 2.5,
+    spanGaps: false,
+    hidden: !isForecastVisible,
+    order: 0
+  }, {
+    label: 'Forecast low',
+    data: isForecastVisible ? fcLow : [],
+    yAxisID: 'y',
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    pointRadius: 0, pointHoverRadius: 0, tension: 0.35, borderWidth: 0,
+    fill: false,
+    hidden: !isForecastVisible,
+    order: 3
+  }, {
+    label: 'Forecast high',
+    data: isForecastVisible ? fcHigh : [],
+    yAxisID: 'y',
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(14,165,233,0.13)',
+    pointRadius: 0, pointHoverRadius: 0, tension: 0.35, borderWidth: 0,
+    fill: '-1',
+    hidden: !isForecastVisible,
+    order: 3
+  }];
+
+  window.App.forecast = fc;
+  window.App._monthlyFcIdx = fcIdx;
+  window.App._monthlyFc = { data: fcData, low: fcLow, high: fcHigh };
+
   if (window.App.charts.monthly) {
-      window.App.charts.monthly.data.labels = labels; 
-      window.App.charts.monthly.data.datasets[0].data = sqftData;
-      window.App.charts.monthly.data.datasets[0].label = 'Actual SQ FT';
-      if (window.App.charts.monthly.data.datasets.length > 1) {
-        window.App.charts.monthly.data.datasets[1].data = isTargetVisible ? targetData : [];
-        window.App.charts.monthly.data.datasets[1].hidden = !isTargetVisible;
-        window.App.charts.monthly.data.datasets[1].pointRadius = isTargetVisible ? 3.5 : 0;
-      } else {
-        window.App.charts.monthly.data.datasets.push(targetDataset);
-      }
-      window.App.charts.monthly.options.scales.x.ticks.color = window.tc();
-      window.App.charts.monthly.options.scales.y.ticks.color = window.tc();
+      const ch = window.App.charts.monthly;
+      ch.data.labels = labels;
+      datasets.forEach(function(ds, i) {
+        if (ch.data.datasets[i]) Object.assign(ch.data.datasets[i], ds);
+        else ch.data.datasets.push(ds);
+      });
+      ch.options.scales.x.ticks.color = window.tc();
+      ch.options.scales.y.ticks.color = window.tc();
       // Targets usually land while the first draw is still animating. Left
       // running, that animation keeps drawing the actual line against the old
       // (targetless) y-scale, so it no longer lines up with the axis.
-      window.App.charts.monthly.stop();
-      window.App.charts.monthly.update('none');
+      ch.stop();
+      ch.update('none');
   } else {
       window.App.charts.monthly = new Chart(ctx, {
-        type: 'line', 
-        data: { labels: labels, datasets: [actualDataset, targetDataset] },
-        options: window._cDefaults({ 
-          layout: { padding: { top: 25 } }, 
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: window._cDefaults({
+          layout: { padding: { top: 25 } },
           plugins: {
             legend: {
               display: false
@@ -1678,18 +1892,36 @@ window.renderMonthlyChart = function(rows) {
               cornerRadius: 10,
               titleFont: { size: 13, family: 'Inter', weight: 700 },
               bodyFont: { size: 12, family: 'Inter', weight: 600 },
+              filter: function(item) {
+                // Band edges never get a line of their own; the forecast only
+                // on its own months, not the anchor joining the actual line.
+                if (item.datasetIndex >= 3) return false;
+                if (item.datasetIndex === 2) return !!(window.App._monthlyFcIdx || {})[item.dataIndex];
+                return true;
+              },
               callbacks: {
                 label: function(item) {
-                  const dsLabel = item.dataset.label || '';
                   const v = item.raw;
                   if (v === null || v === undefined) return null;
+                  if (item.datasetIndex === 2) {
+                    const fcs = window.App._monthlyFc;
+                    const kind = (window.App._monthlyFcIdx || {})[item.dataIndex];
+                    return ' ' + (kind === 'partial' ? 'Projected full month' : 'Forecast') + ': ' + window.fmt.short(v)
+                      + ' (range ' + window.fmt.short(fcs.low[item.dataIndex]) + ' – ' + window.fmt.short(fcs.high[item.dataIndex]) + ')';
+                  }
+                  const dsLabel = item.dataset.label || '';
                   return ' ' + dsLabel + ': ' + window.fmt.num(v) + ' SQ FT (' + window.fmt.short(v) + ')';
                 },
                 afterBody: function(items) {
                   if (!items || !items.length) return [];
                   const idx = items[0].dataIndex;
                   const chart = items[0].chart;
-                  const actual = chart.data.datasets[0] ? chart.data.datasets[0].data[idx] : null;
+                  const kind = (window.App._monthlyFcIdx || {})[idx];
+                  const fcDs = chart.data.datasets[2];
+                  // Future months have no actual; judge the forecast instead.
+                  const actual = kind === 'future'
+                    ? (fcDs && !fcDs.hidden ? fcDs.data[idx] : null)
+                    : (chart.data.datasets[0] ? chart.data.datasets[0].data[idx] : null);
                   const targetDs = chart.data.datasets[1];
                   const target = (targetDs && !targetDs.hidden) ? targetDs.data[idx] : null;
                   if (actual && target && target > 0) {
@@ -1699,7 +1931,7 @@ window.renderMonthlyChart = function(rows) {
                     const diffStr = diffSign + window.fmt.short(diff);
                     return [
                       '',
-                      ' Achievement: ' + pct + '% (' + diffStr + ' vs Target)'
+                      ' ' + (kind === 'future' ? 'Forecast vs target' : 'Achievement') + ': ' + pct + '% (' + diffStr + ' vs Target)'
                     ];
                   }
                   return [];
@@ -1716,21 +1948,52 @@ window.renderMonthlyChart = function(rows) {
           id: 'customLabelsMonthly',
           afterDatasetsDraw: function(chart) {
             var ctx = chart.ctx;
+            var area = chart.chartArea;
+            ctx.font = 'bold 11px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            // Keeps a label inside the plot so the first and last months don't
+            // run into the y-axis ticks or off the right edge.
+            function _put(txt, x, y, below) {
+              var half = ctx.measureText(txt).width / 2 + 2;
+              var cx = Math.max(area.left + half, Math.min(area.right - half, x));
+              ctx.textBaseline = below ? 'top' : 'bottom';
+              ctx.fillText(txt, cx, below ? y + 8 : y - 8);
+            }
+            // In the running month the actual and its full-month projection sit
+            // close together, so their labels go on opposite sides.
+            var fcIdx = window.App._monthlyFcIdx || {};
+            var fMeta = chart.getDatasetMeta(2);
+            var fcShown = !!(fMeta && !fMeta.hidden && chart.data.datasets[2]);
             var meta = chart.getDatasetMeta(0);
-            if (!meta || meta.hidden) return;
-            meta.data.forEach(function(bar, index) {
-              var val = chart.data.datasets[0].data[index];
-              if (!val) return;
-              ctx.fillStyle = window.tc();
-              ctx.font = 'bold 11px "Inter", sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'bottom';
-              ctx.fillText(window.fmt.short(val), bar.x, bar.y - 8);
-            });
+            if (meta && !meta.hidden) {
+              meta.data.forEach(function(bar, index) {
+                var val = chart.data.datasets[0].data[index];
+                if (!val) return;
+                var proj = fcShown && fcIdx[index] === 'partial' ? chart.data.datasets[2].data[index] : null;
+                ctx.fillStyle = window.tc();
+                _put(window.fmt.short(val), bar.x, bar.y, proj !== null && proj >= val);
+              });
+            }
+            // Forecast values on their own months, in the forecast colour.
+            if (fcShown) {
+              fMeta.data.forEach(function(pt, index) {
+                var kind = fcIdx[index];
+                var val = chart.data.datasets[2].data[index];
+                if (!kind || !val) return;
+                ctx.fillStyle = '#0ea5e9';
+                if (kind === 'partial') {
+                  var act = chart.data.datasets[0].data[index] || 0;
+                  _put('~' + window.fmt.short(val), pt.x, pt.y, val < act);
+                } else {
+                  _put(window.fmt.short(val), pt.x, pt.y, false);
+                }
+              });
+            }
           }
         }]
       });
   }
+  if (typeof window.refreshForecastTarget === 'function') window.refreshForecastTarget();
 };
 
 window.overviewTargetPeriod = 'month';

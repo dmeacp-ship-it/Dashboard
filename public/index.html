@@ -311,6 +311,11 @@
                   <input type="checkbox" id="toggle-monthly-target" checked style="cursor:pointer;" onchange="window.onMonthlyTargetToggle()">
                   <span>Target</span>
                 </label>
+                <label class="chart-toggle-forecast" title="Next 3 months, with the likely range shaded" style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
+                  <input type="checkbox" id="toggle-monthly-forecast" checked style="cursor:pointer;" onchange="window.onMonthlyTargetToggle()">
+                  <span style="display:inline-block; width:14px; height:0; border-top:2.5px dotted #0ea5e9;"></span>
+                  <span style="color:#0ea5e9; font-weight:700;">Forecast</span>
+                </label>
                 <label class="chart-toggle-all-time" style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; cursor:pointer; user-select:none;">
                   <input type="checkbox" id="toggle-monthly-all-time" style="cursor:pointer;" onchange="window.onMonthlyAllTimeChange()">
                   <span>All Time</span>
@@ -1638,7 +1643,7 @@
 
 <script defer src="/js/javascript.min.js?v=157fd5d5"></script>
 <script defer src="/js/javascript1.min.js?v=b21e8393"></script>
-<script defer src="/js/javascript2.min.js?v=f431d4d1"></script>
+<script defer src="/js/javascript2.min.js?v=7694bc9e"></script>
 <script defer src="/js/fms.min.js?v=1632f0aa"></script>
 
 </body>
