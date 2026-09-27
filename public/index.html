@@ -20,8 +20,8 @@
   <script defer src="https://unpkg.com/@phosphor-icons/web@2.1.2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.min.css?v=0de5a063"/>
-  <link rel="stylesheet" href="/css/fms.min.css?v=06399e35"/>
+  <link rel="stylesheet" href="/css/styles.min.css?v=39cebe1d"/>
+  <link rel="stylesheet" href="/css/fms.min.css?v=8c3020f2"/>
 </head>
 
 <body>
@@ -33,7 +33,7 @@
 
 <style>
   #login-screen { position: fixed; inset: 0; z-index: 100000; display: none; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(1100px 560px at 72% -12%, rgba(79,70,229,0.18), transparent), var(--bg-body); }
-  .login-card { width: 100%; max-width: 384px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px 28px; box-shadow: var(--shadow-lg); animation: loginRise 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+  .login-card { width: 100%; max-width: 384px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px 28px; box-shadow: var(--shadow-lg); animation: loginRise 0.45s var(--ease-out) both; }
   @keyframes loginRise { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: none; } }
   .login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
   .login-logo { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-primary), var(--brand-hover)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; }
@@ -195,7 +195,7 @@
           <div id="sidebar-user-name" style="font-size:12.5px;font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;"></div>
           <div id="sidebar-user-role" style="font-size:10.5px;color:var(--text-muted);"></div>
         </div>
-        <div onclick="window.doLogout()" title="Sign Out" style="cursor: pointer; padding: 6px; border-radius: 8px; color: var(--text-muted); transition: all var(--t-fast); flex-shrink: 0; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(239,68,68,0.1)'; this.style.color='#ef4444';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-muted)';">
+        <div onclick="window.doLogout()" title="Sign Out" style="cursor: pointer; padding: 6px; border-radius: 8px; color: var(--text-muted); transition: background-color var(--t-fast), color var(--t-fast); flex-shrink: 0; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(239,68,68,0.1)'; this.style.color='#ef4444';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-muted)';">
           <i class="ph ph-sign-out" style="font-size: 20px;"></i>
         </div>
       </div>
@@ -219,11 +219,11 @@
       <div class="header-right">
         <span id="last-updated-val" style="font-size:10px;color:var(--text4);font-weight:600;white-space:nowrap;display:none"></span>
         
-        <button id="copilot-toggle-btn" onclick="toggleCopilot()" title="Virgo AI Copilot" style="background:var(--brand-muted);border:1px solid var(--brand-primary);color:var(--brand-primary);cursor:pointer;font-size:18px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
+        <button id="copilot-toggle-btn" onclick="toggleCopilot()" title="Virgo AI Copilot" style="background:var(--brand-muted);border:1px solid var(--brand-primary);color:var(--brand-primary);cursor:pointer;font-size:18px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background-color 0.22s ease,color 0.22s ease,border-color 0.22s ease,transform 0.22s ease;box-shadow:var(--shadow-xs);">
           <i class="ph ph-sparkle"></i>
         </button>
 
-        <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="position:relative;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all 0.22s ease;box-shadow:var(--shadow-xs);">
+        <button id="filter-toggle-btn" onclick="toggleFilters()" title="Toggle Filters" style="position:relative;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:16px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background-color 0.22s ease,color 0.22s ease,border-color 0.22s ease,transform 0.22s ease;box-shadow:var(--shadow-xs);">
           <i class="ph ph-funnel"></i>
           <span id="filter-active-dot" style="display:none;position:absolute;top:-1px;right:-1px;width:9px;height:9px;background:var(--brand-primary);border:2px solid var(--bg-surface);border-radius:50%;"></span>
         </button>
@@ -1391,7 +1391,7 @@
           font-weight: 600;
           font-size: 13px;
           color: var(--text3);
-          transition: all 0.2s ease;
+          transition: background-color 0.2s ease, color 0.2s ease;
         }
         .settings-tab:hover {
           background: var(--surface2);
@@ -1636,9 +1636,9 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=52b69cc7"></script>
+<script defer src="/js/javascript.min.js?v=a44cb924"></script>
 <script defer src="/js/javascript1.min.js?v=b21e8393"></script>
-<script defer src="/js/javascript2.min.js?v=92fab090"></script>
+<script defer src="/js/javascript2.min.js?v=e80cc9c2"></script>
 <script defer src="/js/fms.min.js?v=1632f0aa"></script>
 
 </body>
