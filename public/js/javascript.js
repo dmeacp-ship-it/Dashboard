@@ -274,27 +274,39 @@ window._settleViewTransition = function (vt) {
   return vt;
 };
 
-window.toggleTheme = function(event) { 
+window.toggleTheme = function(event) {
   const targetTheme = window.theme() === 'dark' ? 'light' : 'dark';
-  
+
   if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     window.applyTheme(targetTheme);
     return;
   }
-  
+
+  // The reveal grows out of the switch. A keyboard-triggered click reports
+  // clientX/Y of 0 (event.detail is 0 then), which started the circle in the
+  // top-left corner, so fall back to the centre of the control itself.
   let x = window.innerWidth - 40;
   let y = 30;
-  if (event && event.clientX !== undefined) {
+  const src = event && event.currentTarget && event.currentTarget.getBoundingClientRect ? event.currentTarget : document.querySelector('.theme-switch');
+  if (event && event.detail > 0 && event.clientX !== undefined) {
     x = event.clientX;
     y = event.clientY;
+  } else if (src) {
+    const r = src.getBoundingClientRect();
+    if (r.width) { x = r.left + r.width / 2; y = r.top + r.height / 2; }
   }
-  
-  document.documentElement.style.setProperty('--x', `${x}px`);
-  document.documentElement.style.setProperty('--y', `${y}px`);
-  
-  window._settleViewTransition(document.startViewTransition(function() {
+
+  const root = document.documentElement;
+  root.style.setProperty('--x', `${x}px`);
+  root.style.setProperty('--y', `${y}px`);
+  // Scopes the circular reveal in CSS to this transition only.
+  root.classList.add('theme-vt');
+
+  const vt = window._settleViewTransition(document.startViewTransition(function() {
     window.applyTheme(targetTheme);
   }));
+  const done = function() { root.classList.remove('theme-vt'); };
+  if (vt && vt.finished) vt.finished.then(done, done); else done();
 };
 
 window.initTheme = function() {
@@ -507,9 +519,42 @@ window.toast = function(msg, type, dur) {
   const t = document.createElement('div');
   t.className = 'toast ' + (type || 'info');
   const duration = dur || 4000;
-  t.innerHTML = '<i class="ph ' + (icons[type || 'info']) + '"></i><span>' + msg + '</span><div class="toast-progress" style="animation-duration: ' + duration + 'ms"></div>';
+  t.innerHTML = '<i class="ph ' + (icons[type || 'info']) + '"></i><span>' + msg + '</span>'
+    + '<button type="button" class="toast-x" aria-label="Dismiss" title="Dismiss"><i class="ph ph-x"></i></button>'
+    + '<div class="toast-progress" style="animation-duration: ' + duration + 'ms"></div>';
   w.appendChild(t);
-  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, duration);
+
+  // The countdown pauses while the pointer is on the toast, in step with the
+  // progress bar (paused by CSS on :hover), so a message someone is reading
+  // doesn't vanish under the cursor. A click anywhere on it dismisses it.
+  let remaining = duration, startedAt = Date.now(), gone = false;
+  let timer = setTimeout(dismiss, remaining);
+
+  function dismiss() {
+    if (gone) return;
+    gone = true;
+    clearTimeout(timer);
+    // The out animation pulls the margin up by this much, so the toasts
+    // around it close the gap instead of jumping. 10px is #toast-wrap's gap.
+    t.style.setProperty('--toast-h', (t.offsetHeight + 10) + 'px');
+    t.classList.add('toast-out');
+    let removed = false;
+    const remove = function() { if (removed) return; removed = true; if (t.parentNode) t.parentNode.removeChild(t); };
+    t.addEventListener('animationend', function(e) { if (e.target === t && e.animationName === 'toastOut') remove(); });
+    setTimeout(remove, 400);   // reduced motion, or an animationend that never comes
+  }
+
+  t.addEventListener('mouseenter', function() {
+    if (gone) return;
+    clearTimeout(timer);
+    remaining -= Date.now() - startedAt;
+  });
+  t.addEventListener('mouseleave', function() {
+    if (gone) return;
+    startedAt = Date.now();
+    timer = setTimeout(dismiss, Math.max(remaining, 600));
+  });
+  t.addEventListener('click', dismiss);
 };
 
 window.loading = function(show, block, isProgress) {
@@ -673,6 +718,91 @@ window.fmt = {
   currency: function(v) { return '₹' + window.fmt.short(v); }
 };
 
+window._reducedMotion = function() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+};
+
+// Redraws a chart after its data changed: bars and lines move from the old
+// values to the new ones (the 'morph' transition in _cDefaults) instead of
+// snapping, so a filter change shows *what* changed.
+window._chartUpdate = function(ch) {
+  ch.update(window._reducedMotion() ? 'none' : 'morph');
+};
+
+/* ── KPI figures counting to their new value ──────────────────────────────────
+   Take a snapshot of the grid before re-rendering it, then hand both to
+   _kpiAnimate. Each figure whose text changed counts from the old number to
+   the new one (~0.55s) and its card gets one soft ring, so a filter's effect
+   is seen rather than missed. Only a figure whose unit is unchanged counts
+   ("4.2L" -> "4.8L"); a unit change ("980.0K" -> "1.1L") simply swaps. Keyed
+   by card label, so a reordered grid still pairs old and new correctly. */
+window._kpiKey = function(card) {
+  const l = card.querySelector('.kpi-label');
+  return l ? l.textContent.trim() : '';
+};
+
+window._kpiSnapshot = function(grid) {
+  const snap = new Map();
+  if (!grid) return snap;
+  grid.querySelectorAll('.kpi-card').forEach(function(card) {
+    const key = window._kpiKey(card);
+    if (!key) return;
+    card.querySelectorAll('.kpi-value').forEach(function(v, j) { snap.set(key + '#' + j, v.textContent); });
+  });
+  return snap;
+};
+
+window._kpiAnimate = function(grid, snap) {
+  if (!grid || !snap || !snap.size) return;
+  const reduce = window._reducedMotion();
+  const NUM = /-?\d[\d,]*(?:\.\d+)?/;
+  const jobs = [];
+
+  grid.querySelectorAll('.kpi-card').forEach(function(card) {
+    const key = window._kpiKey(card);
+    let changed = false;
+    card.querySelectorAll('.kpi-value').forEach(function(v, j) {
+      const before = snap.get(key + '#' + j);
+      const after = v.textContent;
+      if (before === undefined || before === after) return;
+      changed = true;
+      if (reduce) return;
+      const mb = before.match(NUM), ma = after.match(NUM);
+      if (!mb || !ma) return;
+      const pre = after.slice(0, ma.index), post = after.slice(ma.index + ma[0].length);
+      if (before.slice(0, mb.index) !== pre || before.slice(mb.index + mb[0].length) !== post) return;
+      const from = parseFloat(mb[0].replace(/,/g, '')), to = parseFloat(ma[0].replace(/,/g, ''));
+      if (!isFinite(from) || !isFinite(to)) return;
+      const dec = (ma[0].split('.')[1] || '').length;
+      jobs.push({
+        el: v, from: from, to: to, pre: pre, post: post, final: after,
+        fmt: new Intl.NumberFormat('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: ma[0].indexOf(',') !== -1 })
+      });
+    });
+    if (changed) {
+      card.classList.add('kpi-changed');
+      card.addEventListener('animationend', function done(e) {
+        if (e.animationName !== 'kpiChanged') return;
+        card.classList.remove('kpi-changed');
+        card.removeEventListener('animationend', done);
+      });
+    }
+  });
+
+  if (!jobs.length) return;
+  const start = performance.now(), dur = 550;
+  jobs.forEach(function(j) { j.el.textContent = j.pre + j.fmt.format(j.from) + j.post; });
+  requestAnimationFrame(function step(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const e = 1 - Math.pow(1 - t, 3);
+    jobs.forEach(function(j) {
+      if (!j.el.isConnected) return;
+      j.el.textContent = t < 1 ? j.pre + j.fmt.format(j.from + (j.to - j.from) * e) + j.post : j.final;
+    });
+    if (t < 1) requestAnimationFrame(step);
+  });
+};
+
 window.fmtK = function(v) {
   const x = Math.round(Number(v) || 0);
   if (x >= 10000000) return Math.round(x / 10000000) + 'Cr';
@@ -681,8 +811,33 @@ window.fmtK = function(v) {
   return String(x);
 };
 
+// Placeholder rows shaped like data (a shimmer bar per cell) rather than one
+// "Loading data..." line, so the table keeps its height and rhythm while it
+// loads. The .tbl-loading-row class is what the row-entrance logic in
+// initMicroInteractions keys off, and what the CSV scraper skips.
+// Pins a button at its current width before its label is swapped for a
+// spinner ("Saving..."), so the button and whatever sits beside it stay put.
+window._lockWidth = function(btn) {
+  if (!btn || !btn.offsetWidth) return;
+  btn.style.minWidth = btn.offsetWidth + 'px';
+  btn.style.justifyContent = 'center';
+};
+
+window._SKEL_W = [62, 84, 48, 70, 56, 78, 44, 66];
 window._loadingRow = function(cols) {
-  return '<tr><td colspan="' + cols + '" style="text-align:center;padding:40px;color:var(--text-muted)"><i class="ph ph-hourglass" style="font-size:24px;margin-bottom:8px;display:block"></i>Loading data...</td></tr>';
+  cols = Math.max(1, cols | 0);
+  let html = '';
+  for (let r = 0; r < 8; r++) {
+    let tds = '';
+    for (let c = 0; c < cols; c++) {
+      const w = c === 0 && cols > 1 ? '14px' : window._SKEL_W[(r * 3 + c * 5) % window._SKEL_W.length] + '%';
+      tds += '<td><span class="skel-bar" style="width:' + w + '"></span>'
+        + (r === 0 && c === 0 ? '<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Loading data…</span>' : '')
+        + '</td>';
+    }
+    html += '<tr class="tbl-loading-row skel-row" aria-busy="true">' + tds + '</tr>';
+  }
+  return html;
 };
 
 window._emptyRow = function(cols, msg) {
@@ -838,6 +993,8 @@ window.saveConnections = function(event) {
   if (connections.length > 0 && !activeId) activeId = connections[0].id;
   
   const oldHtml = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner" style="animation:spinCW 1s linear infinite;"></i> Saving...';
   window.api('updateConnections', { connectionData: { activeId, connections } }).then(function() {
     window.toast('Connections saved! The dashboard will now use the active database.', 'success');
@@ -1125,6 +1282,8 @@ window.fetchTabsForBuilder = async function(btn) {
   if (!sheetId) return window.toast('Please enter a Sheet ID first', 'error');
   
   const oldHtml = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner spin"></i>';
   btn.disabled = true;
   
@@ -1160,6 +1319,8 @@ window.fetchColumnsForBuilder = async function(btn) {
   }
   
   const oldHtml = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner spin"></i>';
   btn.disabled = true;
   
@@ -1251,6 +1412,8 @@ window.saveGoogleSheetsConfig = function() {
   };
   
   const oldHtml = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner" style="animation:spinCW 1s linear infinite;"></i> Saving...';
   window.api('updateSettings', { configValue: configValue }).then(function() {
     window.toast('Configuration saved successfully!', 'success');
@@ -1300,7 +1463,10 @@ window.exportTableToCSV = async function(theadId, tbodyId, filename) {
     window.toast('Export failed: ' + (e && e.message ? e.message : e), 'error');
   } finally {
     window.App.exportAll = prev;
+    // Restoring the paged view is not new data, so its rows don't animate in.
+    window._rowIntroMuted = true;
     try { await meta.reload(); } catch (e) {}   // restore paged view
+    window._rowIntroMuted = false;
   }
 };
 
@@ -1348,6 +1514,7 @@ window._scrapeTableToCSV = function(theadId, tbodyId, filename) {
   if (!tbody) { window.toast('No table data to export.', 'error'); return; }
 
   tbody.querySelectorAll('tr').forEach(function(tr) {
+    if (tr.classList.contains('tbl-loading-row')) return;
     const tds = tr.querySelectorAll('td');
     if (!tds.length || (tds.length === 1 && tds[0].hasAttribute('colspan'))) return;
     const cells = [];
@@ -1378,6 +1545,30 @@ window._downloadCSV = function(rows, filename, count) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   window.toast('Exported ' + count + ' rows successfully.', 'success');
+  window._flashDone();
+};
+
+// The export button that was clicked last (recorded on click, since the
+// export handlers are inline onclick="..." calls that don't receive it).
+window._lastExportBtn = null;
+document.addEventListener('click', function(e) {
+  const b = e.target.closest && e.target.closest('.btn');
+  if (b && b.querySelector('.ph-download-simple')) window._lastExportBtn = b;
+}, true);
+
+// Briefly swaps the export button's download icon for a tick once the file
+// has actually been handed to the browser.
+window._flashDone = function(btn) {
+  btn = btn || window._lastExportBtn;
+  if (!btn || !btn.isConnected || btn.classList.contains('btn-done')) return;
+  const icon = btn.querySelector('i.ph-download-simple');
+  if (!icon) return;
+  icon.classList.replace('ph-download-simple', 'ph-check');
+  btn.classList.add('btn-done');
+  setTimeout(function() {
+    icon.classList.replace('ph-check', 'ph-download-simple');
+    btn.classList.remove('btn-done');
+  }, 1400);
 };
 
 window.formatAIResponse = function(text) {
@@ -1542,12 +1733,12 @@ window.applyRoleSimulation = function() {
   if (window.debouncedCacheUpdate) window.debouncedCacheUpdate();
 };
 
+// Page switches no longer go through a view transition: while one runs the
+// page cannot be clicked, and with the theme's reveal applied to it that was
+// ~1s of dead clicks after every sidebar tap. The incoming page's own short
+// CSS entrance (pageEnter) carries the motion instead.
 window.navigate = function(pageId) {
-  if (document.startViewTransition) {
-    window._settleViewTransition(document.startViewTransition(function() { window._doNavigate(pageId); }));
-  } else {
-    window._doNavigate(pageId);
-  }
+  window._doNavigate(pageId);
 };
 
 window._doNavigate = function(pageId) {
@@ -1561,8 +1752,6 @@ window._doNavigate = function(pageId) {
     el.classList.toggle('active', el.id === 'page-' + pageId);
   });
   
-  const activePage = document.getElementById('page-' + pageId);
-  if (activePage) setTimeout(() => activePage.classList.add('visited'), 500);
 
   const lb = document.querySelector('[data-page="' + pageId + '"] .nav-label');
   const pt = document.getElementById('page-title');
@@ -1697,12 +1886,40 @@ window.actionSyncTargets = function(e) {
   );
 };
 
+// Pinning the rail animates its width, which resizes #main on every frame, and
+// Chart.js answered every one of those frames with a full redraw -- measured
+// 6.6ms average, 14ms peak for the two Overview charts, most of a 16.7ms
+// frame. While the rail moves, charts skip their resize and the canvases are
+// stretched with their cards instead (CSS: #app.sb-resizing canvas); one real
+// resize at the end redraws them sharp at the final size.
+window._freezeChartsDuring = function(ms) {
+  if (typeof Chart === 'undefined' || !Chart.prototype || window._reducedMotion()) return;
+  if (!Chart.prototype._acpOrigResize) {
+    const orig = Chart.prototype.resize;
+    Chart.prototype._acpOrigResize = orig;
+    Chart.prototype.resize = function(w, h) {
+      if (window._chartsFrozen) return;
+      return orig.call(this, w, h);
+    };
+  }
+  const app = document.getElementById('app');
+  clearTimeout(window._chartsFrozenT);
+  window._chartsFrozen = true;
+  if (app) app.classList.add('sb-resizing');
+  window._chartsFrozenT = setTimeout(function() {
+    window._chartsFrozen = false;
+    if (app) app.classList.remove('sb-resizing');
+    Object.values(Chart.instances || {}).forEach(function(c) { try { c.resize(); } catch (e) {} });
+  }, ms);
+};
+
 window.toggleSidebar = function() {
   const sb = document.getElementById('sidebar');
   if (window.innerWidth <= 900) {
     sb.classList.toggle('mobile-open');
     sb.classList.remove('pinned');
   } else {
+    window._freezeChartsDuring(360);   // rail width transition is 0.32s
     sb.classList.toggle('pinned');
   }
   if (window.updateNavIndicator) setTimeout(window.updateNavIndicator, 250);
@@ -1833,6 +2050,7 @@ window.exportUsersCSV = function() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  window._flashDone();
 };
 
 window.loadUsers = async function() {
@@ -2142,6 +2360,7 @@ window._laDownload = function(filename, lines) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  window._flashDone();
 };
 
 window.exportLoginSummaryCSV = function() {
@@ -2562,6 +2781,8 @@ window.submitEditUser = function() {
   
   var btn = document.querySelector('#edit-user-modal .btn-primary');
   var origText = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner spin"></i> Saving...';
   btn.disabled = true;
   
@@ -2592,6 +2813,8 @@ window.updateMyPassword = function() {
 
   var btn = document.querySelector('#tab-account .btn-primary');
   var origText = btn.innerHTML;
+  window._lockWidth(btn);
+
   btn.innerHTML = '<i class="ph ph-spinner spin"></i> Updating...';
   btn.disabled = true;
 
@@ -2755,33 +2978,61 @@ document.addEventListener('click', function(e) {
   }
 });
 
-window.updateNavIndicator = function() {
-  const activeItem = document.querySelector('nav > .nav-item.active');
+// The highlight pill behind the active sidebar item. A page that lives in a
+// group's popover (Target & Achievement, Sales Analysis, ...) puts the pill on
+// that group's button instead -- the popover item is not in the rail -- and
+// marks the button active, so the rail always shows where you are. Custom
+// reports sit in a wrapper div rather than directly in <nav>; positions come
+// from bounding rects, so any depth works.
+window.updateNavIndicator = function(instant) {
   const indicator = document.getElementById('nav-indicator');
-  if (indicator) {
-    if (activeItem) {
-      indicator.style.opacity = '1';
-      indicator.style.top = activeItem.offsetTop + 'px';
-      indicator.style.height = activeItem.offsetHeight + 'px';
-    } else {
-      indicator.style.opacity = '0';
-    }
+  if (!indicator) return;
+  const nav = indicator.parentElement;
+  document.querySelectorAll('.nav-group-btn.has-active').forEach(function(b) { b.classList.remove('has-active'); });
+
+  const active = nav.querySelector('.nav-item.active');
+  let target = active;
+  if (active && active.closest('.nav-submenu')) {
+    const wrap = active.closest('.nav-group-wrapper');
+    target = wrap ? wrap.querySelector('.nav-group-btn') : null;
+    if (target) target.classList.add('has-active');
   }
+  if (!target || !target.offsetParent) {
+    indicator.style.opacity = '0';
+    return;
+  }
+
+  const y = target.getBoundingClientRect().top - nav.getBoundingClientRect().top;
+  // First placement (or after being hidden, or on resize) jumps straight to
+  // the item; only moves between items slide.
+  const jump = instant === true || indicator.style.opacity !== '1';
+  if (jump) indicator.classList.add('no-anim');
+  indicator.style.transform = 'translateY(' + y + 'px)';
+  indicator.style.height = target.offsetHeight + 'px';
+  indicator.style.opacity = '1';
+  if (jump) { void indicator.offsetWidth; indicator.classList.remove('no-anim'); }
 };
 
 window.initMicroInteractions = function() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   // 1. Initial nav indicator draw
   setTimeout(window.updateNavIndicator, 400);
-  
+
   // Update indicator on window resize
-  window.addEventListener('resize', window.updateNavIndicator);
+  window.addEventListener('resize', function() { window.updateNavIndicator(true); });
 
   // 2. 3D Tilt and Shine effect on KPI cards
+  //
+  // Mouse and trackpad only: on a touch screen the emulated mouseenter left a
+  // tapped card tilted until the next tap somewhere else.
+  const canTilt = !reduceMotion && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   const initKpiTilt = () => {
+    if (!canTilt) return;
     document.querySelectorAll('.kpi-card').forEach(card => {
       if (card.classList.contains('tilt-enabled')) return;
       card.classList.add('tilt-enabled');
-      
+
       // The rect is read once per hover rather than once per mousemove, and the
       // write is deferred to the next frame — pointers fire well above the
       // display refresh rate, so the extra reads forced layout for pixels that
@@ -2796,13 +3047,15 @@ window.initMicroInteractions = function() {
         const xc = rect.width / 2;
         const yc = rect.height / 2;
 
-        // Tilt rotation: max 4.5 degrees
-        const rx = -((y - yc) / yc) * 4.5;
-        const ry = ((x - xc) / xc) * 4.5;
+        // Tilt rotation: max 2 degrees. Enough for the card to answer the
+        // cursor; at 4.5deg plus a 2% scale the figures -- the thing being
+        // read -- went soft while hovered.
+        const rx = -((y - yc) / yc) * 2;
+        const ry = ((x - xc) / xc) * 2;
 
         // translateY(-5px) reproduces the .kpi-card:hover lift, which this
         // inline transform would otherwise override and silently kill.
-        card.style.transform = `perspective(1000px) translateY(-5px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+        card.style.transform = `perspective(1000px) translateY(-5px) rotateX(${rx}deg) rotateY(${ry}deg)`;
         card.style.setProperty('--shine-x', `${(x / rect.width) * 100}%`);
         card.style.setProperty('--shine-y', `${(y / rect.height) * 100}%`);
       };
@@ -2831,52 +3084,153 @@ window.initMicroInteractions = function() {
       });
     });
   };
-  
+
   initKpiTilt();
-  
-  // 3. MutationObserver to auto-inject stagger index to table rows and also re-init KPI tilts if page changes
+
+  // 3. Table rows entering, and KPI tilt re-init when cards are re-rendered.
   //
-  // A row's stagger index is read off its previous sibling (O(1) per row). The
-  // previous version rebuilt Array.from(parent.children) and called indexOf()
-  // for every row, i.e. O(n^2) on the main thread: measured 388ms for 1000 rows
-  // and 1382ms for 2000, blocking paint on every render, filter and scroll
-  // chunk. Rows arrive in document order, so the predecessor is always tagged
-  // by the time we reach the next one.
-  const tagRow = row => {
-    const prev = row.previousElementSibling;
-    const prevIdx = prev ? prev.style.getPropertyValue('--row-index') : '';
-    row.style.setProperty('--row-index', prevIdx === '' ? 0 : parseInt(prevIdx, 10) + 1);
-    row.classList.add('stagger-row');
-  };
+  // Rows animate in only when they replace a loading placeholder
+  // (_loadingRow, .tbl-loading-row) that was on screen long enough to be
+  // seen. Everything else lands instantly:
+  //   - rows appended while scrolling (they used to sit blank for 0.7s),
+  //   - client-side sorts, searches and filters that re-render in place,
+  //   - data served from cache, which replaces the placeholder within a few
+  //     ms -- there was no wait, so there is nothing to soften.
+  // The placeholder's arrival time is keyed by the tbody's id when it has one,
+  // so a table rebuilt wholesale still matches its own placeholder.
+  const INTRO_MIN_WAIT = 150;
+  const loadingSince = new Map();
+  const bodyKey = tb => (tb.id ? '#' + tb.id : tb);
+  const isRow = n => n.nodeType === 1 && n.tagName === 'TR';
 
   const observer = new MutationObserver(mutations => {
     let checkKpis = false;
+    const now = performance.now();
     // While exporting, the table is inflated to every row purely so the CSV
     // scraper can read it. Animating rows nobody will see is wasted work.
-    const exporting = !!(window.App && window.App.exportAll);
-    mutations.forEach(mutation => {
-      if (mutation.type === 'childList') {
-        mutation.addedNodes.forEach(node => {
-          if (node.tagName === 'TR') {
-            if (!exporting && node.parentNode) tagRow(node);
-          } else if (node.querySelectorAll) {
-            if (!exporting) node.querySelectorAll('tbody tr').forEach(tagRow);
-            if (node.querySelector('.kpi-card') || node.classList.contains('kpi-card')) {
-              checkKpis = true;
-            }
-          }
-        });
+    const muted = reduceMotion || window._rowIntroMuted || !!(window.App && window.App.exportAll);
+    const nextIdx = new Map();
+
+    const onRows = (tbody, rows) => {
+      const key = bodyKey(tbody);
+      const data = [];
+      rows.forEach(r => {
+        if (r.classList.contains('tbl-loading-row')) { if (!loadingSince.has(key)) loadingSince.set(key, now); }
+        else data.push(r);
+      });
+      if (!data.length || !loadingSince.has(key)) return;
+      const waited = now - loadingSince.get(key);
+      if (!nextIdx.has(key)) nextIdx.set(key, 0);
+      if (!muted && waited >= INTRO_MIN_WAIT) {
+        let i = nextIdx.get(key);
+        data.forEach(r => { r.style.setProperty('--row-index', i++); r.classList.add('stagger-row'); });
+        nextIdx.set(key, i);
       }
+    };
+
+    mutations.forEach(mutation => {
+      if (mutation.type !== 'childList') return;
+      const rows = [];
+      mutation.addedNodes.forEach(node => {
+        if (isRow(node)) { rows.push(node); return; }
+        if (node.nodeType !== 1) return;
+        if (node.tagName === 'TBODY') onRows(node, Array.from(node.rows));
+        else if (node.firstElementChild) node.querySelectorAll('tbody').forEach(tb => onRows(tb, Array.from(tb.rows)));
+        if (node.classList.contains('kpi-card') || (node.firstElementChild && node.querySelector('.kpi-card'))) checkKpis = true;
+      });
+      if (rows.length && mutation.target.tagName === 'TBODY') onRows(mutation.target, rows);
     });
+
+    // A placeholder is used up once its data has arrived; later appends to the
+    // same table (scroll chunks) start from no placeholder and land instantly.
+    nextIdx.forEach((_, key) => loadingSince.delete(key));
 
     if (checkKpis) {
       initKpiTilt();
     }
   });
-  
+
   const content = document.getElementById('content');
   if (content) {
     observer.observe(content, { childList: true, subtree: true });
+  }
+
+  // 4. Segmented toggles: a pill that slides to the active option.
+  //
+  // Applies to any .btn-group holding exactly one .btn-primary (the app's
+  // convention for "this option is selected"). The pill is appended last so
+  // the buttons' :nth-child rules (the short phone labels) are unaffected.
+  // Placement is instant on first sight and on resize -- a page becoming
+  // visible reports as a resize from zero -- and animated on a class change.
+  const placePill = (group, instant) => {
+    let pill = group.querySelector(':scope > .seg-pill');
+    const active = group.querySelectorAll(':scope > .btn.btn-primary');
+    if (active.length !== 1) {
+      group.classList.remove('has-pill');
+      if (pill) pill.style.opacity = '0';
+      return;
+    }
+    if (!group.offsetParent) return;          // hidden page; the resize observer catches it when shown
+    const btn = active[0];
+    if (!pill) {
+      pill = document.createElement('span');
+      pill.className = 'seg-pill';
+      pill.setAttribute('aria-hidden', 'true');
+      group.appendChild(pill);
+      instant = true;
+    }
+    if (!group.classList.contains('has-pill') || pill.style.opacity === '0') instant = true;
+    group.classList.add('has-pill');          // makes the group the offsetParent before measuring
+    if (instant) pill.classList.add('no-anim');
+    pill.style.width = btn.offsetWidth + 'px';
+    pill.style.height = btn.offsetHeight + 'px';
+    pill.style.transform = 'translate(' + btn.offsetLeft + 'px,' + btn.offsetTop + 'px)';
+    pill.style.opacity = '1';
+    if (instant) { void pill.offsetWidth; pill.classList.remove('no-anim'); }
+  };
+
+  const seen = new WeakSet();
+  const ro = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(entries => entries.forEach(en => placePill(en.target, true)))
+    : null;
+  const watchGroup = g => {
+    if (seen.has(g)) return;
+    seen.add(g);
+    if (ro) ro.observe(g); else placePill(g, true);
+  };
+  document.querySelectorAll('.btn-group').forEach(watchGroup);
+
+  let pending = new Set(), pillFrame = 0;
+  const flushPills = () => {
+    pillFrame = 0;
+    const groups = pending; pending = new Set();
+    groups.forEach(g => { if (g.isConnected) { watchGroup(g); placePill(g, false); } });
+  };
+  const queue = g => { pending.add(g); if (!pillFrame) pillFrame = requestAnimationFrame(flushPills); };
+
+  if (content) {
+    new MutationObserver(muts => {
+      muts.forEach(m => {
+        const t = m.target;
+        if (m.type === 'attributes') {
+          const p = t.parentElement;
+          if (p && p.classList.contains('btn-group') && t.classList.contains('btn')) queue(p);
+          return;
+        }
+        // Buttons injected into an existing group, or new groups rendered.
+        if (t.classList && t.classList.contains('btn-group')) {
+          for (let i = 0; i < m.addedNodes.length; i++) {
+            const n = m.addedNodes[i];
+            if (n.nodeType === 1 && !n.classList.contains('seg-pill')) { queue(t); break; }
+          }
+        }
+        m.addedNodes.forEach(n => {
+          if (n.nodeType !== 1) return;
+          if (n.classList.contains('btn-group')) queue(n);
+          else if (n.firstElementChild) n.querySelectorAll('.btn-group').forEach(queue);
+        });
+      });
+    }).observe(content, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   }
 };
 

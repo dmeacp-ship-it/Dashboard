@@ -844,7 +844,11 @@ window._cDefaults = function(extra) {
   extra = extra || {};
   const scales = Object.assign({ x: { ticks: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 600 } }, grid: { color: window.gc(), drawBorder: false } }, y: { ticks: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 600 } }, grid: { color: window.gc(), drawBorder: false } } }, extra.scales || {});
   return Object.assign({
-    responsive: true, maintainAspectRatio: false, animation: { duration: 700, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false },
+    responsive: true, maintainAspectRatio: false,
+    animation: window._reducedMotion() ? false : { duration: 700, easing: 'easeOutQuart' },
+    // Used by _chartUpdate when data changes on an existing chart.
+    transitions: { morph: { animation: { duration: 450, easing: 'easeOutCubic' } } },
+    interaction: { mode: 'index', intersect: false },
     plugins: { legend: { labels: { color: window.tc(), font: { size: 11.5, family: 'Inter', weight: 700 }, usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: window.ttBg(), titleColor: window.ttTitle(), bodyColor: window.tc(), borderColor: window.ttBorder(), borderWidth: 1, padding: 12, cornerRadius: 10, titleFont: { size: 13, family: 'Inter', weight: 700 }, bodyFont: { size: 12, family: 'Inter', weight: 600 } } },
     scales: scales
   }, extra);
@@ -939,7 +943,7 @@ window.renderParetoChart = function(rows) {
       window.App.charts.pareto.data.labels = chartRows.map(r => r.ITEM_CODE);
       window.App.charts.pareto.data.datasets[0].data = chartCum;
       window.App.charts.pareto.data.datasets[1].data = chartRows.map(r => r.TOTAL_SQFT);
-      window.App.charts.pareto.update('none');
+      window._chartUpdate(window.App.charts.pareto);
   } else {
       window.App.charts.pareto = new Chart(ctx, {
         type: 'bar',
@@ -1195,6 +1199,9 @@ window.renderKPIs = function(k, monthly) {
   const kpiGrid = document.getElementById('kpi-grid');
   if (!kpiGrid) return;
   if (window.App.charts.custDonut) { try { window.App.charts.custDonut.destroy(); } catch(e) {} window.App.charts.custDonut = null; }
+
+  // Figures on screen now, so the new ones can count up from them.
+  const kpiBefore = window._kpiSnapshot(kpiGrid);
 
   kpiGrid.innerHTML =
 
@@ -1543,6 +1550,8 @@ window.renderKPIs = function(k, monthly) {
       ${osRow('#ef4444', '90+ Days',  k.os90Count||0,     os90)}
     </div>
   </div>`;
+
+  window._kpiAnimate(kpiGrid, kpiBefore);
 };
 
 window.onMonthlyAllTimeChange = function() {
@@ -1869,9 +1878,11 @@ window.renderMonthlyChart = function(rows) {
       ch.options.scales.y.ticks.color = window.tc();
       // Targets usually land while the first draw is still animating. Left
       // running, that animation keeps drawing the actual line against the old
-      // (targetless) y-scale, so it no longer lines up with the axis.
+      // (targetless) y-scale, so it no longer lines up with the axis. Stopping
+      // it first means the morph starts from wherever the line is now and
+      // ends on the new scale.
       ch.stop();
-      ch.update('none');
+      window._chartUpdate(ch);
   } else {
       window.App.charts.monthly = new Chart(ctx, {
         type: 'line',
@@ -2564,7 +2575,7 @@ window.renderQoQChart = function(monthly) {
       window.App.charts.fy.data.datasets = datasets; 
       window.App.charts.fy.options.scales.x.ticks.color = window.tc();
       window.App.charts.fy.options.scales.y.ticks.color = window.tc();
-      window.App.charts.fy.update('none');
+      window._chartUpdate(window.App.charts.fy);
   } else {
       window.App.charts.fy = new Chart(ctx, {
         type: 'bar', 
@@ -2730,11 +2741,18 @@ window._updateFilterBadge = function() {
       activeCount++;
     }
   });
+  // The dot shows how many filters are on, and pops when that number changes.
+  const prev = dot.textContent;
   if (activeCount > 0) {
     dot.style.display = 'block';
+    dot.textContent = String(activeCount);
+    dot.classList.add('has-count');
     dot.title = activeCount + ' active filter' + (activeCount > 1 ? 's' : '');
+    if (prev !== dot.textContent) { dot.classList.remove('pop'); void dot.offsetWidth; dot.classList.add('pop'); }
   } else {
     dot.style.display = 'none';
+    dot.textContent = '';
+    dot.classList.remove('has-count', 'pop');
   }
 };
 
@@ -2835,6 +2853,7 @@ window.navigateCustomReport = function(idx, name) {
   if (ct) ct.innerHTML = `<i class="ph ph-table"></i> ${name}`;
   
   window.App.currentPage = `custom-report-${idx}`;
+  if (window.updateNavIndicator) window.updateNavIndicator();
   
   if (window.innerWidth <= 900) {
     const sb = document.getElementById('sidebar');
