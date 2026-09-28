@@ -1553,74 +1553,31 @@ window.renderKPIs = function(k, monthly) {
   // ── TARGET VS ACHIEVEMENT (current month) ────────────────────────────────
   // Targets arrive after the KPIs, so the card renders empty and
   // window.refreshTargetKpi fills it in whenever they are available.
-  const tgtNow = (function() {
-    let d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
-    if (isNaN(d.getTime())) d = new Date();
-    d.setDate(d.getDate() - 1);   // data is N-1
-    const latestSk = sortedM[0] ? window.getSortKey(sortedM[0]).slice(0, 7) : '';
-    const dSk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    return dSk === latestSk ? { fraction: d.getDate() / dim, daysLeft: dim - d.getDate() } : { fraction: 1, daysLeft: 0 };
-  })();
   const tgtLabel = sortedM[0] ? window.getAxisLabel(sortedM[0]) : '';
-  const tgtFyMonths = monthly.filter(function(r) { return window.getRowFY(r) === currentFy; })
-    .map(function(r) { return window.getAxisLabel(r); })
-    .filter(function(l, i, a) { return l && a.indexOf(l) === i; });
 
   window.refreshTargetKpi = function() {
     const body = document.getElementById('kpi-tgt-body');
-    const pill = document.getElementById('kpi-tgt-pill');
     if (!body) return;
     const target = tgtLabel ? window.monthTargetSum(tgtLabel) : null;
     if (!target) {
       const loaded = !!((window.App.data && window.App.data.overview && window.App.data.overview.targets) || []).length;
       body.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;">
         ${loaded ? 'No target set for ' + (tgtLabel || 'this month') + '.' : 'Loading targets…'}</div>`;
-      if (pill) pill.style.display = 'none';
       return;
     }
-    const pct      = currMoSqft / target * 100;
-    const expected = target * tgtNow.fraction;
-    const paceRatio = expected > 0 ? currMoSqft / expected : 1;
-    const paceClr  = paceRatio >= 1 ? '#10b981' : (paceRatio >= 0.9 ? '#f59e0b' : '#ef4444');
-    const balance  = Math.max(0, target - currMoSqft);
-
-    // FY to date: full targets for finished months, the running month pro-rated.
-    let ytdT = 0;
-    tgtFyMonths.forEach(function(l) {
-      const t = window.monthTargetSum(l);
-      if (t) ytdT += l === tgtLabel ? t * tgtNow.fraction : t;
-    });
-    const ytdPct = ytdT > 0 ? currYrSqft / ytdT * 100 : null;
-
-    if (pill) {
-      pill.style.display = '';
-      pill.style.background = paceRatio >= 1 ? 'rgba(16,185,129,0.12)' : (paceRatio >= 0.9 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)');
-      pill.style.color = paceClr;
-      pill.innerHTML = tgtNow.fraction >= 1
-        ? (pct >= 100 ? '<i class="ph ph-check-circle"></i>Achieved' : '<i class="ph ph-x-circle"></i>Missed')
-        : (paceRatio >= 1 ? '<i class="ph ph-arrow-up"></i>On pace' : '<i class="ph ph-arrow-down"></i>Behind pace');
-    }
+    const pct = currMoSqft / target * 100;
+    const clr = pct >= 100 ? '#10b981' : '#f59e0b';
     body.innerHTML = `
     <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
       <div style="display:flex;align-items:baseline;gap:8px;">
-        <div class="kpi-value" style="font-size:28px;line-height:1;color:${paceClr};">${Math.round(pct)}%</div>
+        <div class="kpi-value" style="font-size:28px;line-height:1;color:${clr};">${Math.round(pct)}%</div>
         <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${tgtLabel}</div>
       </div>
-      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.short(currMoSqft)} of ${window.fmt.short(target)} sqft target</div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">of target achieved</div>
     </div>
     <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
-      ${_cmpRow('Achieved', window.fmt.short(currMoSqft) + ' sqft', currMoSqft, target, paceClr, false)}
-      ${_cmpRow('Expected by now', window.fmt.short(expected) + ' sqft', expected, target, 'var(--text-faint)', true)}
-    </div>
-    <div>
-      ${_sep()}
-      <div style="display:flex;flex-direction:column;gap:4px;">
-        ${_kv('Balance to go', balance ? window.fmt.short(balance) + ' sqft' : '—', balance ? '#ef4444' : '#10b981')}
-        ${tgtNow.daysLeft > 0
-          ? _kv('Needed per day', balance ? window.fmt.short(balance / tgtNow.daysLeft) + ' sqft' : '—', 'var(--text-sub)')
-          : _kv('FY YTD achievement', ytdPct === null ? '—' : Math.round(ytdPct) + '%', ytdPct === null ? 'var(--text-muted)' : (ytdPct >= 100 ? '#10b981' : '#ef4444'))}
-      </div>
+      ${_cmpRow('Target', window.fmt.short(target) + ' sqft', target, Math.max(target, currMoSqft), 'var(--text-faint)', false)}
+      ${_cmpRow('Achieved', window.fmt.short(currMoSqft) + ' sqft', currMoSqft, Math.max(target, currMoSqft), clr, false)}
     </div>`;
   };
 
@@ -1630,7 +1587,6 @@ window.renderKPIs = function(k, monthly) {
         <div class="kpi-icon" style="color:#f59e0b;"><i class="ph ph-target"></i></div>
         <div class="kpi-label">TARGET VS ACHIEVEMENT</div>
       </div>
-      <span id="kpi-tgt-pill" class="kpi-pill" style="display:none;"></span>
     </div>
     <div id="kpi-tgt-body" style="flex:1;display:flex;flex-direction:column;"></div>
   </div>`;
