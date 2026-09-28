@@ -1203,10 +1203,8 @@ window.renderKPIs = function(k, monthly) {
   // Figures on screen now, so the new ones can count up from them.
   const kpiBefore = window._kpiSnapshot(kpiGrid);
 
-  kpiGrid.innerHTML =
-
   // ── Card 0 — LAST MONTH VS PEAK MONTH ────────────────────────────────────
-  `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
+  const cardLastVsPeak = `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#0ea5e9;"><i class="ph ph-trophy"></i></div>
@@ -1234,14 +1232,15 @@ window.renderKPIs = function(k, monthly) {
         ${_kv('Peak month', peakLbl, 'var(--text-sub)')}
       </div>
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 0b — NEXT 3 MONTHS FORECAST ─────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
+  const cardForecast = `<div class="kpi-card" style="--kpi-color:#0ea5e9;">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#0ea5e9;"><i class="ph ph-trend-up"></i></div>
         <div class="kpi-label">NEXT 3 MONTHS FORECAST</div>
+        <button type="button" class="info-btn" data-info="forecast" aria-label="How the forecast is calculated"><i class="ph ph-info"></i></button>
       </div>
       ${_dlt(fcVsLy)}
     </div>
@@ -1273,10 +1272,10 @@ window.renderKPIs = function(k, monthly) {
     <div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;">
       Needs at least three full months of sales to forecast.
     </div>`}
-  </div>`
+  </div>`;
 
   // ── Card 1 — YTD SQ FT ────────────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--accent3);">
+  const cardYtd = `<div class="kpi-card" style="--kpi-color:var(--accent3);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--accent3);"><i class="ph ph-ruler"></i></div>
@@ -1302,10 +1301,10 @@ window.renderKPIs = function(k, monthly) {
         ${_kv('Prev FY full year', window.fmt.short(prevYrSqft) + ' sqft', 'var(--text-muted)')}
       </div>
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 2 — MTD SALE SQ FT ───────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--brand-text);">
+  const cardMtd = `<div class="kpi-card" style="--kpi-color:var(--brand-text);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--brand-text);"><i class="ph ph-calendar"></i></div>
@@ -1330,10 +1329,10 @@ window.renderKPIs = function(k, monthly) {
         ${_kv('Prev month', window.fmt.short(prevMoSqft) + ' sqft', 'var(--text-muted)')}
       </div>
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 3 — CURR YR AVG SQ FT / MO ──────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:#8b5cf6;">
+  const cardAvg = `<div class="kpi-card" style="--kpi-color:#8b5cf6;">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#8b5cf6;"><i class="ph ph-chart-line"></i></div>
@@ -1358,10 +1357,10 @@ window.renderKPIs = function(k, monthly) {
         ${_kv('Months elapsed', curFyMoCount + ' this FY', 'var(--text-sub)')}
       </div>
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 4 — SALES TYPE SPLIT (Retail vs Projects) ───────────────────────
-  + (function() {
+  const cardSalesSplit = (function() {
     const splitTotal = (k.retailSqft || 0) + (k.projectSqft || 0);
     const retPct = splitTotal > 0 ? ((k.retailSqft / splitTotal) * 100).toFixed(1) : '0.0';
     const projPct = splitTotal > 0 ? ((k.projectSqft / splitTotal) * 100).toFixed(1) : '0.0';
@@ -1442,10 +1441,10 @@ window.renderKPIs = function(k, monthly) {
 
       </div>
     </div>`;
-  })()
+  })();
 
   // ── Card 5 — 80% VOLUME CONTRIBUTORS (Pareto) ────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--accent4);">
+  const cardPareto = `<div class="kpi-card" style="--kpi-color:var(--accent4);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--accent4);"><i class="ph ph-star"></i></div>
@@ -1502,10 +1501,10 @@ window.renderKPIs = function(k, monthly) {
         <i class="ph ph-lightning" style="color:var(--accent4); margin-right:3px;"></i>Pareto 80/20 Principle
       </span>
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 6 — TOTAL CUSTOMERS (Placed beside Outstanding) ───────────────────
-  + `<div class="kpi-card" style="--kpi-color:#ec4899;">
+  const cardCustomers = `<div class="kpi-card" style="--kpi-color:#ec4899;">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:#ec4899;"><i class="ph ph-users"></i></div>
@@ -1526,10 +1525,10 @@ window.renderKPIs = function(k, monthly) {
       ${cRow('#f59e0b', '61–90d',               c61_90)}
       ${cRow('#ef4444', '90d+&nbsp;Inactive',   c90p)}
     </div>
-  </div>`
+  </div>`;
 
   // ── Card 7 — TOTAL OUTSTANDING ────────────────────────────────────────────
-  + `<div class="kpi-card" style="--kpi-color:var(--danger);">
+  const cardOutstanding = `<div class="kpi-card" style="--kpi-color:var(--danger);">
     <div class="kpi-header-row">
       <div class="kpi-head-left">
         <div class="kpi-icon" style="color:var(--danger);"><i class="ph ph-currency-inr"></i></div>
@@ -1551,6 +1550,104 @@ window.renderKPIs = function(k, monthly) {
     </div>
   </div>`;
 
+  // ── TARGET VS ACHIEVEMENT (current month) ────────────────────────────────
+  // Targets arrive after the KPIs, so the card renders empty and
+  // window.refreshTargetKpi fills it in whenever they are available.
+  const tgtNow = (function() {
+    let d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
+    if (isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() - 1);   // data is N-1
+    const latestSk = sortedM[0] ? window.getSortKey(sortedM[0]).slice(0, 7) : '';
+    const dSk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return dSk === latestSk ? { fraction: d.getDate() / dim, daysLeft: dim - d.getDate() } : { fraction: 1, daysLeft: 0 };
+  })();
+  const tgtLabel = sortedM[0] ? window.getAxisLabel(sortedM[0]) : '';
+  const tgtFyMonths = monthly.filter(function(r) { return window.getRowFY(r) === currentFy; })
+    .map(function(r) { return window.getAxisLabel(r); })
+    .filter(function(l, i, a) { return l && a.indexOf(l) === i; });
+
+  window.refreshTargetKpi = function() {
+    const body = document.getElementById('kpi-tgt-body');
+    const pill = document.getElementById('kpi-tgt-pill');
+    if (!body) return;
+    const target = tgtLabel ? window.monthTargetSum(tgtLabel) : null;
+    if (!target) {
+      const loaded = !!((window.App.data && window.App.data.overview && window.App.data.overview.targets) || []).length;
+      body.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;">
+        ${loaded ? 'No target set for ' + (tgtLabel || 'this month') + '.' : 'Loading targets…'}</div>`;
+      if (pill) pill.style.display = 'none';
+      return;
+    }
+    const pct      = currMoSqft / target * 100;
+    const expected = target * tgtNow.fraction;
+    const paceRatio = expected > 0 ? currMoSqft / expected : 1;
+    const paceClr  = paceRatio >= 1 ? '#10b981' : (paceRatio >= 0.9 ? '#f59e0b' : '#ef4444');
+    const balance  = Math.max(0, target - currMoSqft);
+
+    // FY to date: full targets for finished months, the running month pro-rated.
+    let ytdT = 0;
+    tgtFyMonths.forEach(function(l) {
+      const t = window.monthTargetSum(l);
+      if (t) ytdT += l === tgtLabel ? t * tgtNow.fraction : t;
+    });
+    const ytdPct = ytdT > 0 ? currYrSqft / ytdT * 100 : null;
+
+    if (pill) {
+      pill.style.display = '';
+      pill.style.background = paceRatio >= 1 ? 'rgba(16,185,129,0.12)' : (paceRatio >= 0.9 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)');
+      pill.style.color = paceClr;
+      pill.innerHTML = tgtNow.fraction >= 1
+        ? (pct >= 100 ? '<i class="ph ph-check-circle"></i>Achieved' : '<i class="ph ph-x-circle"></i>Missed')
+        : (paceRatio >= 1 ? '<i class="ph ph-arrow-up"></i>On pace' : '<i class="ph ph-arrow-down"></i>Behind pace');
+    }
+    body.innerHTML = `
+    <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;color:${paceClr};">${Math.round(pct)}%</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${tgtLabel}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.short(currMoSqft)} of ${window.fmt.short(target)} sqft target</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
+      ${_cmpRow('Achieved', window.fmt.short(currMoSqft) + ' sqft', currMoSqft, target, paceClr, false)}
+      ${_cmpRow('Expected by now', window.fmt.short(expected) + ' sqft', expected, target, 'var(--text-faint)', true)}
+    </div>
+    <div>
+      ${_sep()}
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${_kv('Balance to go', balance ? window.fmt.short(balance) + ' sqft' : '—', balance ? '#ef4444' : '#10b981')}
+        ${tgtNow.daysLeft > 0
+          ? _kv('Needed per day', balance ? window.fmt.short(balance / tgtNow.daysLeft) + ' sqft' : '—', 'var(--text-sub)')
+          : _kv('FY YTD achievement', ytdPct === null ? '—' : Math.round(ytdPct) + '%', ytdPct === null ? 'var(--text-muted)' : (ytdPct >= 100 ? '#10b981' : '#ef4444'))}
+      </div>
+    </div>`;
+  };
+
+  const cardTarget = `<div class="kpi-card" style="--kpi-color:#f59e0b;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:#f59e0b;"><i class="ph ph-target"></i></div>
+        <div class="kpi-label">TARGET VS ACHIEVEMENT</div>
+      </div>
+      <span id="kpi-tgt-pill" class="kpi-pill" style="display:none;"></span>
+    </div>
+    <div id="kpi-tgt-body" style="flex:1;display:flex;flex-direction:column;"></div>
+  </div>`;
+
+  kpiGrid.innerHTML = [
+    cardMtd,
+    cardTarget,
+    cardLastVsPeak,
+    cardAvg,
+    cardForecast,
+    cardOutstanding,
+    cardPareto,
+    cardCustomers,
+    cardYtd,
+    cardSalesSplit
+  ].join('');
+  window.refreshTargetKpi();
   window._kpiAnimate(kpiGrid, kpiBefore);
 };
 
@@ -1632,6 +1729,13 @@ window.computeSalesForecast = function(monthly, lastUpdated, horizon) {
     ? Math.min(0.35, Math.max(0.08, errs.reduce(function(a, b) { return a + b; }, 0) / errs.length))
     : 0.15;
 
+  // The inputs every forecast month shares, for the "how is this calculated" tip.
+  const _l3 = full.slice(-3);
+  const level = (bySk[_l3[2]] * 3 + bySk[_l3[1]] * 2 + bySk[_l3[0]]) / 6;
+  let _gc = 0, _gl = 0;
+  full.slice(-6).forEach(function(s) { const p = _shift(s, -12); if (bySk[p]) { _gc += bySk[s]; _gl += bySk[p]; } });
+  const growth = _gl > 0 ? Math.min(1.6, Math.max(0.6, _gc / _gl)) : null;
+
   let partial = null;
   if (fraction < 1) {
     const rest = (_predict(latest, full) || 0) * (1 - fraction);
@@ -1653,7 +1757,7 @@ window.computeSalesForecast = function(monthly, lastUpdated, horizon) {
   }
   return {
     latest: latest, lastFull: full[full.length - 1], lastFullValue: bySk[full[full.length - 1]],
-    partial: partial, months: months, mape: mape,
+    partial: partial, months: months, mape: mape, level: level, growth: growth,
     total: months.reduce(function(a, m) { return a + m.value; }, 0),
     lyTotal: lyAll ? lyTotal : null
   };
@@ -1700,6 +1804,89 @@ window.refreshForecastTarget = function() {
   el.textContent = Math.round(pct) + '% of ' + window.fmt.short(tSum);
   el.style.color = pct >= 100 ? '#10b981' : (pct >= 80 ? '#f59e0b' : '#ef4444');
 };
+
+/* ── "i" buttons ─────────────────────────────────────────────────────────────
+   Any <button class="info-btn" data-info="key"> opens the matching entry of
+   window.INFO_TIPS. Hover shows it, click pins it (touch has no hover); Esc or
+   a click elsewhere closes it. The popover lives on <body> because the KPI
+   cards clip their overflow and the strip scrolls sideways. */
+window.INFO_TIPS = {
+  forecast: function() {
+    const fc = window.App && window.App.forecast;
+    const pct = function(v) { return (v >= 1 ? '+' : '') + Math.round((v - 1) * 100) + '%'; };
+    const live = fc ? `<div class="info-pop-live">
+        <div><span>Recent level</span><b>${window.fmt.short(fc.level)} sqft / mo</b></div>
+        <div><span>Growth vs last year</span><b>${fc.growth === null ? 'n/a' : pct(fc.growth)}</b></div>
+        <div><span>Typical error</span><b>±${Math.round(fc.mape * 100)}%</b></div>
+      </div>` : '';
+    return `<div class="info-pop-title"><i class="ph ph-trend-up"></i>How the forecast is calculated</div>
+      <p>Each future month is a <b>50 / 50 blend</b> of two estimates, in sq ft:</p>
+      <ol>
+        <li><b>Same month last year × growth.</b> Growth compares the last 6 full months with the same 6 months a year earlier, capped at −40% / +60% so one freak month can't run away.</li>
+        <li><b>Recent level.</b> Average of the last 3 full months, weighted 3 : 2 : 1 so the latest month counts most.</li>
+      </ol>
+      <p>If there is no sale for that month last year, only the recent level is used.</p>
+      <p><b>Current month:</b> sales booked so far + the forecast for the days still left (data runs to yesterday).</p>
+      <p><b>Shaded range / ±%:</b> the method is replayed on past months and its average miss (kept between 8% and 35%) sets the range, which widens for months further out.</p>
+      <p class="info-pop-note">Follows the active filters. Needs at least 3 full months of sales.</p>
+      ${live}`;
+  }
+};
+
+(function() {
+  let pop = null, openBtn = null, pinned = false;
+
+  function hide() {
+    if (!pop) return;
+    pop.classList.remove('show');
+    if (openBtn) openBtn.setAttribute('aria-expanded', 'false');
+    openBtn = null; pinned = false;
+  }
+  function show(btn) {
+    const tip = window.INFO_TIPS[btn.dataset.info];
+    if (!tip) return;
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.className = 'info-pop';
+      pop.setAttribute('role', 'tooltip');
+      document.body.appendChild(pop);
+    }
+    if (openBtn && openBtn !== btn) openBtn.setAttribute('aria-expanded', 'false');
+    pop.innerHTML = typeof tip === 'function' ? tip() : tip;
+    openBtn = btn;
+    btn.setAttribute('aria-expanded', 'true');
+    pop.classList.add('show');
+    // Below the button, flipped above when there is no room; kept on screen.
+    const r = btn.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight, m = 8;
+    let left = Math.min(window.innerWidth - pw - m, Math.max(m, r.left + r.width / 2 - pw / 2));
+    let top = r.bottom + 8;
+    if (top + ph > window.innerHeight - m && r.top - 8 - ph > m) top = r.top - 8 - ph;
+    pop.style.left = left + 'px';
+    pop.style.top = Math.max(m, top) + 'px';
+  }
+
+  document.addEventListener('mouseover', function(e) {
+    const btn = e.target.closest && e.target.closest('.info-btn');
+    if (btn && !pinned) show(btn);
+  });
+  document.addEventListener('mouseout', function(e) {
+    const btn = e.target.closest && e.target.closest('.info-btn');
+    if (btn && !pinned && !btn.contains(e.relatedTarget)) hide();
+  });
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest && e.target.closest('.info-btn');
+    if (btn) {
+      e.preventDefault(); e.stopPropagation();
+      if (pinned && openBtn === btn) { hide(); return; }
+      show(btn); pinned = true;
+      return;
+    }
+    if (pop && !pop.contains(e.target)) hide();
+  }, true);
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hide(); });
+  window.addEventListener('scroll', function() { if (!pinned) hide(); }, true);
+  window.addEventListener('resize', hide);
+})();
 
 window.renderMonthlyChart = function(rows) {
   if (typeof Chart === 'undefined') return;
@@ -2005,6 +2192,7 @@ window.renderMonthlyChart = function(rows) {
       });
   }
   if (typeof window.refreshForecastTarget === 'function') window.refreshForecastTarget();
+  if (typeof window.refreshTargetKpi === 'function') window.refreshTargetKpi();
 };
 
 window.overviewTargetPeriod = 'month';
