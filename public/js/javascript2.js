@@ -978,7 +978,7 @@ window._sparklineBar = function(data, color) {
     const y = H - h; 
     svg += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" fill="' + color + '" rx="2" opacity="' + (i===data.length-1 ? '1':'0.5') + '"/>'; 
     if (v > 0) {
-       svg += '<text x="' + (x + barW/2) + '" y="' + (y - 4) + '" fill="var(--text-main)" font-size="10" font-weight="700" font-family="Inter" text-anchor="middle" opacity="' + (i===data.length-1 ? '1':'0.7') + '">' + window.fmtK(v) + '</text>';
+       svg += '<text x="' + (x + barW/2) + '" y="' + (y - 4) + '" fill="var(--text-main)" font-size="9" font-weight="700" font-family="Inter" text-anchor="middle" opacity="' + (i===data.length-1 ? '1':'0.7') + '">' + window.fmt.short(v) + '</text>';
     }
   });
   return svg + '</svg>';
