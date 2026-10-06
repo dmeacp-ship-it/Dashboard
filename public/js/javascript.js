@@ -1995,6 +1995,7 @@ window.debouncedCacheUpdate = function() {
 };
 
 window._forceCacheUpdate = async function() {
+  window._checkNewVersion();
   window.App.filters._v = Date.now();
   window.App.data.overview = null;
   window.loading(true);
@@ -2024,9 +2025,31 @@ window._forceCacheUpdate = async function() {
   }
 };
 
+// ── Reload on a new deploy ──────────────────────────────────────────────────
+// A tab left open keeps running the JS it loaded with while the API moves on,
+// so after a deploy its cards mix old maths with new data. The build stamps
+// every asset with ?v=<hash>; when the served index.html carries different
+// stamps than this page, reload. Never mid-typing -- the next check catches it.
+window._assetStamps = function(html) {
+  return (html.match(/\/(?:js|css)\/[\w.-]+\.min\.(?:js|css)\?v=\w+/g) || []).sort().join(' ');
+};
+window._loadedStamps = window._assetStamps(document.documentElement.innerHTML);
+window._checkNewVersion = async function() {
+  if (!window._loadedStamps || document.visibilityState !== 'visible') return;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  try {
+    const html = await fetch('/', { cache: 'no-store' }).then(function(r) { return r.ok ? r.text() : ''; });
+    const latest = window._assetStamps(html);
+    if (latest && latest !== window._loadedStamps) location.reload();
+  } catch (e) { /* offline: try again next time */ }
+};
+setInterval(window._checkNewVersion, 10 * 60 * 1000);
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === 'visible') {
     document.body.classList.remove('tab-hidden');
+    window._checkNewVersion();
   } else {
     document.body.classList.add('tab-hidden');
   }
