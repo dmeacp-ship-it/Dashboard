@@ -1034,24 +1034,16 @@ window.renderKPIs = function(k, monthly) {
     : (curIdxs[0] === lastIdx ? FYMN[lastIdx] : FYMN[curIdxs[0]] + '–' + FYMN[lastIdx]);
   const ytdMax    = Math.max(currYrSqft, prevYtdSqft, 1);
 
-  // Months the current FY has sales for. Only when the latest of them is the
-  // running calendar month (data is N-1) does it count as a fraction -- a month
-  // with no rows yet must not dilute the average.
+  // Averages per month come from the server (getKPIs) so this card and every
+  // other caller share one month-count rule. runSk (yesterday's month: data is
+  // N-1) still decides which month the "last month" card treats as complete.
   const d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
   d.setDate(d.getDate() - 1);
   const runSk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-  let curFyMoCount = 1;
-  if (currentFy !== 'N/A' && fyData[currentFy].months.size) {
-    curFyMoCount = fyData[currentFy].months.size;
-    if (!isNaN(d.getTime()) && fyData[currentFy].months.has(runSk)) {
-      const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-      curFyMoCount = Math.round((curFyMoCount - 1 + d.getDate() / daysInMonth) * 100) / 100;
-    }
-  }
-  const prevFyMoCount = (prevFy && fyData[prevFy] && fyData[prevFy].months.size) ? fyData[prevFy].months.size : 1;
-  const currYrAvgSqft = Math.round(currYrSqft / curFyMoCount);
-  const prevYrAvgSqft = prevFy ? Math.round(prevYrSqft / prevFyMoCount) : 0;
-  const avgSqftGrowth = prevYrAvgSqft ? +((currYrAvgSqft - prevYrAvgSqft) / prevYrAvgSqft * 100).toFixed(1) : 0;
+  const curFyMoCount  = k.currentFyMonthCount || 1;
+  const currYrAvgSqft = k.currentYearAvgSqft  || 0;
+  const prevYrAvgSqft = k.prevYearAvgSqft     || 0;
+  const avgSqftGrowth = k.avgSqftGrowth       || 0;
 
   const sortedM    = monthly.slice().sort((a, b) => window.getSortKey(b).localeCompare(window.getSortKey(a)));
   const currMoSqft = sortedM[0] ? (Number(sortedM[0]['SQ FT.']) || ((Number(sortedM[0]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
@@ -1349,7 +1341,7 @@ window.renderKPIs = function(k, monthly) {
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrAvgSqft)} sqft avg / month</div>
     </div>
     <div style="margin-top:auto;margin-bottom:6px;">
-      ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5, -1).concat([currYrAvgSqft]), '#8b5cf6')}
+      ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5), '#8b5cf6')}
     </div>
     <div>
       ${_sep()}

@@ -804,32 +804,34 @@ async function getKPIs(f) {
     const prevFySqft = (fyMap[sortedF[fIdx + 1]] ? fyMap[sortedF[fIdx + 1]].sqm : 0) * SQFT_PER_SQM;
     const yoyG = prevFySqft ? ((curFySqft - prevFySqft) / prevFySqft * 100) : 0;
 
-    const curFyMonthsList = [];
-    const prevFyMonthsList = [];
+    // Months an FY has sales for -- the divisor of every "avg / month" figure,
+    // here and on the client, so the card's headline, growth and bars agree.
+    // The running month (data is N-1, so yesterday's month in IST) counts only
+    // as the fraction of it elapsed; a month with no rows yet doesn't count.
+    const ist = new Date(Date.now() + 330 * 60000 - 86400000);
+    const runSk = ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2, '0');
+    const runFrac = ist.getUTCDate() / new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth() + 1, 0)).getUTCDate();
+    const fyMonths = {};
     geo.forEach(function (r) {
-      const rFy = _robustFy(r);
-      if (rFy === curF) { const m = _mo(r); if (m && curFyMonthsList.indexOf(m) === -1) curFyMonthsList.push(m); }
-      if (prevFy && rFy === prevFy) { const m = _mo(r); if (m && prevFyMonthsList.indexOf(m) === -1) prevFyMonthsList.push(m); }
+      const fy = _robustFy(r); const m = _mo(r);
+      if (fy && m) (fyMonths[fy] = fyMonths[fy] || {})[_mSk(m).slice(0, 7)] = true;
     });
+    function _moCount(fy) {
+      const sks = Object.keys(fyMonths[fy] || {});
+      if (!sks.length) return 1;
+      return Math.round((sks.length - (sks.indexOf(runSk) !== -1 ? 1 - runFrac : 0)) * 100) / 100;
+    }
+    function _fyAvg(fy) { return fy && fyMap[fy] ? fyMap[fy].sqm * SQFT_PER_SQM / _moCount(fy) : 0; }
 
-    const curFyMonthCount = curFyMonthsList.length > 0 ? curFyMonthsList.length : 1;
-    const prevFyMonthCount = prevFyMonthsList.length > 0 ? prevFyMonthsList.length : 1;
-    const curFyAvgSqft = curFySqft / curFyMonthCount;
-    const prevFyAvgSqft = prevFySqft / prevFyMonthCount;
-    const avgSqftGrowth = prevFyAvgSqft ? ((curFyAvgSqft - prevFyAvgSqft) / prevFyAvgSqft * 100) : 0;
+    const curFyMonthCount = _moCount(curF);
+    const curFyAvgSqft = _fyAvg(curF);
+    const prevFyAvgSqft = _fyAvg(prevFy);
+    const avgSqftGrowth = prevFyAvgSqft ? ((Math.round(curFyAvgSqft) - Math.round(prevFyAvgSqft)) / Math.round(prevFyAvgSqft) * 100) : 0;
 
     const last6MoTrend = sortedM.slice(0, 6).reverse().map(function (m) {
       return Math.round((mMap[m] ? mMap[m].sqm : 0) * SQFT_PER_SQM);
     });
-    const yearlyAvgsTrend = sortedF.slice().reverse().map(function (fy) {
-      const fyMos = [];
-      geo.forEach(function (r) {
-        if (_robustFy(r) === fy) { const m = _mo(r); if (m && fyMos.indexOf(m) === -1) fyMos.push(m); }
-      });
-      const moCount = Math.max(1, fyMos.length);
-      const tSqft = (fyMap[fy] ? fyMap[fy].sqm : 0) * SQFT_PER_SQM;
-      return Math.round(tSqft / moCount);
-    });
+    const yearlyAvgsTrend = sortedF.slice(fIdx).reverse().map(function (fy) { return Math.round(_fyAvg(fy)); });
 
     const custQ = _q(f, ['month', 'fy', 'quarter']); // customer views have no time columns
     let custs = await _tryFetchAll('vw_customer_kpi_counts', custQ);
@@ -947,6 +949,7 @@ async function getKPIs(f) {
       currentYearAvgSqft: Math.round(curFyAvgSqft) || 0,
       prevYearAvgSqft: Math.round(prevFyAvgSqft) || 0,
       avgSqftGrowth: +avgSqftGrowth.toFixed(1),
+      currentFyMonthCount: curFyMonthCount,
       yearlyAvgTrend: yearlyAvgsTrend,
       totalCustomers: custs.length,
       activeCustomers: active,
