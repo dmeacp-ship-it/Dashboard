@@ -1548,6 +1548,10 @@ window.renderKPIs = function(k, monthly) {
   // window.refreshTargetKpi fills it in whenever they are available.
   const tgtLabel = sortedM[0] ? window.getAxisLabel(sortedM[0]) : '';
 
+  // Targets are retail-only (projects are measured on their own page), so
+  // achievement is the month's retail sales, as in the Target vs Actual table.
+  const tgtAchSqft = k.salesTypeMonth === k.currentMonth && k.retailSqftMonth ? k.retailSqftMonth : currMoSqft;
+
   window.refreshTargetKpi = function() {
     const body = document.getElementById('kpi-tgt-body');
     if (!body) return;
@@ -1558,7 +1562,7 @@ window.renderKPIs = function(k, monthly) {
         ${loaded ? 'No target set for ' + (tgtLabel || 'this month') + '.' : 'Loading targets…'}</div>`;
       return;
     }
-    const pct = currMoSqft / target * 100;
+    const pct = tgtAchSqft / target * 100;
     const clr = pct >= 100 ? '#10b981' : '#f59e0b';
     body.innerHTML = `
     <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
@@ -1569,8 +1573,8 @@ window.renderKPIs = function(k, monthly) {
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">of target achieved</div>
     </div>
     <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
-      ${_cmpRow('Target', window.fmt.short(target) + ' sqft', target, Math.max(target, currMoSqft), 'var(--text-faint)', false)}
-      ${_cmpRow('Achieved', window.fmt.short(currMoSqft) + ' sqft', currMoSqft, Math.max(target, currMoSqft), clr, false)}
+      ${_cmpRow('Target', window.fmt.short(target) + ' sqft', target, Math.max(target, tgtAchSqft), 'var(--text-faint)', false)}
+      ${_cmpRow('Achieved', window.fmt.short(tgtAchSqft) + ' sqft', tgtAchSqft, Math.max(target, tgtAchSqft), clr, false)}
     </div>`;
   };
 

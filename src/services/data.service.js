@@ -602,6 +602,32 @@ async function _fetchAgg(view, qs) {
   return fetchAll(view, qs);
 }
 
+// vw_customer_summary has one row per customer per HOD per name spelling, so a
+// customer can appear several times with their volume split between rows.
+// Every customer count and list reads through here to get one row per
+// customer_code (within the current filter); the biggest row supplies the
+// name / HOD / state labels.
+async function _fetchCustomers(f, select) {
+  const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
+  const qs = select ? q + (q.indexOf('?') > -1 ? '&' : '?') + 'select=' + select : q;
+  const by = {};
+  (await _fetchAgg('vw_customer_summary', qs)).forEach(function (r) {
+    if (!_rowMatches(r, f)) return;
+    const key = _s(r, 'customer_code') || _s(r, 'customer_name');
+    const m = by[key];
+    if (!m) { by[key] = Object.assign({}, r); return; }
+    const out = Object.assign({}, _sqm(r) > _sqm(m) ? r : m);
+    ['total_sqm', 'sq_ft', 'txn_count', 'last_6m_sqm', 'prev_6m_sqm'].forEach(function (c) {
+      if (c in r || c in m) out[c] = _num(r[c]) + _num(m[c]);
+    });
+    const dr = r.days_since_last_purchase, dm = m.days_since_last_purchase;
+    if (dr != null || dm != null) out.days_since_last_purchase = dr == null ? dm : dm == null ? dr : Math.min(_num(dr), _num(dm));
+    if (r.last_purchase_date || m.last_purchase_date) out.last_purchase_date = String(r.last_purchase_date || '') > String(m.last_purchase_date || '') ? r.last_purchase_date : m.last_purchase_date;
+    by[key] = out;
+  });
+  return Object.keys(by).map(function (k) { return by[k]; });
+}
+
 async function _fetchOutstanding(f) {
   let qs = '';
   const scope = (f && f._scope) || {};
@@ -833,11 +859,7 @@ async function getKPIs(f) {
     });
     const yearlyAvgsTrend = sortedF.slice(fIdx).reverse().map(function (fy) { return Math.round(_fyAvg(fy)); });
 
-    const custQ = _q(f, ['month', 'fy', 'quarter']); // customer views have no time columns
-    const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft,hod_name,state,zone';
-    let custs = await _fetchAgg('vw_customer_summary', qsLight);
-
-    custs = custs.filter(function (r) { return _rowMatches(r, f); });
+    const custs = await _fetchCustomers(f, 'days_since_last_purchase,customer_code,customer_name,total_sqm,sq_ft,hod_name,state,zone');
 
     const rfmCusts = _computeRFM(custs.map(function (r) { return Object.assign({}, r); }));
     const loyalC = rfmCusts.filter(function (c) { return c['SEGMENT'] === 'Loyal' || c['SEGMENT'] === 'Champions'; }).length;
@@ -929,10 +951,12 @@ async function getKPIs(f) {
       const below45 = _num(_s(r, 'below_45_days'));
       const above45 = _num(_s(r, 'above_45_days'));
       const days90 = _num(_s(r, 'days_90_plus'));
+      // Only customers who owe money count, as on the Outstanding page; a
+      // credit balance is not a receivable. Within a debtor the buckets keep
+      // their sign, so they always add up to totOs.
+      if (outAmt <= 0) return;
       totOs += outAmt;
-      if (outAmt > 0) totDebtors++;
-      // Amounts keep their sign so credit balances net out of the buckets the
-      // same way they net out of totOs; counts are debtors with dues there.
+      totDebtors++;
       os90Amt += days90; osBelow45Amt += below45; os45Amt += above45;
       if (days90 > 0) os90Count++;
       if (above45 > 0) os45Count++;
@@ -2197,8 +2221,7 @@ async function getOutstandingStateSummary(f) { return getOutstandingSummary(f); 
 
 async function getTopCustomers(f, opts) {
   return cached('topCust_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
-    let rows = (await _fetchAgg('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); });
+    let rows = await _fetchCustomers(f);
     
     if (opts && opts.activeDays) {
       rows = rows.filter(function (r) { return _days(r) <= opts.activeDays; });
@@ -2244,9 +2267,7 @@ async function getTopCustomers(f, opts) {
 async function getInactiveCustomers(f, opts) {
   const minDays = (opts && opts.days) || 90;
   return cached('inactive_' + minDays + '_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
-    const rows = (await _fetchAgg('vw_customer_summary', q))
-      .filter(function (r) { return _rowMatches(r, f); })
+    const rows = (await _fetchCustomers(f))
       .filter(function (r) { return _days(r) >= minDays; });
     rows.forEach(function (r) {
       const d = _days(r);
@@ -2265,9 +2286,7 @@ async function getInactiveCustomers(f, opts) {
 
 async function getDecliningCustomers(f, opts) {
   return cached('declining_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
-    const rows = (await _fetchAgg('vw_customer_summary', q))
-      .filter(function (r) { return _rowMatches(r, f); })
+    const rows = (await _fetchCustomers(f))
       .filter(function (r) {
         const prev = _prev6(r), last = _last6(r);
         if (prev < 50) return false;
@@ -2289,8 +2308,7 @@ async function getDecliningCustomers(f, opts) {
 
 async function getLostHVCustomers(f, opts) {
   return cached('losthv_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
-    const rows = (await _fetchAgg('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); });
+    const rows = await _fetchCustomers(f);
     rows.forEach(function (r) {
       r['SQ FT.'] = _sqft(r);
       r['CUSTOMER NAME'] = _custName(r);
@@ -2310,8 +2328,7 @@ async function getLostHVCustomers(f, opts) {
 
 async function getRFMData(f, opts) {
   return cached('rfmData_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
-    let rows = _computeRFM((await _fetchAgg('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); }));
+    let rows = _computeRFM(await _fetchCustomers(f));
     if (opts && opts.segment && opts.segment !== 'All') {
       rows = rows.filter(function (r) { return r['SEGMENT'] === opts.segment; });
     }
@@ -2321,9 +2338,8 @@ async function getRFMData(f, opts) {
 
 async function getRFMDistribution(f) {
   return cached('rfmDist_' + _stableStringify(f), async function () {
-    const q = _q(f, ['month', 'fy', 'quarter']); // vw_customer_summary has no time columns
     const dist = {};
-    _computeRFM((await _fetchAgg('vw_customer_summary', q)).filter(function (r) { return _rowMatches(r, f); })).forEach(function (r) {
+    _computeRFM(await _fetchCustomers(f)).forEach(function (r) {
       const s = r['SEGMENT'];
       if (!dist[s]) dist[s] = { segment: s, count: 0, totalSqft: 0 };
       dist[s].count++;
