@@ -834,11 +834,8 @@ async function getKPIs(f) {
     const yearlyAvgsTrend = sortedF.slice(fIdx).reverse().map(function (fy) { return Math.round(_fyAvg(fy)); });
 
     const custQ = _q(f, ['month', 'fy', 'quarter']); // customer views have no time columns
-    let custs = await _tryFetchAll('vw_customer_kpi_counts', custQ);
-    if (!custs) {
-      const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft,hod_name,state,zone';
-      custs = await _fetchAgg('vw_customer_summary', qsLight);
-    }
+    const qsLight = custQ + (custQ.indexOf('?') > -1 ? '&' : '?') + 'select=days_since_last_purchase,customer_name,total_sqm,sq_ft,hod_name,state,zone';
+    let custs = await _fetchAgg('vw_customer_summary', qsLight);
 
     custs = custs.filter(function (r) { return _rowMatches(r, f); });
 
