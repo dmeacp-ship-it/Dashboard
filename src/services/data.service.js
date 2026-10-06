@@ -860,9 +860,18 @@ async function getKPIs(f) {
       if (runningSqm >= target80) break;
     }
 
-    // Pareto 80% (current month — 30d active customers only)
-    const curMo30Custs = custs.filter(function (c) { const d = _days(c); return d >= 0 && d <= 30; });
-    const sortedCurMo = curMo30Custs.map(function (c) { return { sqm: _sqm(c) }; }).sort(function (a, b) { return b.sqm - a.sqm; });
+    // Pareto 80% (current month) — ranked by what each customer bought in that
+    // month. The customer summary only carries lifetime totals, so it can't be
+    // used here.
+    const curMoF = Object.assign({}, f, { month: sortedM[cIdx], fy: 'All', quarter: 'All' });
+    const curMoRows = sortedM[cIdx] ? await _fetchAgg('vw_customer_sale_agg', _q(curMoF)) : [];
+    const curMoByCust = {};
+    curMoRows.filter(function (r) { return _rowMatches(r, curMoF); }).forEach(function (r) {
+      const key = _s(r, 'customer_code') || _s(r, 'customer_name');
+      if (key) curMoByCust[key] = (curMoByCust[key] || 0) + _sqm(r);
+    });
+    const sortedCurMo = Object.keys(curMoByCust).map(function (c) { return { sqm: curMoByCust[c] }; })
+      .filter(function (c) { return c.sqm > 0; }).sort(function (a, b) { return b.sqm - a.sqm; });
     const totSqmCurMo = sortedCurMo.reduce(function (s, c) { return s + c.sqm; }, 0);
     let cust80CountCurMonth = 0;
     if (totSqmCurMo > 0) {
@@ -923,9 +932,12 @@ async function getKPIs(f) {
       const days90 = _num(_s(r, 'days_90_plus'));
       totOs += outAmt;
       if (outAmt > 0) totDebtors++;
-      if (days90 > 0) { os90Amt += days90; os90Count++; }
-      if (above45 > 0) { os45Amt += above45; os45Count++; }
-      if (below45 > 0) { osBelow45Amt += below45; osBelow45Count++; }
+      // Amounts keep their sign so credit balances net out of the buckets the
+      // same way they net out of totOs; counts are debtors with dues there.
+      os90Amt += days90; osBelow45Amt += below45; os45Amt += above45;
+      if (days90 > 0) os90Count++;
+      if (above45 > 0) os45Count++;
+      if (below45 > 0) osBelow45Count++;
     });
 
     return {
@@ -953,6 +965,7 @@ async function getKPIs(f) {
       cust90Plus: cust90Plus,
       cust80Count: cust80Count,
       cust80CountCurMonth: cust80CountCurMonth,
+      custCurMonth: sortedCurMo.length,
       totOs: totOs,
       totDebtors: totDebtors,
       os90Amt: os90Amt,

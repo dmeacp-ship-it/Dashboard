@@ -1034,21 +1034,18 @@ window.renderKPIs = function(k, monthly) {
     : (curIdxs[0] === lastIdx ? FYMN[lastIdx] : FYMN[curIdxs[0]] + '–' + FYMN[lastIdx]);
   const ytdMax    = Math.max(currYrSqft, prevYtdSqft, 1);
 
+  // Months the current FY has sales for. Only when the latest of them is the
+  // running calendar month (data is N-1) does it count as a fraction -- a month
+  // with no rows yet must not dilute the average.
+  const d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
+  d.setDate(d.getDate() - 1);
+  const runSk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   let curFyMoCount = 1;
-  if (currentFy !== 'N/A') {
-    const d = k.lastUpdated ? new Date(k.lastUpdated) : new Date();
-    if (!isNaN(d.getTime())) {
-      d.setDate(d.getDate() - 1); // Data is N-1 (represents sales up to yesterday)
-      const currentYear = d.getFullYear();
-      const currentMonth = d.getMonth();
-      const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
-      const monthDiff = (currentYear - fyStartYear) * 12 + currentMonth - 3;
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      const fraction = d.getDate() / daysInMonth;
-      curFyMoCount = Math.round((monthDiff + fraction) * 100) / 100;
-      if (curFyMoCount <= 0.05) curFyMoCount = 1; 
-    } else if (fyData[currentFy] && fyData[currentFy].months.size) {
-      curFyMoCount = fyData[currentFy].months.size;
+  if (currentFy !== 'N/A' && fyData[currentFy].months.size) {
+    curFyMoCount = fyData[currentFy].months.size;
+    if (!isNaN(d.getTime()) && fyData[currentFy].months.has(runSk)) {
+      const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      curFyMoCount = Math.round((curFyMoCount - 1 + d.getDate() / daysInMonth) * 100) / 100;
     }
   }
   const prevFyMoCount = (prevFy && fyData[prevFy] && fyData[prevFy].months.size) ? fyData[prevFy].months.size : 1;
@@ -1062,13 +1059,16 @@ window.renderKPIs = function(k, monthly) {
   const currMoSqm  = Math.round(currMoSqft / window.SQFT_PER_SQM);
 
   // ── Last full month vs the best month on record ──────────────────────────
-  // sortedM[0] is the running month, so "last month" is sortedM[1]. The peak
-  // is searched across every month, the running one included.
+  // "Last month" is the latest complete month: sortedM[1] while the running
+  // calendar month has sales, sortedM[0] when it has none yet. The peak is
+  // searched across every month, the running one included.
   const _moSqft  = function(r) { return Number(r['SQ FT.']) || ((Number(r['TOTAL SQM']) || 0) * window.SQFT_PER_SQM); };
-  const lastMoRow = sortedM[1] || null;
+  const runHasData = !!(sortedM[0] && window.getSortKey(sortedM[0]).slice(0, 7) === runSk);
+  const lastMoRow = sortedM[runHasData ? 1 : 0] || null;
+  const lastMoSqft = lastMoRow ? _moSqft(lastMoRow) : 0;
   const peakRow   = sortedM.reduce(function(best, r) { return (!best || _moSqft(r) > _moSqft(best)) ? r : best; }, null);
   const peakSqft  = peakRow ? _moSqft(peakRow) : 0;
-  const lastVsPeak = (lastMoRow && peakSqft) ? +((prevMoSqft - peakSqft) / peakSqft * 100).toFixed(1) : null;
+  const lastVsPeak = (lastMoRow && peakSqft) ? +((lastMoSqft - peakSqft) / peakSqft * 100).toFixed(1) : null;
   const lastIsPeak = !!(lastMoRow && peakRow === lastMoRow);
   const lastMoLbl  = lastMoRow ? window.getAxisLabel(lastMoRow) : 'N/A';
   const peakLbl    = peakRow ? window.getAxisLabel(peakRow) : '—';
@@ -1169,7 +1169,8 @@ window.renderKPIs = function(k, monthly) {
   const c80All    = k.cust80Count         || 0;
   const c80Cur    = k.cust80CountCurMonth || 0;
   const c80AllPct = totalC > 0 ? ((c80All/totalC)*100).toFixed(1) : '0';
-  const c80CurPct = c30     > 0 ? ((c80Cur/c30)*100).toFixed(1)    : '0';
+  const cCurMo    = k.custCurMonth        || 0;
+  const c80CurPct = cCurMo  > 0 ? ((c80Cur/cCurMo)*100).toFixed(1) : '0';
 
   // ── Card 6 data ───────────────────────────────────────────────────────────
   const totOs = k.totOs        || 0;
@@ -1216,19 +1217,19 @@ window.renderKPIs = function(k, monthly) {
     </div>
     <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
       <div style="display:flex;align-items:baseline;gap:8px;">
-        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(prevMoSqft)}</div>
+        <div class="kpi-value" style="font-size:28px;line-height:1;">${window.fmt.short(lastMoSqft)}</div>
         <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${lastMoLbl}</div>
       </div>
-      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${lastMoRow && peakSqft ? Math.round(prevMoSqft / peakSqft * 100) + '% of best month' : 'No previous month'}</div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${lastMoRow && peakSqft ? Math.round(lastMoSqft / peakSqft * 100) + '% of best month' : 'No previous month'}</div>
     </div>
     <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
       ${_cmpRow('Peak · ' + peakLbl, peakSqft ? window.fmt.short(peakSqft) + ' sqft' : '—', peakSqft, peakSqft, 'var(--accent3)', false)}
-      ${_cmpRow('Last month · ' + lastMoLbl, window.fmt.short(prevMoSqft) + ' sqft', prevMoSqft, peakSqft, '#0ea5e9', false)}
+      ${_cmpRow('Last month · ' + lastMoLbl, window.fmt.short(lastMoSqft) + ' sqft', lastMoSqft, peakSqft, '#0ea5e9', false)}
     </div>
     <div>
       ${_sep()}
       <div style="display:flex;flex-direction:column;gap:4px;">
-        ${_kv('Gap to peak', lastIsPeak || !peakSqft ? '—' : window.fmt.short(peakSqft - prevMoSqft) + ' sqft', lastIsPeak ? 'var(--text-muted)' : '#ef4444')}
+        ${_kv('Gap to peak', lastIsPeak || !peakSqft ? '—' : window.fmt.short(peakSqft - lastMoSqft) + ' sqft', lastIsPeak ? 'var(--text-muted)' : '#ef4444')}
         ${_kv('Peak month', peakLbl, 'var(--text-sub)')}
       </div>
     </div>
@@ -1348,7 +1349,7 @@ window.renderKPIs = function(k, monthly) {
       <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">${window.fmt.num(currYrAvgSqft)} sqft avg / month</div>
     </div>
     <div style="margin-top:auto;margin-bottom:6px;">
-      ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5), '#8b5cf6')}
+      ${window._sparklineBar((k.yearlyAvgTrend || []).slice(-5, -1).concat([currYrAvgSqft]), '#8b5cf6')}
     </div>
     <div>
       ${_sep()}
@@ -1459,10 +1460,10 @@ window.renderKPIs = function(k, monthly) {
           <i class="ph ph-calendar-check"></i> THIS MONTH
         </div>
         <div style="font-size:26px; font-weight:800; color:${c80Cur>0?'var(--brand-primary)':'var(--text-muted)'}; line-height:1; margin-bottom:4px;">
-          ${c80Cur > 0 ? window.fmt.num(c80Cur) : (c30 === 0 ? '—' : 'N/A')}
+          ${c80Cur > 0 ? window.fmt.num(c80Cur) : (cCurMo === 0 ? '—' : 'N/A')}
         </div>
         <div style="font-size:10.5px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">
-          of <strong style="color:var(--text-main)">${window.fmt.num(c30)}</strong> active
+          of <strong style="color:var(--text-main)">${window.fmt.num(cCurMo)}</strong> active
         </div>
         <div style="margin-top:auto;">
           <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:var(--brand-text); margin-bottom:4px;">
@@ -1470,7 +1471,7 @@ window.renderKPIs = function(k, monthly) {
             <span>${c80Cur > 0 ? c80CurPct + '%' : '0%'}</span>
           </div>
           ${c80Cur > 0
-            ? _bar(c80Cur, Math.max(c30,1), 'var(--brand-primary)', 4)
+            ? _bar(c80Cur, Math.max(cCurMo,1), 'var(--brand-primary)', 4)
             : `<div style="height:4px;background:var(--bg-hover);border-radius:100px;opacity:0.3;margin-top:3px;"></div>`}
         </div>
       </div>
