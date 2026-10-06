@@ -14,3 +14,6 @@ connections.json
 # local rollback snapshots
 backups/
 .backup-latest
+
+# local database file
+db/local_data.db
