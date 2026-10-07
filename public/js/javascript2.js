@@ -1552,7 +1552,52 @@ window.renderKPIs = function(k, monthly) {
   // achievement is the month's retail sales, as in the Target vs Actual table.
   const tgtAchSqft = k.salesTypeMonth === k.currentMonth && k.retailSqftMonth ? k.retailSqftMonth : currMoSqft;
 
+  // FY-to-date through the last complete calendar month: retail sales vs the
+  // summed monthly targets of the same months.
+  function _refreshTargetYtd() {
+    const body = document.getElementById('kpi-tgt-ytd-body');
+    if (!body) return;
+    const bySk = k.retailSqftByMonth || {};
+    const anySk = Object.keys(bySk).sort()[0];
+    const now = new Date();
+    const nowSk = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    let sale = 0, target = 0, months = [];
+    if (anySk) {
+      const y = +anySk.slice(0, 4), fyStart = +anySk.slice(5, 7) >= 4 ? y : y - 1;
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(fyStart, 3 + i, 1);
+        const sk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        if (sk >= nowSk) break;
+        months.push(sk);
+        sale += bySk[sk] || 0;
+        target += window.monthTargetSum(window.forecastLabel(sk)) || 0;
+      }
+    }
+    const range = months.length ? window.forecastLabel(months[0]) + ' – ' + window.forecastLabel(months[months.length - 1]) : '';
+    if (!target) {
+      const loaded = !!((window.App.data && window.App.data.overview && window.App.data.overview.targets) || []).length;
+      body.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600;">
+        ${!months.length ? 'No completed month yet.' : loaded ? 'No target set for ' + range + '.' : 'Loading targets…'}</div>`;
+      return;
+    }
+    const pct = sale / target * 100;
+    const clr = pct >= 100 ? '#10b981' : '#f59e0b';
+    body.innerHTML = `
+    <div style="height:72px; margin-bottom:6px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div class="kpi-value" style="font-size:28px;line-height:1;color:${clr};">${Math.round(pct)}%</div>
+        <div style="font-size:10px;color:var(--text-faint);font-weight:600;">${range}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;margin-top:2px;">of target achieved, FY to date</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px;">
+      ${_cmpRow('Target', window.fmt.short(target) + ' sqft', target, Math.max(target, sale), 'var(--text-faint)', false)}
+      ${_cmpRow('Achieved', window.fmt.short(sale) + ' sqft', sale, Math.max(target, sale), clr, false)}
+    </div>`;
+  }
+
   window.refreshTargetKpi = function() {
+    _refreshTargetYtd();
     const body = document.getElementById('kpi-tgt-body');
     if (!body) return;
     const target = tgtLabel ? window.monthTargetSum(tgtLabel) : null;
@@ -1588,9 +1633,20 @@ window.renderKPIs = function(k, monthly) {
     <div id="kpi-tgt-body" style="flex:1;display:flex;flex-direction:column;"></div>
   </div>`;
 
+  const cardTargetYtd = `<div class="kpi-card" style="--kpi-color:#8b5cf6;">
+    <div class="kpi-header-row">
+      <div class="kpi-head-left">
+        <div class="kpi-icon" style="color:#8b5cf6;"><i class="ph ph-calendar-check"></i></div>
+        <div class="kpi-label">FY TARGET VS SALE</div>
+      </div>
+    </div>
+    <div id="kpi-tgt-ytd-body" style="flex:1;display:flex;flex-direction:column;"></div>
+  </div>`;
+
   kpiGrid.innerHTML = [
     cardMtd,
     cardTarget,
+    cardTargetYtd,
     cardLastVsPeak,
     cardAvg,
     cardForecast,

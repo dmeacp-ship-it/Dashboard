@@ -913,6 +913,7 @@ async function getKPIs(f) {
     const splitMoKey = sortedM[cIdx] || curM || '';
     let retailSqmMo = 0, projectSqmMo = 0;
     let retailQtyMo = 0, projectQtyMo = 0;
+    const retailSqmBySk = {}; // 'YYYY-MM' -> retail sqm, for the FY-to-date target card
     try {
       // Bounded: this card is optional, but vw_sales_type_agg is the one
       // dashboard view with no mv_ snapshot, so it reads sales_data directly
@@ -936,6 +937,8 @@ async function getKPIs(f) {
         } else {
           retailSqm += _sqm(r);
           retailQty += _qty(r);
+          const sk = _mSk(_mo(r));
+          retailSqmBySk[sk] = (retailSqmBySk[sk] || 0) + _sqm(r);
           if (isCurMo) { retailSqmMo += _sqm(r); retailQtyMo += _qty(r); }
         }
       });
@@ -984,6 +987,9 @@ async function getKPIs(f) {
       retailQtyMonth: retailQtyMo,
       projectQtyMonth: projectQtyMo,
       salesTypeMonth: splitMoKey,
+      retailSqftByMonth: Object.keys(retailSqmBySk).reduce(function (o, sk) {
+        o[sk] = Math.round(retailSqmBySk[sk] * SQFT_PER_SQM); return o;
+      }, {}),
       cust30d: cust30d,
       cust60d: cust60d,
       cust90Plus: cust90Plus,
