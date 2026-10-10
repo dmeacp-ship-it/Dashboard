@@ -123,6 +123,7 @@ const ROLES = Object.freeze({
   ADMIN:         'admin',
   HOD:           'hod',
   ZONAL_HEAD:    'zonal_head',
+  SALES_VIEWER:  'sales_viewer', // all sales, no outstanding
   STATE_MANAGER: 'state_manager',
   VIEWER:        'viewer'
 });

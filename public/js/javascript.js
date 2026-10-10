@@ -69,8 +69,6 @@ window.applyMultiSort = function(data, tableId) {
     return 0;
   });
 };
-window.inactiveDays    = 90;
-window.rfmSegFilter    = 'All';
 window.skuBrandFilter  = 'All';
 window.skuTypeFilter   = 'All';
 window.hodView         = 'quarter';
@@ -133,7 +131,7 @@ window.bindKpiWheelScroll = function(root) {
   });
 };
 
-window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', exectgt: '', skutypeqoq: '', outstanding: '', customers: '', inactive: '', declining: '', losthv: '', rfm: '', brand: '', prodtype: '', topsku: '' };
+window.searchQueries   = { hodqoq: '', custqoq: '', execqoq: '', projqoq: '', tgtactual: '', exectgt: '', skutypeqoq: '', outstanding: '', customers: '', custclass: '', followup: '', lostterr: '', brand: '', prodtype: '', topsku: '' };
 window.copilotHistory = [];
 window.tableAIHistory = {};
 
@@ -339,10 +337,9 @@ window.handleSearch = function(pageId) {
       else if (pageId === 'projqoq' && window.loadProjSale) window.loadProjSale(1);
       else if (pageId === 'skutypeqoq' && window.loadSkuTypeSale) window.loadSkuTypeSale(1);
       else if (pageId === 'customers' && window.loadTopCustomers) window.loadTopCustomers(1);
-      else if (pageId === 'rfm' && window.loadRFM) window.loadRFM(1);
-      else if (pageId === 'declining' && window.loadDeclining) window.loadDeclining(1);
-      else if (pageId === 'inactive' && window.loadInactive) window.loadInactive(1);
-      else if (pageId === 'losthv' && window.loadLostHV) window.loadLostHV(1);
+      else if (pageId === 'custclass' && window.loadCustClass) window.loadCustClass(1);
+      else if (pageId === 'followup' && window.loadFollowUp) window.loadFollowUp(1);
+      else if (pageId === 'lostterr' && window.loadLostTerritories) window.loadLostTerritories(1);
       else if ((pageId === 'hodqoq' || pageId === 'brand' || pageId === 'prodtype') && window.loadPage) window.loadPage(pageId); 
       else if (window.loadPage) window.loadPage(pageId, 1); 
     }
@@ -498,7 +495,10 @@ window._applyRoleUI = function() {
   var nameEl = document.getElementById('sidebar-user-name');
   if (nameEl && window.App.currentUser) nameEl.textContent = window.App.currentUser.full_name || window.App.currentUser.username || '';
   var roleEl = document.getElementById('sidebar-user-role');
-  if (roleEl) roleEl.textContent = ({ super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head' }[role] || role);
+  if (roleEl) roleEl.textContent = ({ super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head', sales_viewer: 'Sales Viewer' }[role] || role);
+  // Sales Viewers get no outstanding data (the API refuses it too).
+  var osNav = document.querySelector('.nav-item[data-page="outstanding"]');
+  if (osNav) osNav.style.display = (role === 'sales_viewer') ? 'none' : '';
   if (window.FMS && window.FMS.applyRole) window.FMS.applyRole();
 };
 window._initAuth = function() {
@@ -854,6 +854,7 @@ window._tableItems = function(res) {
 };
 
 window._renderPagination = function(res, callbackName, containerId) {
+    window._shownPageNo = (res && res.page) || 1;   // so the hourly refresh reloads this page, not page 1
     const container = document.getElementById(containerId);
     if(!container) return;
     
@@ -1439,10 +1440,9 @@ window._EXPORT_TABLES = {
   'tbl-execqoq-body':     { key: 'execqoq',     reload: function () { return window.loadExecSale(window.execSalePage || 1); } },
   'tbl-projqoq-body':     { key: 'projqoq',     reload: function () { return window.loadProjSale(1); } },
   'tbl-customers-body':   { key: 'customers',   reload: function () { return window.loadTopCustomers(1); } },
-  'tbl-rfm-body':         { key: 'rfm',         reload: function () { return window.loadRFM(1); } },
-  'tbl-declining-body':   { key: 'declining',   reload: function () { return window.loadDeclining(1); } },
-  'tbl-inactive-body':    { key: 'inactive',    reload: function () { return window.loadInactive(1); } },
-  'tbl-losthv-body':      { key: 'losthv',      reload: function () { return window.loadLostHV(1); } }
+  'tbl-custclass-body':   { key: 'custclass',   reload: function () { return window.loadCustClass(1); } },
+  'tbl-followup-body':    { key: 'followup',    reload: function () { return window.loadFollowUp(1); } },
+  'tbl-lostterr-body':    { key: 'lostterr',    reload: function () { return window.loadLostTerritories(1); } }
 };
 
 /**
@@ -1799,11 +1799,10 @@ window.loadPage = function(id, page = 1, useCache = false) {
     skutypeqoq:   () => typeof window.loadSkuTypeSale === 'function' ? window.loadSkuTypeSale(page) : null, 
     outstanding:  () => typeof window.loadOutstanding === 'function' ? window.loadOutstanding() : null,
     pareto:       () => typeof window.loadTopCustomers === 'function' ? window.loadTopCustomers(page) : null,
-    rfm:          () => typeof window.loadRFM === 'function' ? window.loadRFM(page) : null,
-    risk:         () => {
-        if(window._activeRiskTab === 'declining' && window.loadDeclining) window.loadDeclining(page);
-        else if(window._activeRiskTab === 'inactive' && window.loadInactive) window.loadInactive(page);
-        else if(window._activeRiskTab === 'losthv' && window.loadLostHV) window.loadLostHV(page);
+    custclass:    () => typeof window.loadCustClass === 'function' ? window.loadCustClass(page) : null,
+    followup:     () => {
+        if(window._activeFollowTab === 'lostterr' && window.loadLostTerritories) window.loadLostTerritories(page);
+        else if(window.loadFollowUp) window.loadFollowUp(page);
     },
     product:      () => typeof window.loadTimeWiseSales === 'function' ? window.loadTimeWiseSales() : null,
     hodsku:       () => typeof window.loadHodSkuSales === 'function' ? window.loadHodSkuSales() : null,
@@ -2025,6 +2024,29 @@ window._forceCacheUpdate = async function() {
   }
 };
 
+// The hourly, unattended refresh. Unlike Refresh Cache above it leaves the
+// server's cache alone -- every user shares it and each sync already clears it
+// -- and it does not cover the screen: it drops this tab's own copies and
+// reloads the open page where the user left it.
+window._quietRefresh = async function() {
+  if (!window._appReady || !window.App.currentUser || window.App.currentPage === 'settings') return;
+  // Mid-typing, or picking filters that are not applied yet: leave it for the next run.
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  const fp = document.getElementById('filter-panel');
+  if (fp && !fp.classList.contains('hidden')) return;
+
+  window._checkNewVersion();
+  window.clearApiCache();
+  window.App.data.overview = null;
+  try {
+    const fOpts = await window.api('getFilterOptions');
+    if (typeof window.populateFilters === 'function') window.populateFilters(fOpts || {});
+    if (window.App.currentPage === 'overview' && typeof window.loadOverview === 'function') await window.loadOverview(false);
+    else if (window.loadPage) window.loadPage(window.App.currentPage, window._shownPageNo || 1);
+  } catch (e) { /* offline or signed out: the next run, or the user's next click, retries */ }
+};
+
 // ── Reload on a new deploy ──────────────────────────────────────────────────
 // A tab left open keeps running the JS it loaded with while the API moves on,
 // so after a deploy its cards mix old maths with new data. The build stamps
@@ -2041,7 +2063,17 @@ window._checkNewVersion = async function() {
   try {
     const html = await fetch('/', { cache: 'no-store' }).then(function(r) { return r.ok ? r.text() : ''; });
     const latest = window._assetStamps(html);
-    if (latest && latest !== window._loadedStamps) location.reload();
+    if (latest && latest !== window._loadedStamps) {
+      // The reload boots the app from its defaults, so hand the filters and
+      // the open page across it (see _bootDashboard). sessionStorage: this tab only.
+      try {
+        sessionStorage.setItem('acp_resume', JSON.stringify({
+          user: (window.App.currentUser || {}).username, filters: window.App.filters, page: window.App.currentPage,
+          fms: (window.FMS && window.FMS.state && window.FMS.state.view) || ''   // every FMS view shares one page id
+        }));
+      } catch (e) { /* storage blocked: reload without it */ }
+      location.reload();
+    }
   } catch (e) { /* offline: try again next time */ }
 };
 setInterval(window._checkNewVersion, 10 * 60 * 1000);
@@ -2055,7 +2087,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-window._ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head' };
+window._ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', hod: 'HOD', zonal_head: 'Zonal Head', sales_viewer: 'Sales Viewer' };
 
 window.exportUsersCSV = function() {
   if (!window._lastLoadedUsers || !window._lastLoadedUsers.length) return window.toast('No users to export.', 'error');
@@ -2086,7 +2118,7 @@ window.loadUsers = async function() {
     const users = await window.api('listUsers');
     window._lastLoadedUsers = users;
     if (!users || !users.length) { tbody.innerHTML = window._emptyRow(5, 'No users found.'); return; }
-    const rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
+    const rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray', sales_viewer: 'badge-blue' };
     let htmlStr = '';
     users.forEach(function(u) {
       var scope = (u.role === 'hod') ? ((u.allowed_hods || []).join(', ') || '—')
@@ -2286,7 +2318,7 @@ window._laRenderUsers = function() {
     tbody.innerHTML = window._emptyRow(8, all.length ? 'No accounts match "' + window.esc(q) + '".' : 'No accounts found.');
     return;
   }
-  var rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray' };
+  var rc = { super_admin: 'badge-amber', admin: 'badge-blue', hod: 'badge-green', zonal_head: 'badge-gray', sales_viewer: 'badge-blue' };
   // Clicking a row opens that person's entries in Login Log.
   tbody.innerHTML = users.map(function(u) {
     var usage = window._laUsage(u);
@@ -2870,9 +2902,21 @@ window._bootDashboard = async function() {
   
   try {
     if (window.clearApiCache) window.clearApiCache();
+
+    // Back from the automatic new-version reload: pick up the filters and page
+    // this user had open, so the update does not silently drop them.
+    let resume = null;
+    try {
+      resume = JSON.parse(sessionStorage.getItem('acp_resume') || 'null');
+      sessionStorage.removeItem('acp_resume');
+    } catch (e) { /* storage blocked */ }
+    if (resume && resume.user !== window.App.currentUser.username) resume = null;
+    if (resume && resume.filters) Object.assign(window.App.filters, resume.filters);
+
     const fOpts = await window.api('getFilterOptions');
     if (typeof window.populateFilters === 'function') window.populateFilters(fOpts || {});
-    
+    if (window._updateFilterBadge) window._updateFilterBadge();
+
     window.App.currentPage = 'overview';
     document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.toggle('active', el.dataset.page === 'overview'); });
     document.querySelectorAll('.page').forEach(function(el)     { el.classList.toggle('active', el.id === 'page-overview'); });
@@ -2928,9 +2972,20 @@ window._bootDashboard = async function() {
       catch(e) { el.textContent = kpis.lastUpdated; }
     }
     
-    setInterval(function() { 
-      if (document.visibilityState === 'visible' && window.debouncedCacheUpdate) window.debouncedCacheUpdate(); 
-    }, 3600000);
+    // Once per tab: this function runs again after every sign-in, and a second
+    // timer would refresh the dashboard twice an hour, a third three times.
+    if (!window._hourlyRefreshTimer) {
+      window._hourlyRefreshTimer = setInterval(function() {
+        if (document.visibilityState === 'visible') window._quietRefresh();
+      }, 3600000);
+    }
+
+    // Reopen the page they were on, through its own menu item so custom
+    // report and FMS pages take their usual route.
+    if (resume && resume.page && resume.page !== 'overview') {
+      const item = Array.prototype.filter.call(document.querySelectorAll('.nav-item[data-page]'), function(el) { return el.dataset.page === resume.page && (!el.dataset.fms || el.dataset.fms === resume.fms); })[0];
+      if (item) item.click();
+    }
 
   } catch(e) {
     window.toast('Boot error: ' + e.message, 'error', 10000);

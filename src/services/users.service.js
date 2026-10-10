@@ -2,7 +2,7 @@
  * src/services/users.service.js
  *
  * Dashboard login accounts, stored in the Supabase `dashboard_users` table
- * (see db/dashboard_users.sql). Roles: super_admin | admin | hod | zonal_head.
+ * (see db/dashboard_users.sql). Roles: super_admin | admin | hod | zonal_head | sales_viewer.
  *  - hod        users carry one or MORE hod_name values (allowed_hods)
  *  - zonal_head users carry one or more zones (allowed_zones)
  *
@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const { supaFetch } = require('./supabase');
 
 const TABLE = 'dashboard_users';
-const VALID_ROLES = ['super_admin', 'admin', 'hod', 'zonal_head'];
+const VALID_ROLES = ['super_admin', 'admin', 'hod', 'zonal_head', 'sales_viewer'];
 
 // Emergency-only built-in Super Admin, for bootstrapping a deployment before
 // db/dashboard_users.sql has been run. Its credentials are published in this
