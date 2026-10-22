@@ -163,6 +163,7 @@ function _colorCode(r) { return _s(r, 'color_code') || '-'; }
 function _billNo(r) { return _s(r, 'bill_number_sap') || '-'; }
 function _projectPct(r) { return _num(_s(r, 'project_pct')); }
 function _projectSalesPerson(r) { return _s(r, 'project_sales_person') || '-'; }
+function _exBaseLocation(r) { return _s(r, 'ex_base_location') || '-'; }
 function _pt(r)    { return _s(r, 'product_type') || 'Unknown'; }
 function _sku(r)   { return _s(r, 'sku_type').toUpperCase(); }
 function _custName(r) { return _s(r, 'customer_name') || _s(r, 'customer_code'); }
@@ -791,7 +792,7 @@ async function getFilterOptions(userProfile) {
 }
 
 async function getKPIs(f) {
-  return cached('kpis_v10_' + _stableStringify(f), async function () {
+  return cached('kpis_v11_' + _stableStringify(f), async function () {
     // Wide fetch on purpose: MoM/YoY trend maps need every period.
     const geoQ = _q(f, ['month', 'fy', 'quarter']);
     const geo = await _fetchAgg('vw_monthly_agg', geoQ);
@@ -810,7 +811,12 @@ async function getKPIs(f) {
     });
 
     const sortedM = Object.keys(mMap).sort(function (a, b) { return _mSk(b).localeCompare(_mSk(a)); });
-    const curM = (f && f.month && f.month !== 'All' && !Array.isArray(f.month)) ? f.month : sortedM[0];
+    // Current month = the latest month inside the selection (FY / quarter /
+    // month), so picking FY 25-26 compares Mar-26 with Feb-26 rather than the
+    // newest month in the data. The previous month may sit outside it.
+    const selMonths = {};
+    filt.forEach(function (r) { const m = _mo(r); if (m) selMonths[m] = true; });
+    const curM = sortedM.filter(function (m) { return selMonths[m]; })[0] || sortedM[0];
     const cIdx = Math.max(0, sortedM.indexOf(curM));
 
     const curSqft = (mMap[sortedM[cIdx]] ? mMap[sortedM[cIdx]].sqm : 0) * SQFT_PER_SQM;
@@ -854,7 +860,7 @@ async function getKPIs(f) {
     const prevFyAvgSqft = _fyAvg(prevFy);
     const avgSqftGrowth = prevFyAvgSqft ? ((Math.round(curFyAvgSqft) - Math.round(prevFyAvgSqft)) / Math.round(prevFyAvgSqft) * 100) : 0;
 
-    const last6MoTrend = sortedM.slice(0, 6).reverse().map(function (m) {
+    const last6MoTrend = sortedM.slice(cIdx, cIdx + 6).reverse().map(function (m) {
       return Math.round((mMap[m] ? mMap[m].sqm : 0) * SQFT_PER_SQM);
     });
     const yearlyAvgsTrend = sortedF.slice(fIdx).reverse().map(function (fy) { return Math.round(_fyAvg(fy)); });
@@ -1019,25 +1025,49 @@ async function getKPIs(f) {
   });
 }
 
+// Whole-word state keywords per macro zone. Matched on words, not substrings:
+// the old substring test let 'AP'/'UP'/'MP' fire inside unrelated names.
+const _MACRO_STATE_WORDS = [
+  ['WEST', ['GUJARAT', 'MAHARASHTRA', 'MUMBAI', 'GOA']],
+  ['SOUTH', ['TAMIL', 'KARNATAKA', 'KERALA', 'ANDHRA', 'TELANGANA', 'TELEGANA', 'AP', 'PUDUCHERRY', 'PONDICHERRY']],
+  ['EAST', ['NORTH EAST', 'BENGAL', 'BIHAR', 'ODISHA', 'ORISSA', 'ASSAM', 'JHARKHAND', 'MANIPUR', 'MIZORAM', 'MEGHALAYA', 'TRIPURA', 'NAGALAND', 'ARUNACHAL', 'SIKKIM']],
+  ['CENTRAL', ['MADHYA', 'CHHATTISGARH', 'CHATTISGARH', 'CHATTISHGARH', 'MP']],
+  ['NORTH', ['DELHI', 'RAJASTHAN', 'PUNJAB', 'HARYANA', 'UP', 'UTTAR', 'UTTARAKHAND', 'UTTRAKHAND', 'JAMMU', 'KASHMIR', 'HIMACHAL', 'CHANDIGARH', 'TRI CITY', 'GURGAON', 'GURUGRAM', 'FARIDABAD', 'FBD', 'NOIDA']]
+];
+const _MACRO_DIRS = ['NORTH', 'SOUTH', 'EAST', 'WEST', 'CENTRAL'];
+
+// Zone column -> macro zone. The zone column wins when it names exactly one
+// direction ('WEST 2' -> WEST). Otherwise (blank, '-', HEAD OFFICE, or a mixed
+// 'CENTRAL & NORTH') the state/territory decides, then the first direction the
+// zone names. Anything still unplaced is OTHER -- head office, export and
+// unmapped rows -- never silently CENTRAL.
 function _toMacroZone(zStr, sStr) {
-  const z = String(zStr || '').trim().toUpperCase();
-  const s = String(sStr || '').trim().toUpperCase();
-  if (z.indexOf('WEST') !== -1 || s.indexOf('GUJARAT') !== -1 || s.indexOf('MAHARASHTRA') !== -1 || s.indexOf('MUMBAI') !== -1 || s.indexOf('GOA') !== -1) return 'WEST';
-  if (z.indexOf('SOUTH') !== -1 || s.indexOf('TAMIL') !== -1 || s.indexOf('KARNATAKA') !== -1 || s.indexOf('KERALA') !== -1 || s.indexOf('ANDHRA') !== -1 || s.indexOf('TELANGANA') !== -1 || s.indexOf('AP') !== -1) return 'SOUTH';
-  if (z.indexOf('EAST') !== -1 || s.indexOf('BENGAL') !== -1 || s.indexOf('BIHAR') !== -1 || s.indexOf('ODISHA') !== -1 || s.indexOf('ORISSA') !== -1 || s.indexOf('ASSAM') !== -1 || s.indexOf('JHARKHAND') !== -1) return 'EAST';
-  if (z.indexOf('CENTRAL') !== -1 || s.indexOf('MADHYA') !== -1 || s.indexOf('CHHATTISGARH') !== -1 || s.indexOf('MP') !== -1) return 'CENTRAL';
-  if (z.indexOf('NORTH') !== -1 || s.indexOf('DELHI') !== -1 || s.indexOf('RAJASTHAN') !== -1 || s.indexOf('PUNJAB') !== -1 || s.indexOf('HARYANA') !== -1 || s.indexOf('UP') !== -1 || s.indexOf('UTTAR') !== -1 || s.indexOf('UTTARAKHAND') !== -1 || s.indexOf('JAMMU') !== -1 || s.indexOf('HIMACHAL') !== -1) return 'NORTH';
-  return 'CENTRAL';
+  const words = function (v) { return ' ' + String(v || '').toUpperCase().replace(/[^A-Z]+/g, ' ').trim() + ' '; };
+  const z = words(zStr), s = words(sStr);
+  const dirs = _MACRO_DIRS
+    .map(function (d) { return { d: d, at: z.indexOf(' ' + d + ' ') }; })
+    .filter(function (x) { return x.at !== -1; })
+    .sort(function (a, b) { return a.at - b.at; });
+  if (dirs.length === 1) return dirs[0].d;
+  for (let i = 0; i < _MACRO_STATE_WORDS.length; i++) {
+    const hit = _MACRO_STATE_WORDS[i][1].some(function (w) { return s.indexOf(' ' + w + ' ') !== -1; });
+    if (hit) return _MACRO_STATE_WORDS[i][0];
+  }
+  return dirs.length ? dirs[0].d : 'OTHER';
 }
 
 async function getOverviewData(f) {
-  return cached('overview_batched_v5_' + _stableStringify(f), async function () {
+  return cached('overview_batched_v6_' + _stableStringify(f), async function () {
     const widestQ = _q(f, ['month', 'fy']);
     const rows = await _fetchAgg('vw_monthly_agg', widestQ);
 
     const fForMonthly = Object.assign({}, f, { month: 'All' });
     const fForState = Object.assign({}, f, { state: 'All' });
     const fForZone = Object.assign({}, f, { zone: 'All', state: 'All' });
+    // byFY / byMo feed the YTD-vs-last-year comparison, so they must see the
+    // previous FY even when an FY is selected; TOTAL SQM still follows f.
+    const fForStateTrend = Object.assign({}, fForState, { fy: 'All', month: 'All' });
+    const fForZoneTrend = Object.assign({}, fForZone, { fy: 'All', month: 'All' });
 
     const monthlyMap = {};
     const stateMap = {};
@@ -1068,11 +1098,19 @@ async function getOverviewData(f) {
           monthlyMap[m]['NET REVENUE'] += rev;
         }
       }
-      if (_rowMatches(r, fForState)) {
+      const inState = _rowMatches(r, fForState);
+      if (inState || _rowMatches(r, fForStateTrend)) {
         const s = _state(r);
-        if (!stateMap[s]) stateMap[s] = { STATE: s, ZONE: _toMacroZone(_zone(r), s), 'TOTAL SQM': 0, 'NET REVENUE': 0, byFY: {}, byMo: {} };
-        stateMap[s]['TOTAL SQM'] += sq;
-        stateMap[s]['NET REVENUE'] += rev;
+        if (!stateMap[s]) stateMap[s] = { STATE: s, 'TOTAL SQM': 0, 'NET REVENUE': 0, byFY: {}, byMo: {}, _zoneSq: {}, _hit: false };
+        if (inState) {
+          stateMap[s]._hit = true;
+          stateMap[s]['TOTAL SQM'] += sq;
+          stateMap[s]['NET REVENUE'] += rev;
+          // Label = the zone carrying most of this territory's volume, not
+          // whichever row happened to arrive first.
+          const mz = _toMacroZone(_zone(r), s);
+          stateMap[s]._zoneSq[mz] = (stateMap[s]._zoneSq[mz] || 0) + sq;
+        }
         if (fy) {
           stateMap[s].byFY[fy] = (stateMap[s].byFY[fy] || 0) + (sq * SQFT_PER_SQM);
           if (m) {
@@ -1082,11 +1120,14 @@ async function getOverviewData(f) {
           }
         }
       }
-      if (_rowMatches(r, fForZone)) {
+      const inZone = _rowMatches(r, fForZone);
+      if (inZone || _rowMatches(r, fForZoneTrend)) {
         const z = _toMacroZone(_zone(r), _state(r));
         if (!zoneMap[z]) zoneMap[z] = { ZONE: z, 'TOTAL SQM': 0, 'NET REVENUE': 0, byFY: {}, byMo: {} };
-        zoneMap[z]['TOTAL SQM'] += sq;
-        zoneMap[z]['NET REVENUE'] += rev;
+        if (inZone) {
+          zoneMap[z]['TOTAL SQM'] += sq;
+          zoneMap[z]['NET REVENUE'] += rev;
+        }
         if (fy) {
           zoneMap[z].byFY[fy] = (zoneMap[z].byFY[fy] || 0) + (sq * SQFT_PER_SQM);
           if (m) {
@@ -1113,7 +1154,14 @@ async function getOverviewData(f) {
     }).sort(function (a, b) { return a['SORT KEY'].localeCompare(b['SORT KEY']); });
 
     const states = Object.values(stateMap)
-      .map(function (r) { return Object.assign({}, r, { 'SQ FT.': r['TOTAL SQM'] * SQFT_PER_SQM }); })
+      .filter(function (r) { return r._hit; })
+      .map(function (r) {
+        const zs = r._zoneSq;
+        const zone = Object.keys(zs).sort(function (a, b) { return zs[b] - zs[a]; })[0] || 'OTHER';
+        const out = Object.assign({}, r, { ZONE: zone, 'SQ FT.': r['TOTAL SQM'] * SQFT_PER_SQM });
+        delete out._zoneSq; delete out._hit;
+        return out;
+      })
       .sort(function (a, b) { return b['TOTAL SQM'] - a['TOTAL SQM']; });
 
     const zones = Object.values(zoneMap).map(function (r) {
@@ -2226,14 +2274,16 @@ async function getOutstandingHODSummary(f) { return getOutstandingSummary(f); }
 async function getOutstandingStateSummary(f) { return getOutstandingSummary(f); }
 
 async function getTopCustomers(f, opts) {
-  return cached('topCust_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
+  return cached('topCust_v2_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
     let rows = await _fetchCustomers(f);
     
     if (opts && opts.activeDays) {
       rows = rows.filter(function (r) { return _days(r) <= opts.activeDays; });
     }
 
-    const sm = { sqm: 'SQ FT.', quantity: 'SQ FT.', frequency: 'TRANSACTION COUNT', revenue: 'NET REVENUE' };
+    // vw_customer_summary carries no quantity or revenue column, so only these
+    // two sorts are real; anything else falls back to SQ FT.
+    const sm = { sqm: 'SQ FT.', frequency: 'TRANSACTION COUNT' };
     rows.forEach(function (r) {
       r['SQ FT.'] = _sqft(r);
       r['TOTAL SQM'] = _sqm(r);
@@ -2270,90 +2320,700 @@ async function getTopCustomers(f, opts) {
   });
 }
 
-async function getInactiveCustomers(f, opts) {
-  const minDays = (opts && opts.days) || 90;
-  return cached('inactive_' + minDays + '_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const rows = (await _fetchCustomers(f))
-      .filter(function (r) { return _days(r) >= minDays; });
-    rows.forEach(function (r) {
-      const d = _days(r);
-      r['INACTIVE CATEGORY'] = d >= 180 ? 'Inactive 180+ Days' : d >= 120 ? 'Inactive 120-179 Days' : 'Inactive 90-119 Days';
-      r['SQ FT.'] = _sqft(r);
-      r['TRANSACTION COUNT'] = _txns(r);
-      r['DAYS SINCE LAST PURCHASE'] = d;
-      r['CUSTOMER NAME'] = _custName(r);
-      r['STATE'] = _state(r);
-      r['LAST PURCHASE DATE'] = _lastDate(r);
-      r['HOD NAME'] = _hod(r);
+// ── Customer insights / lost territories ───────────────────────────────────
+// vw_customer_sale_agg rows for every period, narrowed by the geo filters and
+// the caller's scope. The view has no zone column, so a zone filter or a zonal
+// head's scope is applied through the (state, HOD) pairs that zone has in
+// vw_monthly_agg.
+async function _custSaleAllTime(f) {
+  f = f || {};
+  const ex = ['month', 'fy', 'quarter'];
+  const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All', zone: 'All' });
+  let rows = (await _fetchAgg('vw_customer_sale_agg', _q(f, ex.concat('zone'))))
+    .filter(function (r) { return _sqm(r) > 0 && _mo(r) && _rowMatches(r, fGeo); });
+  const sc = f._scope || {};
+  if (_vals(f.zone) || (sc.allowed_zones && sc.allowed_zones.length)) {
+    const q = _q(f, ex);
+    const ok = {};
+    (await _fetchAgg('vw_monthly_agg', q + (q ? '&' : '?') + 'select=state,hod_name')).forEach(function (r) {
+      ok[_rawState(r) + '||' + _hod(r)] = true;
     });
-    return _paginate(rows.sort(function (a, b) { return (b['SQ FT.'] || 0) - (a['SQ FT.'] || 0); }), opts);
-  });
+    rows = rows.filter(function (r) { return ok[_rawState(r) + '||' + _hod(r)]; });
+  }
+  return rows;
 }
 
-async function getDecliningCustomers(f, opts) {
-  return cached('declining_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const rows = (await _fetchCustomers(f))
-      .filter(function (r) {
-        const prev = _prev6(r), last = _last6(r);
-        if (prev < 50) return false;
-        const pct = ((last - prev) / prev) * 100;
-        if (pct > -30) return false;
-        r['DECLINE %'] = +pct.toFixed(1);
-        r['SQM CHANGE'] = last - prev;
-        r['PREV 6M SQM'] = prev;
-        r['LAST 6M SQM'] = last;
-        r['DECLINE CATEGORY'] = pct <= -70 ? 'Critical (70%+)' : pct <= -50 ? 'Severe (50-70%)' : 'Significant (30-50%)';
-        r['CUSTOMER NAME'] = _custName(r);
-        r['STATE'] = _state(r);
-        r['HOD NAME'] = _hod(r);
-        return true;
-      }).sort(function (a, b) { return (a['DECLINE %'] || 0) - (b['DECLINE %'] || 0); });
-    return _paginate(rows, opts);
-  });
+// An optional view, snapshot first. Null when neither has been created yet.
+async function _fetchOptionalAgg(view, qs) {
+  return (await _probe('mv_' + view.slice(3), qs, MV_PROBE_TIMEOUT_MS)) || _tryFetchAll(view, qs);
+}
+// Branch x month sales with a distinct bill count (db/migrations/19).
+function _fetchBranchAgg(f) { return _fetchOptionalAgg('vw_branch_agg', _q(f)); }
+// One depot arrives under several spellings: 'Delhi - ACP Industries Depot',
+// 'DELHI', 'Gujrat (Ahmedabad)- ACP Industreis Depot-Branch'. A bare city and
+// any '... ACP Industries Depot ...' variant are the same depot and collapse to
+// the city name. Other dashed names are separate sites and are left as they are
+// ('Ahmedabad - Acp Factory', 'Delhi - Lam Depot', 'Virgo Aluminum Limited-ACP').
+function _branch(r) {
+  const raw = _s(r, 'branch_name') || 'Unknown';
+  if (raw === 'Unknown' || (raw.indexOf('-') !== -1 && !/ACP\s+Industr\w*\s+Depot/i.test(raw))) return raw;
+  const paren = raw.match(/\(([^)]+)\)/);
+  return (paren ? paren[1] : raw.split('-')[0]).trim().toLowerCase()
+    .replace(/\b[a-z]/g, function (ch) { return ch.toUpperCase(); });
+}
+const BRANCH_MIGRATION_HINT = 'Run db/migrations/19_create_branch_agg_view.sql in the Supabase SQL editor, then restart the server.';
+
+// 'YYYY-MM' shifted by n months.
+function _skAdd(sk, n) {
+  return new Date(Date.UTC(+sk.slice(0, 4), +sk.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
 }
 
-async function getLostHVCustomers(f, opts) {
-  return cached('losthv_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    const rows = await _fetchCustomers(f);
-    rows.forEach(function (r) {
-      r['SQ FT.'] = _sqft(r);
-      r['CUSTOMER NAME'] = _custName(r);
-      r['STATE'] = _state(r);
-      r['HOD NAME'] = _hod(r);
+async function getCustomerInsights(f) {
+  return cached('custInsights_v1_' + _stableStringify(f), async function () {
+    const fSel = Object.assign({}, f, { zone: 'All' }); // zone is already applied by _custSaleAllTime
+    const by = {};                 // customer -> { 'YYYY-MM': true } for every month they bought
+    const fyOfSk = {}, labelOfSk = {}, selSqm = {};
+    let curSk = '';
+    (await _custSaleAllTime(f)).forEach(function (r) {
+      const c = _s(r, 'customer_code') || _s(r, 'customer_name');
+      const m = _mo(r), sk = _mSk(m);
+      fyOfSk[sk] = _robustFy(r); labelOfSk[sk] = m;
+      (by[c] = by[c] || {})[sk] = true;
+      if (_rowMatches(r, fSel)) {
+        selSqm[c] = (selSqm[c] || 0) + _sqm(r);
+        if (sk > curSk) curSk = sk;
+      }
     });
-    rows.sort(function (a, b) { return (b['SQ FT.'] || 0) - (a['SQ FT.'] || 0); });
-    const top20 = rows.slice(0, Math.ceil(rows.length * 0.2)).filter(function (r) { return _last6(r) === 0; });
-    top20.forEach(function (r, i) {
-      r['SQM PERCENTILE'] = Math.round((1 - i / rows.length) * 100);
-      r['DAYS INACTIVE'] = _days(r);
-      r['LAST PURCHASE DATE'] = _lastDate(r);
-    });
-    return _paginate(top20.sort(function (a, b) { return (b['SQ FT.'] || 0) - (a['SQ FT.'] || 0); }), opts);
-  });
-}
 
-async function getRFMData(f, opts) {
-  return cached('rfmData_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
-    let rows = _computeRFM(await _fetchCustomers(f));
-    if (opts && opts.segment && opts.segment !== 'All') {
-      rows = rows.filter(function (r) { return r['SEGMENT'] === opts.segment; });
+    const out = {
+      month: labelOfSk[curSk] || '', fy: fyOfSk[curSk] || '', prevFy: null,
+      buyersMonth: 0, newMonth: null, newFy: null, reactivated: 0,
+      retentionPct: null, retained: 0, retentionBase: 0,
+      top10Pct: null, bills: null, avgOrderSqft: null
+    };
+
+    if (curSk) {
+      const fys = Object.keys(fyOfSk).map(function (k) { return fyOfSk[k]; })
+        .filter(function (v, i, a) { return v && a.indexOf(v) === i; }).sort();
+      const curFy = out.fy;
+      const prevFy = out.prevFy = fys[fys.indexOf(curFy) - 1] || null;
+      // In the first FY on record every customer looks new, so "new" is only
+      // reported once there is an earlier year to compare against.
+      if (prevFy) { out.newMonth = 0; out.newFy = 0; }
+      const gap = [_skAdd(curSk, -1), _skAdd(curSk, -2), _skAdd(curSk, -3)];
+      Object.keys(by).forEach(function (c) {
+        const months = Object.keys(by[c]).sort();
+        const first = months[0];
+        const inCur = by[c][curSk];
+        if (inCur) out.buyersMonth++;
+        if (prevFy) {
+          if (inCur && first === curSk) out.newMonth++;
+          if (fyOfSk[first] === curFy && first <= curSk) out.newFy++;
+          if (months.some(function (sk) { return fyOfSk[sk] === prevFy; })) {
+            out.retentionBase++;
+            if (months.some(function (sk) { return fyOfSk[sk] === curFy; })) out.retained++;
+          }
+        }
+        // Month grain is the finest the view has: "back after 90+ days" is
+        // read as no purchase in the three months before the current one.
+        if (inCur && first < curSk && !gap.some(function (sk) { return by[c][sk]; })) out.reactivated++;
+      });
+      if (out.retentionBase) out.retentionPct = +(out.retained / out.retentionBase * 100).toFixed(1);
+
+      const sel = Object.keys(selSqm).map(function (c) { return selSqm[c]; }).sort(function (a, b) { return b - a; });
+      const tot = sel.reduce(function (s, v) { return s + v; }, 0);
+      if (tot > 0) out.top10Pct = +(sel.slice(0, 10).reduce(function (s, v) { return s + v; }, 0) / tot * 100).toFixed(1);
     }
-    return _paginate(rows.sort(function (a, b) { return b['RFM TOTAL'] - a['RFM TOTAL']; }), opts);
+
+    const br = await _fetchBranchAgg(f);
+    if (br) {
+      let sqft = 0; out.bills = 0;
+      br.filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+        out.bills += _num(r.bill_count); sqft += _sqft(r);
+      });
+      out.avgOrderSqft = out.bills ? Math.round(sqft / out.bills) : 0;
+    }
+    return out;
   });
 }
 
-async function getRFMDistribution(f) {
-  return cached('rfmDist_' + _stableStringify(f), async function () {
-    const dist = {};
-    _computeRFM(await _fetchCustomers(f)).forEach(function (r) {
-      const s = r['SEGMENT'];
-      if (!dist[s]) dist[s] = { segment: s, count: 0, totalSqft: 0 };
-      dist[s].count++;
-      dist[s].totalSqft += r['SQ FT.'];
+// Cities that bought in the previous FY and have not bought in the current
+// one. City and state here are the billing geography, not the HOD territory.
+async function getLostTerritories(f, opts) {
+  return cached('lostTerr_v1_' + _stableStringify(f) + '_' + _stableStringify(opts), async function () {
+    const rows = await _custSaleAllTime(f);
+    const fys = rows.map(_robustFy).filter(function (v, i, a) { return v && a.indexOf(v) === i; }).sort();
+    const selFy = _vals(f && f.fy);
+    const curFy = selFy && selFy.length === 1 ? _normFy(selFy[0]) : fys[fys.length - 1];
+    const prevFy = fys[fys.indexOf(curFy) - 1] || null;
+
+    const city = {}, stCur = {}, stPrev = {};
+    rows.forEach(function (r) {
+      const fy = _robustFy(r);
+      if (!prevFy || (fy !== curFy && fy !== prevFy) || _city(r) === 'Unknown') return;
+      const st = _rawState(r), key = _city(r).toUpperCase() + '||' + st.toUpperCase();
+      const c = city[key] = city[key] || { CITY: _city(r), STATE: st, cur: 0, prev: 0, custs: {}, hods: {}, lastSk: '', last: '' };
+      if (fy === curFy) { c.cur += _sqm(r); stCur[st] = true; return; }
+      c.prev += _sqm(r); stPrev[st] = true;
+      c.custs[_s(r, 'customer_code') || _s(r, 'customer_name')] = true;
+      c.hods[_hod(r)] = (c.hods[_hod(r)] || 0) + _sqm(r);
+      const sk = _mSk(_mo(r));
+      if (sk > c.lastSk) { c.lastSk = sk; c.last = _mo(r); }
     });
-    return Object.values(dist)
-      .map(function (d) { return Object.assign({}, d, { totalSqft: Math.round(d.totalSqft) }); })
-      .sort(function (a, b) { return b.totalSqft - a.totalSqft; });
+
+    const lost = Object.keys(city).map(function (k) { return city[k]; })
+      .filter(function (c) { return c.prev > 0 && !c.cur; })
+      .map(function (c) {
+        return {
+          CITY: c.CITY, STATE: c.STATE,
+          'HOD NAME': Object.keys(c.hods).sort(function (a, b) { return c.hods[b] - c.hods[a]; })[0] || '-',
+          CUSTOMERS: Object.keys(c.custs).length,
+          'SQ FT.': Math.round(c.prev * SQFT_PER_SQM),
+          'LAST SALE': c.last,
+          WHOLE_STATE: !stCur[c.STATE]
+        };
+      })
+      .sort(function (a, b) { return b['SQ FT.'] - a['SQ FT.']; });
+
+    const result = _paginate(lost, opts);
+    result.curFy = curFy || ''; result.prevFy = prevFy;
+    result.lostCities = lost.length;
+    result.lostStates = Object.keys(stPrev).filter(function (s) { return !stCur[s]; }).length;
+    result.lostSqft = lost.reduce(function (s, r) { return s + r['SQ FT.']; }, 0);
+    return result;
+  });
+}
+
+// ── Customer classification / follow-up list ───────────────────────────────
+// Both pages read one cached set of customer profiles built from every month
+// of vw_customer_sale_agg, so they describe behaviour to date and ignore the
+// FY / quarter / month filters (the geo filters and the caller's scope apply).
+const PROFILE_MIGRATION_HINT = 'Run db/migrations/21_customer_purchase_days.sql in the Supabase SQL editor, then restart the server.';
+// Weekly and monthly are habits, so they need enough purchase days to show
+// one: two orders in the same week would otherwise read as a weekly buyer.
+const MIN_BUY_DAYS_FOR_HABIT = 5;
+
+function _mIdx(sk) { return +sk.slice(0, 4) * 12 + +sk.slice(5, 7) - 1; }
+function _topKey(map) { return Object.keys(map).sort(function (a, b) { return map[b] - map[a]; })[0] || '-'; }
+
+// Every classification: its classes in display order and how a profile lands
+// in one. `needs` marks the ones that depend on outstanding data ('os'), on
+// the optional customer profile view ('view', migration 20 or 21) or on its
+// purchase-day columns ('days', migration 21).
+const CUST_DIMS = [
+  { key: 'frequency', label: 'How often they buy', needs: 'days',
+    note: 'By the average number of days between the days they bought on: Weekly up to 7, Monthly 8 to 30, Occasional longer. A customer with fewer than 5 purchase days is Occasional, and with one purchase day One-time.',
+    classes: ['Weekly buyers', 'Monthly buyers', 'Occasional buyers', 'One-time buyers'],
+    of: function (p) {
+      if (p.buyDays == null) return 'Unknown';
+      if (p.buyDays <= 1) return 'One-time buyers';
+      if (p.buyDays < MIN_BUY_DAYS_FOR_HABIT) return 'Occasional buyers';
+      return p.gapDays <= 7 ? 'Weekly buyers' : p.gapDays <= 30 ? 'Monthly buyers' : 'Occasional buyers';
+    } },
+  { key: 'size', label: 'Size',
+    note: 'Ranked by total sq ft: Key customers make up the first 50% of volume, Core the next 30%, Small the next 15%, Tail the last 5%.',
+    classes: ['Key', 'Core', 'Small', 'Tail'],
+    of: function (p) { return p.tier; } },
+  { key: 'recency', label: 'When they last bought',
+    note: 'Months since their most recent purchase, counted from the latest month with sales.',
+    classes: ['Latest month', '1-2 months ago', '3-5 months ago', '6+ months ago'],
+    of: function (p) { return p.idle === 0 ? 'Latest month' : p.idle <= 2 ? '1-2 months ago' : p.idle <= 5 ? '3-5 months ago' : '6+ months ago'; } },
+  { key: 'ordersize', label: 'Typical order size',
+    note: 'Average sq ft in a month when they buy.',
+    classes: ['20,000+ sq ft', '5,000-19,999 sq ft', '1,000-4,999 sq ft', 'Under 1,000 sq ft'],
+    of: function (p) { return p.avgMonth >= 20000 ? '20,000+ sq ft' : p.avgMonth >= 5000 ? '5,000-19,999 sq ft' : p.avgMonth >= 1000 ? '1,000-4,999 sq ft' : 'Under 1,000 sq ft'; } },
+  { key: 'trend', label: 'Trend',
+    note: 'Last 3 complete months against the 3 before: Growing is up 20%+, Slowing is down 30%+. New first bought in the last 3 months; Won back returned after 3+ idle months.',
+    classes: ['New', 'Growing', 'Steady', 'Slowing', 'Won back', 'Stopped recently', 'Dormant (6+ months)'],
+    of: function (p) {
+      if (p.isNew) return 'New';
+      if (p.last3 <= 0) return p.prev3 > 0 ? 'Stopped recently' : 'Dormant (6+ months)';
+      if (p.prev3 <= 0) return 'Won back';
+      return p.last3 >= p.prev3 * 1.2 ? 'Growing' : p.last3 <= p.prev3 * 0.7 ? 'Slowing' : 'Steady';
+    } },
+  { key: 'tenure', label: 'Tenure',
+    note: 'Whether their first purchase on record falls in the current FY, and whether they have bought in it.',
+    classes: ['New this FY', 'Carried over, buying this FY', 'Not buying this FY'],
+    of: function (p) { return p.newThisFy ? 'New this FY' : p.inCurFy ? 'Carried over, buying this FY' : 'Not buying this FY'; } },
+  { key: 'payment', label: 'Payment behaviour', needs: 'os',
+    note: 'From the outstanding sheet. A customer with dues in several buckets is placed in the worst one.',
+    classes: ['No dues', 'Within 45 days', 'Slow (45-90 days)', 'Over credit limit', 'Stuck (90+ days)'],
+    of: function (p) {
+      if (!(p.os > 0)) return 'No dues';
+      if (p.os90 > 0) return 'Stuck (90+ days)';
+      if (p.creditLimit > 0 && p.os > p.creditLimit) return 'Over credit limit';
+      return p.os45 > 0 ? 'Slow (45-90 days)' : 'Within 45 days';
+    } },
+  { key: 'salestype', label: 'Retail vs project', needs: 'view',
+    note: 'Share of their sq ft billed as project sales: Projects is 90%+, Retail is 10% or less.',
+    classes: ['Retail', 'Both', 'Projects'],
+    of: function (p) { return p.projectShare == null ? 'Unknown' : p.projectShare >= 0.9 ? 'Projects' : p.projectShare <= 0.1 ? 'Retail' : 'Both'; } },
+  { key: 'breadth', label: 'Product range', needs: 'view',
+    note: 'How many product types they have bought.',
+    classes: ['Three or more products', 'Two products', 'Single product'],
+    of: function (p) { return p.productTypes == null ? 'Unknown' : p.productTypes >= 3 ? 'Three or more products' : p.productTypes === 2 ? 'Two products' : 'Single product'; } },
+  { key: 'bills', label: 'Number of bills', needs: 'view',
+    note: 'Distinct bills raised for the customer.',
+    classes: ['21+ bills', '6-20 bills', '2-5 bills', 'One bill only'],
+    of: function (p) { return p.bills == null ? 'Unknown' : p.bills >= 21 ? '21+ bills' : p.bills >= 6 ? '6-20 bills' : p.bills >= 2 ? '2-5 bills' : 'One bill only'; } }
+];
+
+// One plain line per class, shown on its card, so nobody has to decode a label.
+const CLASS_HELP = {
+  frequency: {
+    'Weekly buyers': 'Buy again within 7 days, on average',
+    'Monthly buyers': 'Buy again within 8 to 30 days, on average',
+    'Occasional buyers': 'More than a month between orders, or have bought on fewer than 5 days',
+    'One-time buyers': 'Have bought on one day only'
+  },
+  size: {
+    'Key': 'The biggest customers: together they are half of all sale',
+    'Core': 'The next biggest: together 30% of all sale',
+    'Small': 'Together 15% of all sale',
+    'Tail': 'The smallest: together only 5% of all sale'
+  },
+  recency: {
+    'Latest month': 'Bought in the latest month',
+    '1-2 months ago': 'Last order was 1 or 2 months back',
+    '3-5 months ago': 'Last order was 3 to 5 months back',
+    '6+ months ago': 'No order for 6 months or more'
+  },
+  ordersize: {
+    '20,000+ sq ft': 'Take 20,000 sq ft or more in a month they buy',
+    '5,000-19,999 sq ft': 'Take 5,000 to 19,999 sq ft in a month they buy',
+    '1,000-4,999 sq ft': 'Take 1,000 to 4,999 sq ft in a month they buy',
+    'Under 1,000 sq ft': 'Take under 1,000 sq ft in a month they buy'
+  },
+  trend: {
+    'New': 'First order was in the last 3 months',
+    'Growing': 'Last 3 months are 20% or more above the 3 months before',
+    'Steady': 'Buying about the same as before',
+    'Slowing': 'Last 3 months are 30% or more below the 3 months before',
+    'Won back': 'Came back after 3 or more months without an order',
+    'Stopped recently': 'Bought 3 to 5 months back, nothing in the last 3 months',
+    'Dormant (6+ months)': 'No order in the last 6 months'
+  },
+  tenure: {
+    'New this FY': 'First order was in this financial year',
+    'Carried over, buying this FY': 'Older customer who has bought this financial year',
+    'Not buying this FY': 'Older customer with no order this financial year'
+  },
+  payment: {
+    'No dues': 'Nothing to pay',
+    'Within 45 days': 'All dues are less than 45 days old',
+    'Slow (45-90 days)': 'Some dues are 45 to 90 days old',
+    'Over credit limit': 'Owe more than their credit limit',
+    'Stuck (90+ days)': 'Some dues are more than 90 days old'
+  },
+  salestype: {
+    'Retail': 'Almost all of their sale is retail',
+    'Both': 'Buy for retail and for projects',
+    'Projects': 'Almost all of their sale is project'
+  },
+  breadth: {
+    'Three or more products': 'Have bought 3 or more product types',
+    'Two products': 'Have bought 2 product types',
+    'Single product': 'Have bought only 1 product type'
+  },
+  bills: {
+    '21+ bills': '21 or more bills raised so far',
+    '6-20 bills': '6 to 20 bills raised so far',
+    '2-5 bills': '2 to 5 bills raised so far',
+    'One bill only': 'Only 1 bill raised so far'
+  }
+};
+
+// Realisation: net revenue (before GST) per sq ft, to one decimal.
+function _realisation(rev, sqft) { return sqft > 0 ? +(rev / sqft).toFixed(1) : null; }
+
+async function _customerProfiles(f, noOs) {
+  const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' });
+  return cached('custProfiles_v3_' + (noOs ? 'nos_' : '') + _stableStringify(fGeo), async function () {
+    const got = await Promise.all([
+      _custSaleAllTime(fGeo),
+      noOs ? null : _fetchOutstanding(fGeo),
+      _fetchOptionalAgg('vw_customer_profile_agg', '')
+    ]);
+    const rows = got[0], osRows = got[1], viewRows = got[2];
+
+    const by = {}, labelOfSk = {}, fyOfSk = {};
+    let curSk = '', firstSk = '';
+    rows.forEach(function (r) {
+      const code = _s(r, 'customer_code') || _s(r, 'customer_name');
+      const m = _mo(r), sk = _mSk(m), sq = _sqft(r);
+      labelOfSk[sk] = m; fyOfSk[sk] = _robustFy(r);
+      if (sk > curSk) curSk = sk;
+      if (!firstSk || sk < firstSk) firstSk = sk;
+      const c = by[code] = by[code] || { m: {}, sqft: 0, rev: 0, names: {}, hods: {}, states: {}, cities: {} };
+      c.m[sk] = (c.m[sk] || 0) + sq; c.sqft += sq; c.rev += _rev(r);
+      [[c.names, _custName(r)], [c.hods, _hod(r)], [c.states, _state(r)], [c.cities, _city(r)]].forEach(function (p) {
+        p[0][p[1]] = (p[0][p[1]] || 0) + sq;
+      });
+    });
+
+    const osBy = {};
+    (osRows || []).forEach(function (r) {
+      const o = osBy[_s(r, 'customer_code')] = osBy[_s(r, 'customer_code')] || { os: 0, os45: 0, os90: 0, limit: 0 };
+      o.os += _num(r.current_outstanding); o.os45 += _num(r.above_45_days); o.os90 += _num(r.days_90_plus);
+      o.limit = Math.max(o.limit, _num(r.credit_limit));
+    });
+    const viewBy = {};
+    (viewRows || []).forEach(function (r) { viewBy[_s(r, 'customer_code')] = r; });
+
+    // Trend compares complete months only: a part-month always looks like a
+    // drop. The running month is yesterday's month in IST, as in getKPIs.
+    const runSk = new Date(Date.now() + 330 * 60000 - 86400000).toISOString().slice(0, 7);
+    const ci = curSk ? _mIdx(curSk) : 0;
+    const bi = curSk === runSk ? ci - 1 : ci;
+    const curFy = fyOfSk[curSk] || '';
+
+    const profiles = Object.keys(by).map(function (code) {
+      const c = by[code];
+      const months = Object.keys(c.m).sort();
+      const n = months.length, fi = _mIdx(months[0]), li = _mIdx(months[n - 1]);
+      let last3 = 0, prev3 = 0;
+      months.forEach(function (sk) {
+        const d = bi - _mIdx(sk);
+        if (d >= 0 && d <= 2) last3 += c.m[sk]; else if (d >= 3 && d <= 5) prev3 += c.m[sk];
+      });
+      const o = osBy[code] || {}, v = viewBy[code];
+      return {
+        code: code, name: _topKey(c.names), hod: _topKey(c.hods), state: _topKey(c.states), city: _topKey(c.cities),
+        sqft: c.sqft, rev: c.rev, n: n, idle: ci - li, span: ci - fi + 1, rate: n / (ci - fi + 1),
+        avgMonth: c.sqft / n,                       // per month they bought in
+        runRate: c.sqft / (li - fi + 1),            // per month while they were buying
+        usualGap: n > 1 ? (li - fi) / (n - 1) : null,
+        last3: last3, prev3: prev3, lastLabel: labelOfSk[months[n - 1]],
+        isNew: bi - fi < 3, newThisFy: fyOfSk[months[0]] === curFy,
+        inCurFy: months.some(function (sk) { return fyOfSk[sk] === curFy; }),
+        os: o.os || 0, os45: o.os45 || 0, os90: o.os90 || 0, creditLimit: o.limit || 0,
+        buyDays: v && v.buy_days != null ? _num(v.buy_days) : null,
+        // Average days from one purchase day to the next.
+        gapDays: v && _num(v.buy_days) > 1 ? (new Date(v.last_buy) - new Date(v.first_buy)) / 86400000 / (_num(v.buy_days) - 1) : null,
+        bills: v ? _num(v.bill_count) : null,
+        productTypes: v ? _num(v.product_types) : null,
+        projectShare: v && _num(v.total_sqm) > 0 ? _num(v.project_sqm) / _num(v.total_sqm) : null,
+        cls: {}
+      };
+    }).sort(function (a, b) { return b.sqft - a.sqft; });
+
+    const total = profiles.reduce(function (s, p) { return s + p.sqft; }, 0);
+    let run = 0;
+    profiles.forEach(function (p) {
+      p.tier = run < total * 0.5 ? 'Key' : run < total * 0.8 ? 'Core' : run < total * 0.95 ? 'Small' : 'Tail';
+      run += p.sqft;
+      CUST_DIMS.forEach(function (d) { p.cls[d.key] = d.of(p); });
+    });
+
+    return {
+      profiles: profiles, total: total, hasOs: !noOs, hasView: !!viewRows,
+      hasDays: !!(viewRows && viewRows.length && viewRows[0].buy_days !== undefined),
+      // The last month with a full month of sales behind it.
+      lastFullSk: curSk ? (curSk === runSk ? _skAdd(curSk, -1) : curSk) : '',
+      lastFullLabel: curSk ? (labelOfSk[curSk === runSk ? _skAdd(curSk, -1) : curSk] || '') : '',
+      avgRate: _realisation(profiles.reduce(function (s, p) { return s + p.rev; }, 0), total),
+      month: labelOfSk[curSk] || '', firstMonth: labelOfSk[firstSk] || ''
+    };
+  });
+}
+
+async function getCustomerClassification(f, opts, noOs) {
+  opts = opts || {};
+  const data = await _customerProfiles(f, noOs);
+  const usable = function (d) {
+    return !!d && (d.needs !== 'os' || data.hasOs) && (d.needs !== 'view' || data.hasView) && (d.needs !== 'days' || data.hasDays);
+  };
+  const dimOf = function (k) { return CUST_DIMS.filter(function (d) { return d.key === k; })[0]; };
+  const by = usable(dimOf(opts.by)) ? dimOf(opts.by) : CUST_DIMS.filter(usable)[0];
+  const cross = opts.cross !== by.key && usable(dimOf(opts.cross)) ? dimOf(opts.cross) : null;
+
+  // Listed classes first, in their display order, then anything unexpected.
+  const tally = function (dim) {
+    const t = {};
+    dim.classes.forEach(function (name) { t[name] = { name: name, count: 0, sqft: 0, rev: 0 }; });
+    data.profiles.forEach(function (p) {
+      const name = p.cls[dim.key];
+      const e = t[name] = t[name] || { name: name, count: 0, sqft: 0, rev: 0 };
+      e.count++; e.sqft += p.sqft; e.rev += p.rev;
+    });
+    return Object.keys(t).map(function (k) {
+      return {
+        name: k, count: t[k].count, sqft: Math.round(t[k].sqft),
+        rate: _realisation(t[k].rev, t[k].sqft), desc: (CLASS_HELP[dim.key] || {})[k] || ''
+      };
+    });
+  };
+  const classes = tally(by);
+  const crossClasses = cross ? tally(cross) : null;
+
+  let matrix = null;
+  if (cross) {
+    const cell = {};
+    data.profiles.forEach(function (p) {
+      const k = p.cls[by.key] + '||' + p.cls[cross.key];
+      const e = cell[k] = cell[k] || { count: 0, sqft: 0 };
+      e.count++; e.sqft += p.sqft;
+    });
+    matrix = classes.map(function (r) {
+      return crossClasses.map(function (c) {
+        const e = cell[r.name + '||' + c.name];
+        return e ? { count: e.count, sqft: Math.round(e.sqft) } : { count: 0, sqft: 0 };
+      });
+    });
+  }
+
+  const list = data.profiles.filter(function (p) {
+    return (!opts.cls || p.cls[by.key] === opts.cls) && (!cross || !opts.crossCls || p.cls[cross.key] === opts.crossCls);
+  }).map(function (p) {
+    const row = {
+      'CUSTOMER NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'CITY': p.city,
+      'CLASS': p.cls[by.key],
+      'SQ FT.': Math.round(p.sqft), 'MONTHS BOUGHT': p.n, 'MONTHS SINCE FIRST': p.span,
+      'LAST PURCHASE': p.lastLabel, 'AVG MONTH SQ FT': Math.round(p.avgMonth),
+      'RATE': _realisation(p.rev, p.sqft)
+    };
+    if (cross) row['CROSS CLASS'] = p.cls[cross.key];
+    if (data.hasDays) { row['BUY DAYS'] = p.buyDays; row['GAP DAYS'] = p.gapDays == null ? null : Math.round(p.gapDays); }
+    if (data.hasOs) row['OUTSTANDING'] = Math.round(p.os);
+    return row;
+  });
+
+  const result = _paginate(list, opts);
+  return Object.assign(result, {
+    by: by.key, byLabel: by.label, note: by.note,
+    cross: cross ? cross.key : '', crossLabel: cross ? cross.label : '',
+    dims: CUST_DIMS.filter(function (d) { return d.needs !== 'os' || data.hasOs; })
+      .map(function (d) { return { key: d.key, label: d.label, available: usable(d) }; }),
+    setupHint: data.hasDays ? '' : PROFILE_MIGRATION_HINT,
+    classes: classes, crossClasses: crossClasses, matrix: matrix,
+    totalCustomers: data.profiles.length, totalSqft: Math.round(data.total), avgRate: data.avgRate,
+    month: data.month, firstMonth: data.firstMonth, hasOs: data.hasOs, hasDays: data.hasDays
+  });
+}
+
+// Why a customer needs a call, and the monthly sq ft that rides on it. Checked
+// in this order, so each customer appears once.
+const FOLLOWUP_REASONS = ['Stopped buying', 'Missed usual order', 'Buying less', 'One-time, never came back'];
+const FOLLOWUP_HELP = {
+  'Stopped buying': 'Used to buy, no order for 6 months or more',
+  'Missed usual order': 'Their order is late: twice their normal gap has passed',
+  'Buying less': 'Still buying, but 30% or more below the 3 months before',
+  'One-time, never came back': 'Bought once, 3 or more months back, and not again'
+};
+function _followUp(p) {
+  // A single order is not a monthly rate: spread it over the months since, or
+  // one-off project orders would outrank every regular account on the list.
+  if (p.n === 1) return p.idle > 2 ? { reason: 'One-time, never came back', stake: p.sqft / (p.idle + 1) } : null;
+  if (p.idle >= 6) return { reason: 'Stopped buying', stake: p.runRate };
+  // Twice their own usual gap between purchases, so an occasional buyer is not
+  // flagged on the same clock as a monthly one.
+  if (p.idle >= 2 && p.idle >= 2 * p.usualGap) return { reason: 'Missed usual order', stake: p.runRate };
+  // 3,000 sq ft over the earlier quarter keeps small, noisy accounts out.
+  if (p.cls.trend === 'Slowing' && p.prev3 >= 3000) return { reason: 'Buying less', stake: (p.prev3 - p.last3) / 3 };
+  return null;
+}
+
+async function getFollowUpList(f, opts, noOs) {
+  opts = opts || {};
+  const data = await _customerProfiles(f, noOs);
+  const reasons = {};
+  FOLLOWUP_REASONS.forEach(function (name) { reasons[name] = { name: name, count: 0, stake: 0 }; });
+
+  const all = [];
+  data.profiles.forEach(function (p) {
+    const fu = _followUp(p);
+    if (!fu) return;
+    reasons[fu.reason].count++; reasons[fu.reason].stake += fu.stake;
+    const row = {
+      'CUSTOMER NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'CITY': p.city,
+      'REASON': fu.reason, 'AT STAKE': Math.round(fu.stake),
+      'USUAL GAP': p.usualGap == null ? null : +p.usualGap.toFixed(1),
+      'MONTHS IDLE': p.idle, 'MONTHS BOUGHT': p.n, 'LAST PURCHASE': p.lastLabel, 'SQ FT.': Math.round(p.sqft),
+      'LAST 3M': Math.round(p.last3), 'PREV 3M': Math.round(p.prev3), 'RATE': _realisation(p.rev, p.sqft)
+    };
+    if (data.hasDays) row['CLASS'] = p.cls.frequency;   // weekly / monthly / occasional / one-time buyer
+    if (data.hasOs) { row['OUTSTANDING'] = Math.round(p.os); row['OS 90+'] = Math.round(p.os90); }
+    all.push(row);
+  });
+
+  const list = all.filter(function (r) { return !opts.reason || r['REASON'] === opts.reason; })
+    .sort(function (a, b) { return b['AT STAKE'] - a['AT STAKE']; });
+  const result = _paginate(list, opts);
+  return Object.assign(result, {
+    reasons: FOLLOWUP_REASONS.map(function (name) {
+      return Object.assign({}, reasons[name], { stake: Math.round(reasons[name].stake), desc: FOLLOWUP_HELP[name] });
+    }),
+    avgRate: data.avgRate,
+    allCount: all.length,
+    allStake: Math.round(all.reduce(function (s, r) { return s + r['AT STAKE']; }, 0)),
+    month: data.month, hasOs: data.hasOs, hasDays: data.hasDays
+  });
+}
+
+// ── Action Centre ──────────────────────────────────────────────────────────
+// Fixed rules over the same customer profiles and target figures the other
+// pages show, so every suggestion can be traced to a number elsewhere in the
+// dashboard. Like those pages it reads behaviour to date: the FY / quarter /
+// month filters do not apply, the geo filters and the caller's scope do.
+const ACTION_GROUPS = [
+  { key: 'recover', label: 'Call to recover sale' },
+  { key: 'collect', label: 'Collect money' },
+  { key: 'price', label: 'Fix price' },
+  { key: 'target', label: 'Chase target' }
+];
+// A seller is "behind" below this share of their target to date.
+const TARGET_BEHIND_RATIO = 0.9;
+
+function _inr(v) { return Math.round(v).toLocaleString('en-IN'); }
+function _fyOfSk(sk) {
+  const y = +sk.slice(0, 4), m = +sk.slice(5, 7), s = m >= 4 ? y : y - 1;
+  return 'FY ' + String(s).slice(2) + '-' + String(s + 1).slice(2);
+}
+
+async function getActionCentre(f, opts, noOs) {
+  opts = opts || {};
+  const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' });
+  const got = await Promise.all([
+    _customerProfiles(fGeo, noOs),
+    getTargetVsAchievement(fGeo, {}),
+    getTargetVsAchievement(fGeo, { groupBy: 'employee' })
+  ]);
+  const data = got[0];
+  const avg = data.avgRate;
+  const large = function (p) { return p.tier === 'Key' || p.tier === 'Core'; };
+  const buying = function (p) { return p.idle <= 2; };   // bought in the last 3 months
+  const custRow = function (p, detail, impact) {
+    return { 'NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'DETAIL': detail, 'IMPACT': Math.round(impact) };
+  };
+
+  const actions = [];
+  // head / unit label the impact column; before / after wrap the card's total.
+  const add = function (a, rows) {
+    if (!rows.length) return;
+    rows.sort(function (x, y) { return y['IMPACT'] - x['IMPACT']; });
+    const byHod = {};
+    rows.forEach(function (r) { if (a.entity === 'Customer') byHod[r['HOD NAME']] = (byHod[r['HOD NAME']] || 0) + 1; });
+    actions.push(Object.assign({}, a, {
+      count: rows.length,
+      impact: rows.reduce(function (s, r) { return s + r['IMPACT']; }, 0),
+      top: Object.keys(byHod).sort(function (x, y) { return byHod[y] - byHod[x]; }).slice(0, 3)
+        .map(function (h) { return { name: h, count: byHod[h] }; }),
+      rows: rows
+    }));
+  };
+  const n = function (rows, one, many) { return rows.length + ' ' + (rows.length === 1 ? one : many); };
+
+  // ── Call to recover sale ────────────────────────────────────────────────
+  const fu = { large: [], missed: [], stopped: [] };
+  data.profiles.forEach(function (p) {
+    const x = _followUp(p);
+    if (!x) return;
+    if (x.reason === 'Buying less' && large(p)) {
+      fu.large.push(custRow(p, 'Last 3 months ' + _inr(p.last3) + ' sq ft; the 3 months before, ' + _inr(p.prev3) + '. Down ' + Math.round((1 - p.last3 / p.prev3) * 100) + '%.', x.stake));
+    } else if (x.reason === 'Missed usual order') {
+      fu.missed.push(custRow(p, 'Last bought in ' + p.lastLabel + '. No order for ' + p.idle + ' months.', x.stake));
+    } else if (x.reason === 'Stopped buying') {
+      fu.stopped.push(custRow(p, 'Last bought in ' + p.lastLabel + '. No order for ' + p.idle + ' months.', x.stake));
+    }
+  });
+  const losing = { head: 'Losing per Month', unit: 'sq ft', before: 'Losing ', after: ' sq ft a month', money: false };
+  add(Object.assign({ group: 'recover', id: 'large-buying-less', entity: 'Customer',
+    title: 'Call ' + n(fu.large, 'large customer', 'large customers') + ' buying less',
+    why: 'Key and Core customers whose last 3 months are 30% or more below the 3 months before.' }, losing), fu.large);
+  add(Object.assign({ group: 'recover', id: 'missed-order', entity: 'Customer',
+    title: 'Call ' + n(fu.missed, 'customer', 'customers') + ' whose usual order is late',
+    why: 'Twice their normal gap between orders has passed without one.' }, losing), fu.missed);
+  add(Object.assign({ group: 'recover', id: 'stopped', entity: 'Customer',
+    title: 'Win back ' + n(fu.stopped, 'customer', 'customers') + ' who stopped buying',
+    why: 'They bought in two or more months and have had no order for 6 months or more.' }, losing), fu.stopped);
+
+  // ── Collect money ───────────────────────────────────────────────────────
+  if (data.hasOs) {
+    // Only customers who owe money overall, as on the Outstanding page.
+    const overdue = data.profiles.filter(function (p) { return p.os > 0 && p.os90 > 0; }).map(function (p) {
+      return custRow(p, '₹' + _inr(p.os90) + ' is more than 90 days old, out of ₹' + _inr(p.os) + ' outstanding. Last bought in ' + p.lastLabel + '.', p.os90);
+    });
+    add({ group: 'collect', id: 'overdue-90', entity: 'Customer',
+      title: 'Collect from ' + n(overdue, 'customer', 'customers') + ' with dues older than 90 days',
+      why: 'Any amount in the 90+ days bucket of the outstanding sheet.',
+      head: 'Overdue 90+ Days', unit: '₹', before: '₹', after: ' overdue more than 90 days', money: true }, overdue);
+
+    const over = data.profiles.filter(function (p) { return p.creditLimit > 0 && p.os > p.creditLimit && buying(p); }).map(function (p) {
+      return custRow(p, 'Owes ₹' + _inr(p.os) + ' against a credit limit of ₹' + _inr(p.creditLimit) + ', and bought in ' + p.lastLabel + '.', p.os - p.creditLimit);
+    });
+    add({ group: 'collect', id: 'over-limit', entity: 'Customer',
+      title: 'Review supply to ' + n(over, 'customer', 'customers') + ' over their credit limit',
+      why: 'They owe more than their credit limit and have bought in the last 3 months.',
+      head: 'Over the Limit by', unit: '₹', before: '₹', after: ' over the limits in total', money: true }, over);
+  }
+
+  // ── Fix price ───────────────────────────────────────────────────────────
+  if (avg) {
+    const cheap = data.profiles.filter(function (p) { return large(p) && buying(p) && p.sqft > 0 && p.rev / p.sqft <= avg * 0.9; }).map(function (p) {
+      const rate = p.rev / p.sqft, monthly = p.last3 / 3;
+      return custRow(p, 'Pays ₹' + rate.toFixed(1) + ' per sq ft against an average of ₹' + avg.toFixed(1) + '. Buys about ' + _inr(monthly) + ' sq ft a month.', (avg - rate) * monthly);
+    });
+    add({ group: 'price', id: 'low-rate', entity: 'Customer',
+      title: 'Review the rate of ' + n(cheap, 'large customer', 'large customers') + ' paying below average',
+      why: 'Key and Core customers, still buying, at 10% or more below the average realisation of ₹' + avg.toFixed(1) + ' per sq ft.',
+      head: 'Below Average by', unit: '₹ a month', before: '₹', after: ' a month below the average rate', money: true }, cheap);
+  }
+
+  // ── Chase target ────────────────────────────────────────────────────────
+  // Target to date: the current FY's months up to the last complete month, so
+  // a full month's target is never set against part of a month's sale.
+  const curFy = data.lastFullSk ? _fyOfSk(data.lastFullSk) : '';
+  const fyMonths = (+String(data.lastFullSk || '').slice(5, 7) + 8) % 12 + 1;   // Apr = 1 ... Mar = 12
+  const behind = function (rows, nameOf) {
+    return rows.map(function (r) {
+      let t = 0, a = 0;
+      Object.keys(r.MONTHLY || {}).forEach(function (k) {
+        const sk = _mSk(k);
+        if (_fyOfSk(sk) === curFy && sk <= data.lastFullSk) { t += r.MONTHLY[k].t; a += r.MONTHLY[k].a; }
+      });
+      if (!(t > 0) || a >= t * TARGET_BEHIND_RATIO) return null;
+      const y = (r.YEARLY || {})[curFy] || { t: 0, a: 0 };
+      const left = 12 - fyMonths;
+      const need = left > 0 && y.t > y.a ? ' Needs ' + _inr((y.t - y.a) / left) + ' sq ft a month for the ' + left + ' months left to finish on target.' : '';
+      return {
+        'NAME': nameOf(r), 'STATE': r.STATE || '-', 'HOD NAME': r.HOD,
+        'DETAIL': 'Target to ' + data.lastFullLabel + ': ' + _inr(t) + ' sq ft. Sold ' + _inr(a) + ' (' + Math.round(a / t * 100) + '%).' + need,
+        'IMPACT': Math.round(t - a)
+      };
+    }).filter(Boolean);
+  };
+  if (curFy) {
+    const short = { head: 'Short of Target by', unit: 'sq ft', before: '', after: ' sq ft short of target to date', money: false };
+    const hods = behind(got[1], function (r) { return r.HOD; });
+    add(Object.assign({ group: 'target', id: 'hod-behind', entity: 'HOD',
+      title: 'Push ' + n(hods, 'HOD', 'HODs') + ' behind target',
+      why: 'Retail sale below 90% of the target for ' + curFy + ' up to ' + data.lastFullLabel + '.' }, short), hods);
+    const execs = behind(got[2].filter(function (r) { return !r.NO_TARGET; }), function (r) { return r.EMPLOYEE; });
+    add(Object.assign({ group: 'target', id: 'exec-behind', entity: 'Executive',
+      title: 'Push ' + n(execs, 'executive', 'executives') + ' behind target',
+      why: 'Sale below 90% of their own target for ' + curFy + ' up to ' + data.lastFullLabel + '.' }, short), execs);
+  }
+
+  // Display order: the groups as listed, the biggest action first in each.
+  const groups = ACTION_GROUPS.map(function (g) {
+    return {
+      key: g.key, label: g.label,
+      actions: actions.filter(function (a) { return a.group === g.key; }).sort(function (x, y) { return y.impact - x.impact; })
+    };
+  }).filter(function (g) { return g.actions.length; });
+  // With no action named (or one that no longer applies) open the first, so
+  // the list beside the menu is never empty.
+  const picked = actions.filter(function (a) { return a.id === opts.action; })[0] || (groups[0] ? groups[0].actions[0] : null);
+  const result = _paginate(picked ? picked.rows : [], opts);
+  return Object.assign(result, {
+    groups: groups.map(function (g) {
+      return {
+        key: g.key, label: g.label,
+        actions: g.actions.map(function (a) { const o = Object.assign({}, a); delete o.rows; return o; })
+      };
+    }),
+    selected: picked ? picked.id : '',
+    firstMonth: data.firstMonth, month: data.month
   });
 }
 
@@ -2531,16 +3191,39 @@ async function getDimensionalSummary(f) {
   });
 }
 
+// 'VIRGO ALFA3030-VL744-2440X1200' -> part 0 'ALFA3030' (thickness), part 1
+// 'VL744' (colour). 99.5% of SKU rows follow this pattern; the rest are 'Other'.
+function _descPart(desc, i) {
+  const p = String(desc || '').split('-');
+  return (p.length === 3 && p[i].replace(/^VIRGO\s+/i, '').trim()) || 'Other';
+}
+
 async function getProductPivotSales(f, opts) {
   const timeGroup = opts && opts.timeGroup ? opts.timeGroup : 'quarter';
   const rowGroup = opts && opts.rowGroup ? opts.rowGroup : 'product_type';
   
   return cached('pivot_' + timeGroup + '_' + rowGroup + '_' + _stableStringify(f), async function () {
-    const q = _q(f, []); 
     const dataByRow = {};
     const timeColsSet = new Set();
-    
-    (await _fetchAgg('vw_brand_agg', q)).filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
+
+    let src;
+    let rowKey = function (r) { return _s(r, rowGroup); };
+    if (rowGroup === 'color' || rowGroup === 'thickness') {
+      // Read off the item description: color_code is empty in every synced
+      // row and no aggregate view carries thickness. vw_sku_agg has no month
+      // grain, so these two group by quarter or year only.
+      const q = _q(f, ['month']);
+      src = await _fetchAgg('vw_sku_agg', q + (q ? '&' : '?') + 'select=item_description,fy_year,quarter,zone,state,hod_name,total_sqm,sq_ft');
+      rowKey = function (r) { return _descPart(_s(r, 'item_description'), rowGroup === 'color' ? 1 : 0); };
+    } else if (rowGroup === 'branch_name') {
+      src = await _fetchBranchAgg(f);
+      if (!src) throw new Error('Branch-wise sales is not set up yet. ' + BRANCH_MIGRATION_HINT);
+      rowKey = _branch;
+    } else {
+      src = await _fetchAgg('vw_brand_agg', _q(f, []));
+    }
+
+    src.filter(function (r) { return _rowMatches(r, f); }).forEach(function (r) {
       let tKey = 'Unknown';
       let tSortKey = '';
       if (timeGroup === 'month') {
@@ -2554,8 +3237,8 @@ async function getProductPivotSales(f, opts) {
         tSortKey = tKey;
       }
       
-      const rKey = _s(r, rowGroup) || 'Unknown';
-      
+      const rKey = rowKey(r) || 'Unknown';
+
       if (!dataByRow[rKey]) dataByRow[rKey] = { CATEGORY: rKey, TOTAL_SQFT: 0 };
       if (!dataByRow[rKey][tKey]) dataByRow[rKey][tKey] = 0;
       
@@ -2647,7 +3330,6 @@ async function getTimeWiseSales(f, opts) {
       let key = 'Unknown';
       let sortKey = '';
       if (groupBy === 'month') {
-        if (Object.keys(map).length === 0) console.log('vw_sku_agg row keys:', Object.keys(r));
         key = r['MONTH YEAR'] || r['month_year'] || _mo(r) || 'Unknown';
         sortKey = _mSk(key) || key;
       } else if (groupBy === 'quarter') {
@@ -2751,11 +3433,11 @@ module.exports = {
   getOutstandingHODSummary,
   getOutstandingStateSummary,
   getTopCustomers,
-  getInactiveCustomers,
-  getDecliningCustomers,
-  getLostHVCustomers,
-  getRFMData,
-  getRFMDistribution,
+  getCustomerInsights,
+  getLostTerritories,
+  getCustomerClassification,
+  getFollowUpList,
+  getActionCentre,
   getBrandSummary,
   getFinishSummary,
   getProductTypeSummary,

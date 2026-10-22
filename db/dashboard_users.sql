@@ -1,7 +1,8 @@
 -- ============================================================
 --  Dashboard login/users table
 --  Run this once in Supabase → SQL Editor.
---  Roles: super_admin | admin | hod | zonal_head
+--  Roles: super_admin | admin | hod | zonal_head | sales_viewer
+--  - sales_viewer users see all sales but no outstanding data
 --  - hod   users are scoped to one or MORE hod_name values (allowed_hods)
 --  - zonal_head users are scoped to one or more zones (allowed_zones)
 -- ============================================================

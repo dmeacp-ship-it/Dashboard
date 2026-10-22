@@ -139,11 +139,11 @@
             <div class="nav-item" data-page="pareto" onclick="navigate('pareto')">
               <span class="nav-label">Top 80% Contributors</span>
             </div>
-            <div class="nav-item" data-page="rfm" onclick="navigate('rfm')">
-              <span class="nav-label">RFM Matrix</span>
+            <div class="nav-item" data-page="custclass" onclick="navigate('custclass')">
+              <span class="nav-label">Customer Classification</span>
             </div>
-            <div class="nav-item" data-page="risk" onclick="navigate('risk')">
-              <span class="nav-label">Churn Risk</span>
+            <div class="nav-item" data-page="followup" onclick="navigate('followup')">
+              <span class="nav-label">Follow-up List</span>
             </div>
           </div>
         </div>
@@ -568,6 +568,7 @@
 
       <section id="page-pareto" class="page">
           <div id="customers-kpi-grid" class="kpi-grid"></div>
+          <div id="customers-insights-grid" class="kpi-grid"></div>
           <div class="table-card">
             <div class="table-toolbar">
               <span class="table-title"><i class="ph ph-star"></i> Top 80% Volume Contributors</span>
@@ -583,7 +584,6 @@
               </div>
               <div class="btn-group" style="margin-left:8px;">
                 <button class="btn btn-sm btn-primary" onclick="setCustSort('sqm',this)">By SQ FT</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setCustSort('quantity',this)">By Qty</button>
                 <button class="btn btn-sm btn-ghost"   onclick="setCustSort('frequency',this)">By Freq</button>
               </div>
               <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('customers', 'Top 80% Contributors')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
@@ -600,125 +600,91 @@
           </div>
         </section>
 
-        <section id="page-rfm" class="page">
-          <div id="rfm-kpi-grid" class="kpi-grid"></div>
+        <section id="page-custclass" class="page">
+          <div id="custclass-kpi-grid" class="kpi-grid"></div>
+          <div id="custclass-matrix" class="table-card" style="display:none; flex:0 0 auto; max-height:40vh;">
+            <div class="table-wrap" style="min-height:0;">
+              <table>
+                <thead id="th-custclass-matrix"></thead>
+                <tbody id="tbl-custclass-matrix"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="custclass-note" style="font-size:12px; font-weight:600; color:var(--text-muted); padding:0 4px;"></div>
           <div class="table-card">
             <div class="table-toolbar">
-              <span class="table-title"><i class="ph ph-table"></i> RFM Matrix</span>
+              <span class="table-title"><i class="ph ph-squares-four"></i> <span id="custclass-title">Customers</span></span>
               <div style="position:relative; margin-left:auto;">
                 <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-                <input type="text" id="search-rfm" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:180px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('rfm')">
+                <input type="text" id="search-custclass" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:200px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('custclass')">
               </div>
-              <div class="btn-group" style="margin-left:12px;">
-                <button class="btn btn-sm btn-primary" onclick="setRfmSeg('All',this)">All</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Champions',this)">Champions</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Loyal',this)">Loyal</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('At Risk',this)">At Risk</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Hibernating',this)">Hibernating</button>
-                <button class="btn btn-sm btn-ghost"   onclick="setRfmSeg('Lost',this)">Lost</button>
-              </div>
-              <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('rfm', 'RFM Matrix')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-              <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('rfm', 'tbl-rfm-body', function(){ window.loadRFM(window.rfmPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
-              <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-rfm-body', 'RFM_Matrix')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+              <select id="custclass-by" class="form-input" aria-label="Classify by" style="padding:4px 28px 4px 12px; font-size:12.5px; border-radius:100px; min-height:34px; background:var(--bg-elevated); border:1px solid var(--border-color);" onchange="window.setCustClassDims()"></select>
+              <select id="custclass-cross" class="form-input" aria-label="Cross with" style="padding:4px 28px 4px 12px; font-size:12.5px; border-radius:100px; min-height:34px; background:var(--bg-elevated); border:1px solid var(--border-color);" onchange="window.setCustClassDims()"></select>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('custclass', 'Customer Classification')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+              <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-custclass-body', 'Customer_Classification')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>R/F Summary</th><th>SQ FT</th><th>Scores</th><th>Total/15</th><th>Segment</th></tr></thead>
-                <tbody id="tbl-rfm-body"></tbody>
+                <thead id="th-custclass-head"><tr><th>#</th><th>Customer Name</th></tr></thead>
+                <tbody id="tbl-custclass-body"></tbody>
               </table>
             </div>
-            <div id="pagination-rfm"></div>
+            <div id="pagination-custclass"></div>
           </div>
         </section>
 
-        <section id="page-risk" class="page">
-           
-           <div id="pane-declining" class="risk-pane active">
-             <div id="declining-kpi-grid" class="kpi-grid"></div>
-             <div class="alert-warn"><i class="ph ph-warning-circle"></i> Showing accounts with 30%+ volume drop in the last 6 months vs previous 6 months.</div>
+        <section id="page-followup" class="page">
+
+           <div id="pane-followup" class="risk-pane active">
+             <div id="followup-kpi-grid" class="kpi-grid"></div>
+             <div id="followup-note" style="font-size:12px; font-weight:600; color:var(--text-muted); padding:0 4px;">At stake is the monthly sq ft they bought while active; for a one-time buyer, that one order spread over the months since. Sorted by it, largest first. The period filter does not apply.</div>
              <div class="table-card">
                <div class="table-toolbar">
-                 <span class="table-title"><i class="ph ph-trend-down"></i> Declining Customers</span>
+                 <span class="table-title"><i class="ph ph-phone-call"></i> <span id="followup-title">Follow-up List</span></span>
                  <div style="position:relative; margin-left:auto;">
                    <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-                   <input type="text" id="search-declining" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('declining')">
+                   <input type="text" id="search-followup" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('followup')">
                  </div>
                  <div class="btn-group" style="margin-left:12px;">
-                    <button class="btn btn-sm btn-primary risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
+                    <button class="btn btn-sm btn-primary risk-btn" onclick="switchFollowTab('followup')">Follow-up List</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" onclick="switchFollowTab('lostterr')">Lost Territories</button>
                  </div>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('declining', 'Declining Accounts')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="window.openSortModal('declining', 'tbl-declining-body', function(){ window.loadDeclining(window.decliningPage||1); })" title="Sort" aria-label="Sort"><i class="ph ph-sort-ascending"></i></button>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-declining-body', 'Declining_Customers')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('followup', 'Follow-up List')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-followup-body', 'Follow_Up_List')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
                </div>
                <div class="table-wrap">
                  <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Prev 6M SQ FT</th><th>Last 6M SQ FT</th><th>Change</th><th>Decline %</th><th>Category</th></tr></thead>
-                   <tbody id="tbl-declining-body"></tbody>
+                   <thead id="th-followup-head"><tr><th>#</th><th>Customer Name</th></tr></thead>
+                   <tbody id="tbl-followup-body"></tbody>
                  </table>
                </div>
-               <div id="pagination-declining"></div>
+               <div id="pagination-followup"></div>
              </div>
            </div>
 
-           <div id="pane-inactive" class="risk-pane">
-             <div id="inactive-kpi-grid" class="kpi-grid"></div>
+           <div id="pane-lostterr" class="risk-pane">
+             <div id="lostterr-kpi-grid" class="kpi-grid"></div>
+             <div class="alert-warn"><i class="ph ph-map-pin"></i> <span id="lostterr-note">Cities that bought last FY and have not bought this FY.</span></div>
              <div class="table-card">
                <div class="table-toolbar">
-                 <span class="table-title"><i class="ph ph-clock"></i> Inactive Accounts</span>
+                 <span class="table-title"><i class="ph ph-map-trifold"></i> Lost Territories</span>
                  <div style="position:relative; margin-left:auto;">
                    <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-                   <input type="text" id="search-inactive" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('inactive')">
+                   <input type="text" id="search-lostterr" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search City / State..." onkeyup="handleSearch('lostterr')">
                  </div>
                  <div class="btn-group" style="margin-left:12px;">
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
-                    <button class="btn btn-sm btn-primary risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
+                    <button class="btn btn-sm btn-ghost risk-btn" onclick="switchFollowTab('followup')">Follow-up List</button>
+                    <button class="btn btn-sm btn-primary risk-btn" onclick="switchFollowTab('lostterr')">Lost Territories</button>
                  </div>
-                 <div class="btn-group" style="margin-left:8px;">
-                   <button class="btn btn-sm btn-primary" onclick="setInactiveDays(90,this)">90+ Days</button>
-                   <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(120,this)">120+ Days</button>
-                   <button class="btn btn-sm btn-ghost"   onclick="setInactiveDays(180,this)">180+ Days</button>
-                 </div>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('inactive', 'Inactive Accounts')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-inactive-body', 'Inactive_Accounts')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
+                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-lostterr-body', 'Lost_Territories')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
                </div>
                <div class="table-wrap">
                  <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Last Purchase</th><th>Days Inactive</th><th>Lifetime SQ FT</th><th>Txns</th><th>Category</th></tr></thead>
-                   <tbody id="tbl-inactive-body"></tbody>
+                   <thead><tr><th>#</th><th>City</th><th>State</th><th>HOD Name</th><th>Customers</th><th>Last FY SQ FT</th><th>Last Sale</th></tr></thead>
+                   <tbody id="tbl-lostterr-body"></tbody>
                  </table>
                </div>
-               <div id="pagination-inactive"></div>
-             </div>
-           </div>
-
-           <div id="pane-losthv" class="risk-pane">
-             <div id="losthv-kpi-grid" class="kpi-grid"></div>
-             <div class="alert-danger"><i class="ph ph-x-circle"></i> Critical Risk: Top 20% tier customers with zero billing in the last 6 months.</div>
-             <div class="table-card">
-               <div class="table-toolbar">
-                 <span class="table-title"><i class="ph ph-warning-circle"></i> Lost High-Volume Customers</span>
-                 <div style="position:relative; margin-left:auto;">
-                   <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
-                   <input type="text" id="search-losthv" class="form-input" style="padding:6px 14px 6px 32px; font-size:12.5px; width:220px; border-radius:100px; min-height:34px; background:var(--bg-elevated);" placeholder="Search Accounts..." onkeyup="handleSearch('losthv')">
-                 </div>
-                 <div class="btn-group" style="margin-left:12px;">
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="declining" onclick="switchRiskTab('declining')">Declining</button>
-                    <button class="btn btn-sm btn-ghost risk-btn" data-tab="inactive" onclick="switchRiskTab('inactive')">Inactive</button>
-                    <button class="btn btn-sm btn-primary risk-btn" data-tab="losthv" onclick="switchRiskTab('losthv')">Lost High-Value</button>
-                 </div>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="openTableAI('losthv', 'Lost High-Volume')" title="Ask AI" aria-label="Ask AI"><i class="ph ph-sparkle" style="color:var(--brand-primary)"></i></button>
-                 <button class="btn btn-sm btn-ghost btn-icon"  onclick="exportTableToCSV(null, 'tbl-losthv-body', 'Lost_High_Value')" title="Export" aria-label="Export"><i class="ph ph-download-simple"></i></button>
-               </div>
-               <div class="table-wrap">
-                 <table>
-                   <thead><tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>Lifetime SQ FT</th><th>Last Purchase</th><th>Days Inactive</th><th>Percentile</th></tr></thead>
-                   <tbody id="tbl-losthv-body"></tbody>
-                 </table>
-               </div>
-               <div id="pagination-losthv"></div>
+               <div id="pagination-lostterr"></div>
              </div>
            </div>
 
@@ -737,6 +703,9 @@
                 <option value="product_type">Analyze by: Product Type</option>
                 <option value="sku_type">Analyze by: SKU Type</option>
                 <option value="brand">Analyze by: Brand</option>
+                <option value="branch_name">Analyze by: Branch</option>
+                <option value="color">Analyze by: Colour</option>
+                <option value="thickness">Analyze by: Thickness</option>
               </select>
             </div>
             <div class="btn-group" id="timewise-group-toggles" style="margin-left:12px;">
@@ -1239,6 +1208,7 @@
                     <select class="form-select" id="uf-role" onchange="onRoleChange()">
                       <option value="hod">HOD</option>
                       <option value="zonal_head">Zonal Head</option>
+                      <option value="sales_viewer">Sales Viewer</option>
                       <option value="admin">Admin</option>
                       <option value="super_admin">Super Admin</option>
                     </select>
@@ -1537,6 +1507,7 @@
           <option value="admin">Admin</option>
           <option value="hod">HOD</option>
           <option value="zonal_head">Zonal Head</option>
+          <option value="sales_viewer">Sales Viewer</option>
         </select>
       </div>
       <div id="edit-admin-scope-info" style="display:none; padding:10px 14px; background:var(--brand-muted, rgba(79, 70, 229, 0.1)); border:1px solid var(--border); border-radius:10px; font-size:12px; color:var(--brand-text, #818cf8);">
@@ -1642,10 +1613,10 @@
     </div>
   </div>
 
-<script defer src="/js/javascript.min.js?v=3196fce3"></script>
+<script defer src="/js/javascript.min.js?v=cef47c7f"></script>
 <script defer src="/js/javascript1.min.js?v=b21e8393"></script>
-<script defer src="/js/javascript2.min.js?v=c2fcc81f"></script>
-<script defer src="/js/fms.min.js?v=1632f0aa"></script>
+<script defer src="/js/javascript2.min.js?v=21d363e5"></script>
+<script defer src="/js/fms.min.js?v=ae612e3d"></script>
 
 </body>
 

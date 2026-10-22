@@ -21,7 +21,7 @@ const UsersService = require('../src/services/users.service.js');
 const LoginLog = require('../src/services/loginlog.service.js');
 const RateLimit = require('../src/services/ratelimit.js');
 const { getSalesRowCount } = require('../src/services/supabase.js');
-const { ROLES } = require('../src/config.js');
+const { ROLES, OUTSTANDING_CONFIG } = require('../src/config.js');
 
 // Login throttle: 8 attempts per username+IP per 15 minutes. Cleared on a
 // successful sign-in so a legitimate user who mistypes isn't punished.
@@ -44,6 +44,30 @@ function _requireAdmin(profile) {
   }
 }
 
+// Sales Viewers see every sale but no receivables and no FMS: the outstanding
+// and FMS endpoints refuse them and the KPI outstanding fields are stripped.
+function _denyOutstanding(profile) {
+  if (profile.role === ROLES.SALES_VIEWER) throw new Error('ACCESS_DENIED: Outstanding data is not available for your role.');
+}
+
+const _KPI_OS_FIELDS = ['totOs', 'totDebtors', 'os90Amt', 'os90Count', 'os45Amt', 'os45Count', 'osBelow45Amt', 'osBelow45Count'];
+
+// Copies, never mutates: the service results are cached and shared by roles.
+function _omit(obj, fields) {
+  if (!obj) return obj;
+  const o = Object.assign({}, obj);
+  fields.forEach(function (k) { delete o[k]; });
+  return o;
+}
+
+// Custom reports read any sheet by id, so keep the Customer Master sheet out of reach.
+async function _denyOutstandingSheet(profile, opts) {
+  if (profile.role !== ROLES.SALES_VIEWER) return;
+  const s = (await SettingsService.getSettings()) || {};
+  const osId = s.OUTSTANDING_SHEET_ID || OUTSTANDING_CONFIG.SHEET_ID;
+  if (String((opts && opts.sheetId) || '').trim() === osId) _denyOutstanding(profile);
+}
+
 // Client errors carry an explicit status so the catch block doesn't report a
 // bad request or a failed sign-in as a 500.
 function _bad(msg, status) {
@@ -63,7 +87,7 @@ function _clientMeta(req) {
 // add the matching `hod_name=in.(…)` / `zone=in.(…)` filters.
 function _applyScopeFilters(clientFilters, profile) {
   const f = clientFilters || {};
-  if (profile.role === ROLES.SUPER_ADMIN || profile.role === ROLES.ADMIN) return f;
+  if (profile.role === ROLES.SUPER_ADMIN || profile.role === ROLES.ADMIN || profile.role === ROLES.SALES_VIEWER) return f;
 
   const scoped = Object.assign({}, f, { _scope: { role: profile.role } });
 
@@ -198,9 +222,10 @@ module.exports = async function handler(req, res) {
     if (action === 'askCopilot') { res.json(_ok(await AIService.askCopilot(req_.contextName, req_.contextData, req_.question))); return; }
     // Standard data endpoints
     const opts = req_.options || {};
+    const noOs = userProfile.role === ROLES.SALES_VIEWER;
     const routes = {
       getFilterOptions: () => DataService.getFilterOptions(userProfile),
-      getKPIs: () => DataService.getKPIs(scopedFilters),
+      getKPIs: async () => { const k = await DataService.getKPIs(scopedFilters); return noOs ? _omit(k, _KPI_OS_FIELDS) : k; },
       getOverviewData: () => DataService.getOverviewData(scopedFilters),
       getMonthlySummary: () => DataService.getMonthlySummary(scopedFilters),
       getStateSummary: () => DataService.getStateSummary(scopedFilters),
@@ -221,15 +246,14 @@ module.exports = async function handler(req, res) {
       getSkuTypeAllFYSummary: () => DataService.getSkuTypeAllFYSummary(scopedFilters),
       getExecutiveTargets: () => DataService.getExecutiveTargets(scopedFilters, opts),
       getTargetVsAchievement: () => DataService.getTargetVsAchievement(scopedFilters, opts),
-      getOutstandingSummary: () => DataService.getOutstandingSummary(scopedFilters),
-      getOutstandingHODSummary: () => DataService.getOutstandingHODSummary(scopedFilters),
-      getOutstandingStateSummary: () => DataService.getOutstandingStateSummary(scopedFilters),
+      getOutstandingSummary: () => { _denyOutstanding(userProfile); return DataService.getOutstandingSummary(scopedFilters); },
+      getOutstandingHODSummary: () => { _denyOutstanding(userProfile); return DataService.getOutstandingHODSummary(scopedFilters); },
+      getOutstandingStateSummary: () => { _denyOutstanding(userProfile); return DataService.getOutstandingStateSummary(scopedFilters); },
       getTopCustomers: () => DataService.getTopCustomers(scopedFilters, opts),
-      getInactiveCustomers: () => DataService.getInactiveCustomers(scopedFilters, opts),
-      getDecliningCustomers: () => DataService.getDecliningCustomers(scopedFilters, opts),
-      getLostHVCustomers: () => DataService.getLostHVCustomers(scopedFilters, opts),
-      getRFMData: () => DataService.getRFMData(scopedFilters, opts),
-      getRFMDistribution: () => DataService.getRFMDistribution(scopedFilters),
+      getCustomerInsights: () => DataService.getCustomerInsights(scopedFilters),
+      getLostTerritories: () => DataService.getLostTerritories(scopedFilters, opts),
+      getCustomerClassification: () => DataService.getCustomerClassification(scopedFilters, opts, noOs),
+      getFollowUpList: () => DataService.getFollowUpList(scopedFilters, opts, noOs),
       getBrandSummary: () => DataService.getBrandSummary(scopedFilters),
       getFinishSummary: () => DataService.getFinishSummary(scopedFilters),
       getProductTypeSummary: () => DataService.getProductTypeSummary(scopedFilters),
@@ -239,9 +263,9 @@ module.exports = async function handler(req, res) {
       getProductPivotSales: () => DataService.getProductPivotSales(scopedFilters, opts),
       getHodSkuPivotSales: () => DataService.getHodSkuPivotSales(scopedFilters, opts),
       getTopSKUs: () => DataService.getTopSKUs(scopedFilters, opts),
-      getCustomReport: () => DataService.getCustomReport(opts),
-      getSheetHeaders: () => DataService.getSheetHeaders(opts),
-      getSheetTabs: () => DataService.getSheetTabs(opts),
+      getCustomReport: async () => { await _denyOutstandingSheet(userProfile, opts); return DataService.getCustomReport(opts); },
+      getSheetHeaders: async () => { await _denyOutstandingSheet(userProfile, opts); return DataService.getSheetHeaders(opts); },
+      getSheetTabs: async () => { await _denyOutstandingSheet(userProfile, opts); return DataService.getSheetTabs(opts); },
 
       // ── FMS / OMS live sheet tables ──────────────────────────────────────
       // Every role gets All Orders and Order Lifecycle (getFmsOrders,
@@ -262,6 +286,7 @@ module.exports = async function handler(req, res) {
     };
 
     if (!routes[action]) throw new Error('Unknown action routed: ' + action);
+    if (noOs && /^(getFms|listFms|getItems$)/.test(action)) throw new Error('ACCESS_DENIED: FMS is not available for your role.');
     res.json(_ok(await routes[action]()));
   } catch (err) {
     const m = (err && err.message) || '';

@@ -16,7 +16,8 @@ req(rel) as (values
 ),
 -- The server falls back when these are missing; the feature degrades.
 opt(rel) as (values
-  ('vw_hod_state'), ('vw_executive_city_agg'), ('vw_filter_options_distinct')
+  ('vw_hod_state'), ('vw_executive_city_agg'), ('vw_filter_options_distinct'),
+  ('vw_branch_agg'), ('vw_customer_profile_agg')
 ),
 -- Materialized snapshots. Preferred by the server; without one it reads the slower live view.
 snap(rel) as (values

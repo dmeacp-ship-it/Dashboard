@@ -3,18 +3,6 @@
 // SKU Grouping, Outstanding, Analytics, Charts & Filters
 // ===========================================================
 
-window._activeRiskTab = 'declining';
-
-window.switchRiskTab = function(tabId, btn) {
-  window._activeRiskTab = tabId;
-  document.querySelectorAll('.risk-btn').forEach(b => { b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); });
-  if (btn) { btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary'); }
-  document.querySelectorAll('.risk-pane').forEach(p => p.classList.remove('active'));
-  const pane = document.getElementById('pane-' + tabId);
-  if (pane) pane.classList.add('active');
-  window.loadPage('risk', 1);
-};
-
 window.setSkuTypeSalePage = function(p) { 
   window.skuTypeSalePage = p; 
   window.loadSkuTypeSale(p); 
@@ -385,6 +373,7 @@ window.setParetoTime = function(days, btn) {
 window.loadTopCustomers = async function(page = 1) {
   const tbody = document.getElementById('tbl-customers-body'); if (!tbody) return;
   tbody.innerHTML = window._loadingRow(9);
+  window.loadCustomerInsights();
   let pagContainer = document.getElementById('pagination-customers');
   if(!pagContainer) { const wrap = document.querySelector('#page-pareto .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-customers'; wrap.appendChild(pagContainer); }
   
@@ -418,136 +407,201 @@ window.loadTopCustomers = async function(page = 1) {
   } catch(e) { tbody.innerHTML = window._errorRow(9, e.message); }
 };
 
-window.setInactiveDays = function(d, btn) {
-  window.inactiveDays = d; document.querySelectorAll('#pane-inactive .btn-group .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
-  if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadInactive(1);
-};
-
-window.loadInactive = async function(page = 1) {
-  const tbody = document.getElementById('tbl-inactive-body'); if (!tbody) return;
-  tbody.innerHTML = window._loadingRow(8);
-  let pagContainer = document.getElementById('pagination-inactive');
-  if(!pagContainer) { const wrap = document.querySelector('#pane-inactive .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-inactive'; wrap.appendChild(pagContainer); }
-  
+// New / reactivated / retention / concentration / order size, for the current
+// filters. Independent of the table's 30d-60d-90d and sort toggles.
+window.loadCustomerInsights = async function() {
+  const kg = document.getElementById('customers-insights-grid'); if (!kg) return;
   try {
-    const res  = await window.api('getInactiveCustomers', { options: { days: window.inactiveDays, page: window._expPage('inactive', page), pageSize: window._expSize('inactive'), search: window.searchQueries['inactive'] } });
-    const rows = window._tableItems(res); window._renderPagination(res, 'loadInactive', 'pagination-inactive');
-    const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
-    const kg = document.getElementById('inactive-kpi-grid');
-    if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-clock"></i></div><div class="kpi-label">Inactive Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-ruler"></i></div><div class="kpi-label">Lifetime SQ FT at Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>';
-    }
-    window.App.lastTableData['inactive'] = rows;
-    if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No inactive customers found.'); return; }
-    
-    let htmlStr = '';
-    rows.forEach(function(r, i) {
-      const cat   = r['INACTIVE CATEGORY'] || '';
-      const badge = cat.indexOf('180') !== -1 ? 'badge-red' : cat.indexOf('120') !== -1 ? 'badge-amber' : 'badge-blue';
-      const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="font-weight:700;color:var(--danger);padding:6px 12px;">' + (r['DAYS SINCE LAST PURCHASE'] || 0) + 'd</td><td style="padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['TRANSACTION COUNT']) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
-    });
-    tbody.innerHTML = htmlStr;
-  } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
+    const d = await window.api('getCustomerInsights');
+    const dash = function(v, f) { return v == null ? '-' : f(v); };
+    const card = function(color, icon, label, value, sub) {
+      return '<div class="kpi-card stagger-1" style="--kpi-color:' + color + '"><div class="kpi-header-row"><div class="kpi-icon" style="color:' + color + '"><i class="ph ' + icon + '"></i></div><div class="kpi-label">' + window.esc(label) + '</div></div><div class="kpi-value" style="font-size:24px;">' + value + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">' + window.esc(sub) + '</div></div>';
+    };
+    const mo = d.month || 'latest month', fy = d.fy || 'this FY';
+    kg.innerHTML =
+        card('var(--accent3)', 'ph-user-plus', 'New Customers (' + mo + ')', dash(d.newMonth, window.fmt.num),
+             d.newMonth == null ? 'needs an earlier FY to compare with' : window.fmt.num(d.newFy) + ' new in ' + fy)
+      + card('var(--accent)', 'ph-arrow-counter-clockwise', 'Reactivated', window.fmt.num(d.reactivated), 'back in ' + mo + ' after 3+ idle months')
+      + card('var(--accent2)', 'ph-handshake', 'Retention', dash(d.retentionPct, function(v) { return v + '%'; }),
+             d.retentionPct == null ? 'needs an earlier FY to compare with' : window.fmt.num(d.retained) + ' of ' + window.fmt.num(d.retentionBase) + ' ' + d.prevFy + ' buyers')
+      + card('var(--accent4)', 'ph-chart-pie-slice', 'Top-10 Share', dash(d.top10Pct, function(v) { return v + '%'; }), 'of SQ FT in selected period')
+      + card('#a855f7', 'ph-receipt', 'Avg Order Size', dash(d.avgOrderSqft, function(v) { return window.fmt.num(v) + ' sq ft'; }),
+             d.bills == null ? 'run db/migrations/19 to enable' : window.fmt.num(d.bills) + ' bills');
+  } catch(e) { kg.innerHTML = ''; }
 };
 
-window.loadDeclining = async function(page = 1) {
-  const tbody = document.getElementById('tbl-declining-body'); if (!tbody) return;
-  tbody.innerHTML = window._loadingRow(8);
-  let pagContainer = document.getElementById('pagination-declining');
-  if(!pagContainer) { const wrap = document.querySelector('#pane-declining .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-declining'; wrap.appendChild(pagContainer); }
-  
-  try {
-    const res  = await window.api('getDecliningCustomers', { options: { page: window._expPage('declining', page), pageSize: window._expSize('declining'), search: window.searchQueries['declining'] } });
-    const rows = window._tableItems(res); window._renderPagination(res, 'loadDeclining', 'pagination-declining');
-    const totalDrop = rows.reduce((s, r) => s + Math.abs((r['SQM CHANGE'] || 0) * window.SQFT_PER_SQM), 0);
-    const kg = document.getElementById('declining-kpi-grid');
-    if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-trend-down"></i></div><div class="kpi-label">Declining Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#f97316"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f97316"><i class="ph ph-ruler"></i></div><div class="kpi-label">Total SQ FT Dropped</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalDrop) + '</div></div>';
-    }
-    if (window.tableSortRules['declining'] && window.tableSortRules['declining'].length > 0) {
-      rows = window.applyMultiSort(rows, 'declining');
-    }
-    window.App.lastTableData['declining'] = rows;
-    if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No declining customers found.'); return; }
-    
-    let htmlStr = '';
-    rows.forEach(function(r, i) {
-      const pct   = r['DECLINE %'] || 0; const cat   = r['DECLINE CATEGORY'] || '';
-      const badge = cat.indexOf('Critical') !== -1 ? 'badge-red' : cat.indexOf('Severe') !== -1 ? 'badge-amber' : 'badge-purple';
-      const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['PREV 6M SQM'] || 0) * window.SQFT_PER_SQM) + '</td><td style="padding:6px 12px;">' + window.fmt.num((r['LAST 6M SQM'] || 0) * window.SQFT_PER_SQM) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + window.fmt.num((r['SQM CHANGE'] || 0) * window.SQFT_PER_SQM) + '</td><td style="color:var(--danger);font-weight:800;padding:6px 12px;">' + pct.toFixed(1) + '%</td><td style="padding:6px 12px;"><span class="badge ' + badge + '" style="white-space:nowrap">' + window.esc(cat || '-') + '</span></td></tr>';
-    });
-    tbody.innerHTML = htmlStr;
-  } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
-};
-
-window.loadLostHV = async function(page = 1) {
-  const tbody = document.getElementById('tbl-losthv-body'); if (!tbody) return;
+window.loadLostTerritories = async function(page = 1) {
+  const tbody = document.getElementById('tbl-lostterr-body'); if (!tbody) return;
   tbody.innerHTML = window._loadingRow(7);
-  let pagContainer = document.getElementById('pagination-losthv');
-  if(!pagContainer) { const wrap = document.querySelector('#pane-losthv .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-losthv'; wrap.appendChild(pagContainer); }
-  
   try {
-    const res  = await window.api('getLostHVCustomers', { options: { page: window._expPage('losthv', page), pageSize: window._expSize('losthv'), search: window.searchQueries['losthv'] } });
-    const rows = window._tableItems(res); window._renderPagination(res, 'loadLostHV', 'pagination-losthv');
-    const totalSqft = rows.reduce((s, r) => s + (r['SQ FT.'] || 0), 0);
-    const kg = document.getElementById('losthv-kpi-grid');
+    const res  = await window.api('getLostTerritories', { options: { page: window._expPage('lostterr', page), pageSize: window._expSize('lostterr'), search: window.searchQueries['lostterr'] } });
+    const rows = window._tableItems(res); window._renderPagination(res, 'loadLostTerritories', 'pagination-lostterr');
+    const note = document.getElementById('lostterr-note');
+    if (note) note.textContent = res.prevFy
+      ? 'Cities that bought in ' + res.prevFy + ' and have not bought in ' + res.curFy + '. City and state are the billing address.'
+      : 'Needs two financial years of sales to compare; only ' + (res.curFy || 'one') + ' is in view.';
+    const kg = document.getElementById('lostterr-kpi-grid');
     if (kg) {
-        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost Accounts</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(rows.length) + '</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-ruler"></i></div><div class="kpi-label">Lifetime SQ FT Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(totalSqft) + '</div></div>';
+        kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-map-pin"></i></div><div class="kpi-label">Lost Cities</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.lostCities || 0) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#f97316"><div class="kpi-header-row"><div class="kpi-icon" style="color:#f97316"><i class="ph ph-map-trifold"></i></div><div class="kpi-label">Lost States</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(res.lostStates || 0) + '</div></div>'
+        + '<div class="kpi-card stagger-1" style="--kpi-color:#a855f7"><div class="kpi-header-row"><div class="kpi-icon" style="color:#a855f7"><i class="ph ph-ruler"></i></div><div class="kpi-label">Last FY SQ FT Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.short(res.lostSqft || 0) + '</div></div>';
     }
-    window.App.lastTableData['losthv'] = rows;
-    if (!rows.length) { tbody.innerHTML = window._emptyRow(7, 'No lost high-value customers found.'); return; }
-    
+    window.App.lastTableData['lostterr'] = rows;
+    if (!rows.length) { tbody.innerHTML = window._emptyRow(7, 'No lost territories found.'); return; }
+
     let htmlStr = '';
     rows.forEach(function(r, i) {
       const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.date(r['LAST PURCHASE DATE']) + '</td><td style="color:var(--danger);font-weight:700;padding:6px 12px;">' + (r['DAYS INACTIVE'] || 0) + 'd</td><td style="padding:6px 12px;"><span class="badge badge-purple">Top ' + (100 - (r['SQM PERCENTILE'] || 0)) + '%</span></td></tr>';
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CITY'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + (r['WHOLE_STATE'] ? ' <span class="badge badge-red">whole state</span>' : '') + '</td><td style="padding:6px 12px;">' + window.esc(r['HOD NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['CUSTOMERS']) + '</td><td style="font-weight:700;color:var(--brand-text);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.esc(r['LAST SALE'] || '-') + '</td></tr>';
     });
     tbody.innerHTML = htmlStr;
   } catch(e) { tbody.innerHTML = window._errorRow(7, e.message); }
 };
 
-window.setRfmSeg = function(s, btn) {
-  window.rfmSegFilter = s; document.querySelectorAll('#page-rfm .btn-group .btn').forEach(function(b) { b.className = 'btn btn-sm btn-ghost'; });
-  if (btn) btn.className = 'btn btn-sm btn-primary'; window.loadRFM(1);
+// ── Customer Classification ────────────────────────────────────────────────
+// One page, any classification the server offers, optionally crossed with a
+// second one. `cls` / `crossCls` are the picked class names ('' = all).
+window.custClass = { by: 'frequency', cross: '', cls: '', crossCls: '' };
+window._CLASS_COLORS = ['var(--accent)', 'var(--accent3)', 'var(--accent2)', 'var(--accent4)', '#a855f7', '#f97316', 'var(--danger)'];
+
+window.setCustClassDims = function() {
+  const by = document.getElementById('custclass-by').value;
+  const cross = document.getElementById('custclass-cross').value;
+  window.custClass = { by: by, cross: cross === by ? '' : cross, cls: '', crossCls: '' };
+  window.loadCustClass(1);
 };
 
-window.loadRFM = async function(page = 1) {
-  const tbody = document.getElementById('tbl-rfm-body'); if (!tbody) return;
-  tbody.innerHTML = window._loadingRow(8);
-  let pagContainer = document.getElementById('pagination-rfm');
-  if(!pagContainer) { const wrap = document.querySelector('#page-rfm .table-card'); pagContainer = document.createElement('div'); pagContainer.id = 'pagination-rfm'; wrap.appendChild(pagContainer); }
-  
+// i / j index the class lists of the last response; -1 leaves that side open.
+// Picking the current selection again clears it.
+window.pickCustClass = function(i, j) {
+  const d = window._custClassData; if (!d) return;
+  const cls = i >= 0 ? d.classes[i].name : '';
+  const crossCls = j >= 0 && d.crossClasses ? d.crossClasses[j].name : '';
+  const same = window.custClass.cls === cls && window.custClass.crossCls === crossCls;
+  window.custClass.cls = same ? '' : cls;
+  window.custClass.crossCls = same ? '' : crossCls;
+  window.loadCustClass(1);
+};
+
+// A KPI card that filters the table when clicked. role="button" is enough for
+// the keyboard: the app's global handler turns Enter / Space into a click.
+window._pickCard = function(color, label, value, sub, onclick, selected) {
+  return '<div class="kpi-card stagger-1" role="button" tabindex="0" aria-pressed="' + (selected ? 'true' : 'false') + '" onclick="' + onclick + '" style="--kpi-color:' + color + ';cursor:pointer;' + (selected ? 'outline:2px solid ' + color + ';outline-offset:-2px;' : '') + '"><div class="kpi-header-row"><div class="kpi-label">' + window.esc(label) + '</div></div><div class="kpi-value" style="font-size:24px;">' + value + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">' + window.esc(sub) + '</div></div>';
+};
+
+window.loadCustClass = async function(page = 1) {
+  const tbody = document.getElementById('tbl-custclass-body'); if (!tbody) return;
+  tbody.innerHTML = window._loadingRow(11);
   try {
-    const dist = await window.api('getRFMDistribution'); const kg = document.getElementById('rfm-kpi-grid');
-    if(kg && dist) {
-       let champ = 0, loyal = 0, risk = 0, lost = 0;
-       dist.forEach(d => { if(d.segment === 'Champions') champ = d.count; if(d.segment === 'Loyal') loyal = d.count; if(d.segment === 'At Risk') risk = d.count; if(d.segment === 'Lost') lost = d.count; });
-       kg.innerHTML = '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent3)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent3)"><i class="ph ph-crown"></i></div><div class="kpi-label">Champions</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(champ) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">high value, recent</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent)"><i class="ph ph-users"></i></div><div class="kpi-label">Loyal</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(loyal) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">consistent buyers</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--accent4)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--accent4)"><i class="ph ph-warning-circle"></i></div><div class="kpi-label">At Risk</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(risk) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">slipping away</div></div>'
-        + '<div class="kpi-card stagger-1" style="--kpi-color:var(--danger)"><div class="kpi-header-row"><div class="kpi-icon" style="color:var(--danger)"><i class="ph ph-x-circle"></i></div><div class="kpi-label">Lost</div></div><div class="kpi-value" style="font-size:24px;">' + window.fmt.num(lost) + '</div><div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:auto;">churned customers</div></div>';
+    const s = window.custClass;
+    const res = await window.api('getCustomerClassification', { options: { by: s.by, cross: s.cross, cls: s.cls, crossCls: s.crossCls, page: window._expPage('custclass', page), pageSize: window._expSize('custclass'), search: window.searchQueries['custclass'] } });
+    window._custClassData = res;
+    s.by = res.by; s.cross = res.cross;
+    const rows = window._tableItems(res); window._renderPagination(res, 'loadCustClass', 'pagination-custclass');
+    const pct = function(v) { return res.totalSqft ? (v / res.totalSqft * 100).toFixed(1) + '%' : '0%'; };
+
+    // Classification pickers. One the server cannot serve yet stays listed, disabled.
+    const opt = function(d, sel) { return '<option value="' + d.key + '"' + (d.key === sel ? ' selected' : '') + (d.available ? '' : ' disabled') + '>' + window.esc(d.label) + (d.available ? '' : ' (needs setup)') + '</option>'; };
+    document.getElementById('custclass-by').innerHTML = res.dims.map(function(d) { return opt(d, res.by).replace('>', '>Classify by: '); }).join('');
+    document.getElementById('custclass-cross').innerHTML = '<option value="">Cross with: none</option>' + res.dims.filter(function(d) { return d.key !== res.by; }).map(function(d) { return opt(d, res.cross).replace('>', '>Cross with: '); }).join('');
+
+    const note = document.getElementById('custclass-note');
+    if (note) note.textContent = res.note + ' Based on all sales from ' + res.firstMonth + ' to ' + res.month + '; the period filter does not apply.' + (res.setupHint ? ' Some classifications need setup: ' + res.setupHint : '');
+    const title = document.getElementById('custclass-title');
+    if (title) title.textContent = [s.cls, s.crossCls].filter(Boolean).join(' × ') || 'All customers';
+
+    // Top of the page: class cards, or the cross table when a second classification is chosen.
+    const kg = document.getElementById('custclass-kpi-grid'), mx = document.getElementById('custclass-matrix');
+    kg.style.display = res.matrix ? 'none' : '';
+    mx.style.display = res.matrix ? 'flex' : 'none';
+    if (!res.matrix) {
+      kg.innerHTML = res.classes.map(function(c, i) {
+        return window._pickCard(window._CLASS_COLORS[i % window._CLASS_COLORS.length], c.name, window.fmt.num(c.count), pct(c.sqft) + ' of sq ft · ' + window.fmt.short(c.sqft), 'window.pickCustClass(' + i + ',-1)', s.cls === c.name);
+      }).join('');
+    } else {
+      const cellBtn = function(e, i, j, sel, bold) {
+        if (!e.count) return '<td style="text-align:right;padding:6px 12px;color:var(--text-faint);">—</td>';
+        return '<td style="text-align:right;padding:0;' + (sel ? 'background:var(--bg-hover);box-shadow:inset 0 0 0 2px var(--brand-primary);' : '') + '"><button type="button" onclick="window.pickCustClass(' + i + ',' + j + ')" style="all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:6px 12px;text-align:right;"><span style="font-weight:' + (bold ? 800 : 700) + ';color:var(--text-main);">' + window.fmt.num(e.count) + '</span> <span style="font-size:11px;color:var(--text-muted);">' + pct(e.sqft) + '</span></button></td>';
+      };
+      document.getElementById('th-custclass-matrix').innerHTML = '<tr><th style="text-align:left;">' + window.esc(res.byLabel) + ' \\ ' + window.esc(res.crossLabel) + '</th>' + res.crossClasses.map(function(c) { return '<th style="text-align:right;">' + window.esc(c.name) + '</th>'; }).join('') + '<th style="text-align:right;">Total</th></tr>';
+      document.getElementById('tbl-custclass-matrix').innerHTML = res.classes.map(function(r, i) {
+        return '<tr><td style="font-weight:600;color:var(--text-main);padding:6px 12px;white-space:nowrap;">' + window.esc(r.name) + '</td>'
+          + res.matrix[i].map(function(e, j) { return cellBtn(e, i, j, s.cls === r.name && s.crossCls === res.crossClasses[j].name, false); }).join('')
+          + cellBtn(r, i, -1, s.cls === r.name && !s.crossCls, true) + '</tr>';
+      }).join('')
+        + '<tr><td style="font-weight:800;color:var(--text-main);padding:6px 12px;">Total</td>'
+        + res.crossClasses.map(function(c, j) { return cellBtn(c, -1, j, !s.cls && s.crossCls === c.name, true); }).join('')
+        + '<td style="text-align:right;padding:6px 12px;font-weight:800;color:var(--text-main);">' + window.fmt.num(res.totalCustomers) + '</td></tr>';
     }
-    
-    const res  = await window.api('getRFMData', { options: { segment: window.rfmSegFilter, page: window._expPage('rfm', page), pageSize: window._expSize('rfm'), search: window.searchQueries['rfm'] } });
-    const rows = window._tableItems(res); window._renderPagination(res, 'loadRFM', 'pagination-rfm');
-    if (window.tableSortRules['rfm'] && window.tableSortRules['rfm'].length > 0) {
-      rows = window.applyMultiSort(rows, 'rfm');
-    }
-    window.App.lastTableData['rfm'] = rows;
-    if (!rows.length) { tbody.innerHTML = window._emptyRow(8, 'No RFM data found.'); return; }
-    
-    let htmlStr = ''; const segColors = { Champions: 'badge-green', Loyal: 'badge-blue', 'At Risk': 'badge-amber', Hibernating: 'badge-purple', Lost: 'badge-red' };
+
+    const cols = 9 + (res.cross ? 1 : 0) + (res.hasOs ? 1 : 0);
+    document.getElementById('th-custclass-head').innerHTML = '<tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>HOD Name</th><th>City</th><th>' + window.esc(res.byLabel) + '</th>' + (res.cross ? '<th>' + window.esc(res.crossLabel) + '</th>' : '') + '<th>SQ FT</th><th>Months Bought</th><th>Last Purchase</th><th>Avg / Buying Month</th>' + (res.hasOs ? '<th>Outstanding</th>' : '') + '</tr>';
+    window.App.lastTableData['custclass'] = rows;
+    if (!rows.length) { tbody.innerHTML = window._emptyRow(cols, 'No customers in this class.'); return; }
+
+    let htmlStr = '';
     rows.forEach(function(r, i) {
-      const seg   = r['SEGMENT'] || '-'; const badge = segColors[seg] || 'badge-gray'; const idx = ((res.page - 1) * res.pageSize) + i + 1;
-      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="font-size:11px;color:var(--text-muted);padding:6px 12px;">' + (r['RECENCY (DAYS)'] || 0) + 'd ago · ' + (r['FREQUENCY'] || 0) + ' orders</td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="font-size:11px;font-weight:600;padding:6px 12px;"><span style="color:var(--accent)">R' + (r['R SCORE']||0) + '</span> <span style="color:var(--accent3)">F' + (r['F SCORE']||0) + '</span> <span style="color:var(--accent2)">M' + (r['M SCORE']||0) + '</span></td><td style="font-weight:800;color:var(--text-main);padding:6px 12px;">' + (r['RFM TOTAL'] || 0) + '</td><td style="padding:6px 12px;"><span class="badge ' + badge + '">' + window.esc(seg) + '</span></td></tr>';
+      const idx = ((res.page - 1) * res.pageSize) + i + 1;
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['HOD NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['CITY'] || '-') + '</td><td style="padding:6px 12px;"><span class="badge badge-blue" style="white-space:nowrap">' + window.esc(r['CLASS']) + '</span></td>'
+        + (res.cross ? '<td style="padding:6px 12px;"><span class="badge badge-purple" style="white-space:nowrap">' + window.esc(r['CROSS CLASS']) + '</span></td>' : '')
+        + '<td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['SQ FT.']) + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['MONTHS BOUGHT']) + '</td><td style="padding:6px 12px;">' + window.esc(r['LAST PURCHASE'] || '-') + '</td><td style="padding:6px 12px;">' + window.fmt.num(r['AVG MONTH SQ FT']) + '</td>'
+        + (res.hasOs ? '<td style="padding:6px 12px;">' + (r['OUTSTANDING'] > 0 ? window.fmt.num(r['OUTSTANDING']) : '—') + '</td>' : '') + '</tr>';
     });
     tbody.innerHTML = htmlStr;
-  } catch(e) { tbody.innerHTML = window._errorRow(8, e.message); }
+  } catch(e) { tbody.innerHTML = window._errorRow(11, e.message); }
+};
+
+// ── Follow-up List ─────────────────────────────────────────────────────────
+window._activeFollowTab = 'followup';
+window.followupReason = '';
+
+window.switchFollowTab = function(tabId) {
+  window._activeFollowTab = tabId;
+  document.querySelectorAll('#page-followup .risk-pane').forEach(function(p) { p.classList.toggle('active', p.id === 'pane-' + tabId); });
+  window.loadPage('followup', 1);
+};
+
+window.pickFollowupReason = function(i) {
+  const d = window._followupData;
+  const name = i >= 0 && d ? d.reasons[i].name : '';
+  window.followupReason = window.followupReason === name ? '' : name;
+  window.loadFollowUp(1);
+};
+
+window.loadFollowUp = async function(page = 1) {
+  const tbody = document.getElementById('tbl-followup-body'); if (!tbody) return;
+  tbody.innerHTML = window._loadingRow(12);
+  try {
+    const res = await window.api('getFollowUpList', { options: { reason: window.followupReason, page: window._expPage('followup', page), pageSize: window._expSize('followup'), search: window.searchQueries['followup'] } });
+    window._followupData = res;
+    const rows = window._tableItems(res); window._renderPagination(res, 'loadFollowUp', 'pagination-followup');
+    const badges = { 'Stopped buying': 'badge-red', 'Missed usual order': 'badge-amber', 'Buying less': 'badge-purple', 'One-time, never came back': 'badge-gray' };
+    const colors = ['var(--danger)', 'var(--accent4)', '#a855f7', 'var(--accent)'];
+
+    const kg = document.getElementById('followup-kpi-grid');
+    if (kg) {
+      kg.innerHTML = window._pickCard('var(--accent3)', 'All follow-ups', window.fmt.num(res.allCount), window.fmt.short(res.allStake) + ' sq ft / month at stake', 'window.pickFollowupReason(-1)', !window.followupReason)
+        + res.reasons.map(function(r, i) {
+          return window._pickCard(colors[i % colors.length], r.name, window.fmt.num(r.count), window.fmt.short(r.stake) + ' sq ft / month at stake', 'window.pickFollowupReason(' + i + ')', window.followupReason === r.name);
+        }).join('');
+    }
+    const title = document.getElementById('followup-title');
+    if (title) title.textContent = window.followupReason || 'Follow-up List';
+
+    const cols = 10 + (res.hasOs ? 2 : 0);
+    document.getElementById('th-followup-head').innerHTML = '<tr><th>#</th><th>Customer Name</th><th>HOD State</th><th>HOD Name</th><th>City</th><th>Reason</th><th>SQ FT / Month at Stake</th><th>Usual Gap</th><th>Idle</th><th>Last Purchase</th>' + (res.hasOs ? '<th>Outstanding</th><th>90+ Days</th>' : '') + '</tr>';
+    window.App.lastTableData['followup'] = rows;
+    if (!rows.length) { tbody.innerHTML = window._emptyRow(cols, 'Nobody to follow up.'); return; }
+
+    let htmlStr = '';
+    rows.forEach(function(r, i) {
+      const idx = ((res.page - 1) * res.pageSize) + i + 1;
+      const money = function(v) { return v > 0 ? window.fmt.num(v) : '—'; };
+      htmlStr += '<tr><td style="padding:6px 12px;">' + idx + '</td><td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);padding:6px 12px;">' + window.esc(r['CUSTOMER NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['STATE'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['HOD NAME'] || '-') + '</td><td style="padding:6px 12px;">' + window.esc(r['CITY'] || '-') + '</td><td style="padding:6px 12px;"><span class="badge ' + (badges[r['REASON']] || 'badge-gray') + '" style="white-space:nowrap">' + window.esc(r['REASON']) + '</span></td><td style="font-weight:700;color:var(--text-main);padding:6px 12px;">' + window.fmt.num(r['AT STAKE']) + '</td><td style="padding:6px 12px;">' + (r['USUAL GAP'] == null ? '—' : 'every ' + r['USUAL GAP'] + ' mo') + '</td><td style="font-weight:700;color:var(--danger);padding:6px 12px;">' + r['MONTHS IDLE'] + ' mo</td><td style="padding:6px 12px;">' + window.esc(r['LAST PURCHASE'] || '-') + '</td>'
+        + (res.hasOs ? '<td style="padding:6px 12px;">' + money(r['OUTSTANDING']) + '</td><td style="padding:6px 12px;' + (r['OS 90+'] > 0 ? 'color:var(--danger);font-weight:700;' : '') + '">' + money(r['OS 90+']) + '</td>' : '') + '</tr>';
+    });
+    tbody.innerHTML = htmlStr;
+  } catch(e) { tbody.innerHTML = window._errorRow(12, e.message); }
 };
 
 window.setTimeWiseGroup = function(g, btn) {
@@ -568,7 +622,13 @@ window.loadTimeWiseSales = async function() {
   const timeGb = window.App.timeWiseGroupBy || 'quarter';
   const rowGbSelect = document.getElementById('pivot-row-group');
   const rowGb = rowGbSelect ? rowGbSelect.value : 'product_type';
-  
+
+  // Colour and thickness come from the SKU view, which has no month grain.
+  const noMonth = rowGb === 'color' || rowGb === 'thickness';
+  const moBtn = document.querySelector('#timewise-group-toggles button');
+  if (moBtn) moBtn.disabled = noMonth;
+  if (noMonth && timeGb === 'month') { window.setTimeWiseGroup('quarter', moBtn && moBtn.nextElementSibling); return; }
+
   tb.innerHTML = window._loadingRow(6);
   
   try {
@@ -621,6 +681,9 @@ window.loadTimeWiseSales = async function() {
     else if (rowGb === 'product_type') rowLabel = 'Product Type';
     else if (rowGb === 'sku_type') rowLabel = 'SKU Type';
     else if (rowGb === 'brand') rowLabel = 'Brand';
+    else if (rowGb === 'branch_name') rowLabel = 'Branch';
+    else if (rowGb === 'color') rowLabel = 'Colour';
+    else if (rowGb === 'thickness') rowLabel = 'Thickness';
 
     if (window.tableSortRules['product'] && window.tableSortRules['product'].length > 0) {
       data = window.applyMultiSort(data, 'product');
@@ -655,7 +718,7 @@ window.loadTimeWiseSales = async function() {
     
     let html = '';
     data.forEach((r, i) => {
-      let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + (r.CATEGORY || 'Unknown') + '</td>';
+      let tr = '<tr><td style="' + stickyRowN + '">' + (i + 1) + '</td><td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-main);' + stickyRowCAT + '">' + window.esc(r.CATEGORY || 'Unknown') + '</td>';
       if (window.comparisonMode === 'none') {
           tr += '<td style="text-align:right; font-weight:800; white-space:nowrap; color:var(--brand-text); ' + stickyRowTOT + '">' + window.fmt.num(r.TOTAL_SQFT || 0) + '</td>';
       }
@@ -1046,8 +1109,10 @@ window.renderKPIs = function(k, monthly) {
   const avgSqftGrowth = k.avgSqftGrowth       || 0;
 
   const sortedM    = monthly.slice().sort((a, b) => window.getSortKey(b).localeCompare(window.getSortKey(a)));
-  const currMoSqft = sortedM[0] ? (Number(sortedM[0]['SQ FT.']) || ((Number(sortedM[0]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
-  const prevMoSqft = sortedM[1] ? (Number(sortedM[1]['SQ FT.']) || ((Number(sortedM[1]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
+  // The month the server's MoM is about (latest month inside the selection),
+  // so the card's figure, label and growth all describe the same month.
+  const currMoSqft = k.currentMonth ? (k.currentMonthSqft || 0) : sortedM[0] ? (Number(sortedM[0]['SQ FT.']) || ((Number(sortedM[0]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
+  const prevMoSqft = k.currentMonth ? (k.prevMonthSqft || 0) : sortedM[1] ? (Number(sortedM[1]['SQ FT.']) || ((Number(sortedM[1]['TOTAL SQM']) || 0) * window.SQFT_PER_SQM)) : 0;
   const currMoSqm  = Math.round(currMoSqft / window.SQFT_PER_SQM);
 
   // ── Last full month vs the best month on record ──────────────────────────
@@ -1546,7 +1611,7 @@ window.renderKPIs = function(k, monthly) {
   // ── TARGET VS ACHIEVEMENT (current month) ────────────────────────────────
   // Targets arrive after the KPIs, so the card renders empty and
   // window.refreshTargetKpi fills it in whenever they are available.
-  const tgtLabel = sortedM[0] ? window.getAxisLabel(sortedM[0]) : '';
+  const tgtLabel = k.currentMonth || (sortedM[0] ? window.getAxisLabel(sortedM[0]) : '');
 
   // Targets are retail-only (projects are measured on their own page), so
   // achievement is the month's retail sales, as in the Target vs Actual table.
@@ -1650,7 +1715,7 @@ window.renderKPIs = function(k, monthly) {
     cardLastVsPeak,
     cardAvg,
     cardForecast,
-    cardOutstanding,
+    (window.App.currentUser && window.App.currentUser.role === 'sales_viewer') ? '' : cardOutstanding,
     cardPareto,
     cardCustomers,
     cardYtd,
@@ -2261,15 +2326,11 @@ window.renderZoneContributionOverview = function(zones, monthly) {
   const states = (window.App && window.App.data && window.App.data.overview && window.App.data.overview.states) || [];
   monthly = monthly || (window.App && window.App.data && window.App.data.overview && window.App.data.overview.monthly) || [];
 
-  function _toMacro(zStr, sStr) {
+  // The server (getOverviewData / _toMacroZone) already resolves every zone
+  // and state row to a macro zone; anything else is OTHER, never CENTRAL.
+  function _toMacro(zStr) {
     const z = String(zStr || '').trim().toUpperCase();
-    const s = String(sStr || '').trim().toUpperCase();
-    if (z.indexOf('WEST') !== -1 || s.indexOf('GUJARAT') !== -1 || s.indexOf('MAHARASHTRA') !== -1 || s.indexOf('MUMBAI') !== -1 || s.indexOf('GOA') !== -1) return 'WEST';
-    if (z.indexOf('SOUTH') !== -1 || s.indexOf('TAMIL') !== -1 || s.indexOf('KARNATAKA') !== -1 || s.indexOf('KERALA') !== -1 || s.indexOf('ANDHRA') !== -1 || s.indexOf('TELANGANA') !== -1 || s.indexOf('AP') !== -1) return 'SOUTH';
-    if (z.indexOf('EAST') !== -1 || s.indexOf('BENGAL') !== -1 || s.indexOf('BIHAR') !== -1 || s.indexOf('ODISHA') !== -1 || s.indexOf('ORISSA') !== -1 || s.indexOf('ASSAM') !== -1 || s.indexOf('JHARKHAND') !== -1) return 'EAST';
-    if (z.indexOf('CENTRAL') !== -1 || s.indexOf('MADHYA') !== -1 || s.indexOf('CHHATTISGARH') !== -1 || s.indexOf('MP') !== -1) return 'CENTRAL';
-    if (z.indexOf('NORTH') !== -1 || s.indexOf('DELHI') !== -1 || s.indexOf('RAJASTHAN') !== -1 || s.indexOf('PUNJAB') !== -1 || s.indexOf('HARYANA') !== -1 || s.indexOf('UP') !== -1 || s.indexOf('UTTAR') !== -1 || s.indexOf('UTTARAKHAND') !== -1 || s.indexOf('JAMMU') !== -1 || s.indexOf('HIMACHAL') !== -1) return 'NORTH';
-    return 'CENTRAL';
+    return ['WEST', 'SOUTH', 'NORTH', 'EAST', 'CENTRAL'].indexOf(z) !== -1 ? z : 'OTHER';
   }
 
   // Determine current FY and previous FY from monthly data
@@ -2283,8 +2344,10 @@ window.renderZoneContributionOverview = function(zones, monthly) {
     }
   });
   const sortedFys = Object.keys(fyMap).sort().reverse();
-  const curFy = sortedFys[0] || 'FY 26-27';
-  const prevFy = sortedFys[1] || 'FY 25-26';
+  // Prefer the server's pair: with an FY selected, monthly holds only that FY.
+  const srvZone = (zones || []).find(z => z && z.curFy);
+  const curFy = srvZone ? srvZone.curFy : (sortedFys[0] || 'FY 26-27');
+  const prevFy = srvZone ? srvZone.prevFy : (sortedFys[1] || null);
   const curMonths = curFy && fyMap[curFy] ? Array.from(fyMap[curFy]) : ['APR','MAY','JUN','JUL','AUG'];
 
   // Zone colors mapping
@@ -2293,7 +2356,8 @@ window.renderZoneContributionOverview = function(zones, monthly) {
     'SOUTH':   '#06b6d4',
     'NORTH':   '#6366f1',
     'EAST':    '#f59e0b',
-    'CENTRAL': '#ec4899'
+    'CENTRAL': '#ec4899',
+    'OTHER':   '#94a3b8'
   };
 
   const macroMap = {
@@ -2301,7 +2365,8 @@ window.renderZoneContributionOverview = function(zones, monthly) {
     'SOUTH':   { name: 'SOUTH', curYtd: 0, prevYtd: 0, color: zoneColors['SOUTH'] },
     'NORTH':   { name: 'NORTH', curYtd: 0, prevYtd: 0, color: zoneColors['NORTH'] },
     'EAST':    { name: 'EAST', curYtd: 0, prevYtd: 0, color: zoneColors['EAST'] },
-    'CENTRAL': { name: 'CENTRAL', curYtd: 0, prevYtd: 0, color: zoneColors['CENTRAL'] }
+    'CENTRAL': { name: 'CENTRAL', curYtd: 0, prevYtd: 0, color: zoneColors['CENTRAL'] },
+    'OTHER':   { name: 'OTHER', curYtd: 0, prevYtd: 0, color: zoneColors['OTHER'] }
   };
 
   // 1. First priority: zones from backend with curYtd or byMo
@@ -2360,7 +2425,7 @@ window.renderZoneContributionOverview = function(zones, monthly) {
     .reduce((sum, r) => sum + (Number(r['SQ FT.']) || (Number(r['TOTAL SQM'] || 0) * window.SQFT_PER_SQM)), 0);
 
   if (Object.values(macroMap).reduce((s, z) => s + z.curYtd, 0) <= 0 && totalCurFyFromMonthly > 0) {
-    const rawMacro = { WEST: 0, SOUTH: 0, NORTH: 0, EAST: 0, CENTRAL: 0 };
+    const rawMacro = { WEST: 0, SOUTH: 0, NORTH: 0, EAST: 0, CENTRAL: 0, OTHER: 0 };
     (zones || []).forEach(z => {
       const mz = _toMacro(z.ZONE, '');
       if (rawMacro[mz] !== undefined) rawMacro[mz] += (Number(z['SQ FT.']) || Number(z['TOTAL SQM'] || 0) * window.SQFT_PER_SQM);
@@ -2372,12 +2437,11 @@ window.renderZoneContributionOverview = function(zones, monthly) {
       });
     }
     const totRaw = Object.values(rawMacro).reduce((a, b) => a + b, 0) || 1;
-    const yoyRatio = totalPrevFyFromMonthly > 0 ? (totalCurFyFromMonthly - totalPrevFyFromMonthly) / totalPrevFyFromMonthly : 0.202;
-
     Object.keys(macroMap).forEach(k => {
       const share = (rawMacro[k] || 0) / totRaw;
       macroMap[k].curYtd = totalCurFyFromMonthly * share;
-      macroMap[k].prevYtd = totalPrevFyFromMonthly > 0 ? (totalPrevFyFromMonthly * share) : (macroMap[k].curYtd / (1 + yoyRatio));
+      // No previous-year volume means no YoY ('—'), not an invented one.
+      macroMap[k].prevYtd = totalPrevFyFromMonthly * share;
     });
   }
 
@@ -2553,24 +2617,45 @@ window.renderTargetAchievementOverview = function(targets) {
 
   let periodKeys = sortKeysFn(actualPeriodKeysSet.size > 0 ? actualPeriodKeysSet : allPeriodKeysSet);
 
-  // Filter based on active filters if any
+  // Filter based on active filters if any. Keys: YEARLY 'FY 26-27',
+  // QUARTERLY 'FY 26-27_Q1', MONTHLY 'Apr-26'. Every selected filter must hold
+  // (exact month + year, quarter within the selected FY); the newest matching
+  // period with sales wins, else the newest that so far has only a target.
   let activePeriod = periodKeys[0] || 'N/A';
   if (window.App && window.App.filters) {
-    const fFy = window.App.filters.fy;
-    const fMo = window.App.filters.month;
-    const fQtr = window.App.filters.quarter;
-    if (fFy && fFy !== 'All') {
-      const matchFy = periodKeys.filter(k => k.startsWith(Array.isArray(fFy) ? fFy[0] : fFy));
-      if (matchFy.length > 0) activePeriod = matchFy[0];
+    const sel = v => (!v || v === 'All') ? null : [].concat(v).filter(x => x && x !== 'All').map(String);
+    const fFys = sel(window.App.filters.fy);
+    const fMos = sel(window.App.filters.month);
+    const fQtrs = sel(window.App.filters.quarter);
+    const normMo = m => String(m).trim().toLowerCase().replace(/[\s-]+/g, '-');
+    // 'Apr-26' -> 'FY 26-27', 'Jan-27' -> 'FY 26-27'
+    const fyOfMonth = k => {
+      const sk = parseKeyVal(k), y = +sk.slice(2, 4), mo = +sk.slice(5, 7);
+      if (!mo) return '';
+      const s = mo >= 4 ? y : y - 1;
+      return 'FY ' + String(s).padStart(2, '0') + '-' + String(s + 1).padStart(2, '0');
+    };
+    const fyOk = fy => !fFys || fFys.indexOf(fy) !== -1;
+    let test = null;
+    if (periodType === 'YEARLY' && fFys) {
+      test = k => fyOk(k);
+    } else if (periodType === 'MONTHLY' && (fMos || fFys)) {
+      test = k => (!fMos || fMos.map(normMo).indexOf(normMo(k)) !== -1) && fyOk(fyOfMonth(k));
+    } else if (periodType === 'QUARTERLY' && (fQtrs || fFys)) {
+      test = k => {
+        const fy = k.split('_')[0], q = k.split('_')[1] || '';
+        if (!fyOk(fy)) return false;
+        if (!fQtrs) return true;
+        return fQtrs.some(v => {
+          const qm = (v.indexOf('|') !== -1 ? v.split('|')[1] : v).match(/(\d)/);
+          if (!qm || q !== 'Q' + qm[1]) return false;
+          return v.indexOf('|') === -1 || v.split('|')[0].trim() === fy;
+        });
+      };
     }
-    if (fMo && fMo !== 'All' && window.overviewTargetPeriod === 'month') {
-      const matchMo = periodKeys.filter(k => k.endsWith(Array.isArray(fMo) ? fMo[0] : fMo) || k.toUpperCase().includes(String(Array.isArray(fMo) ? fMo[0] : fMo).toUpperCase()) || (String(Array.isArray(fMo) ? fMo[0] : fMo).toUpperCase().includes(String(k).slice(0, 3).toUpperCase())));
-      if (matchMo.length > 0) activePeriod = matchMo[0];
-    }
-    if (fQtr && fQtr !== 'All' && window.overviewTargetPeriod === 'quarter') {
-      const qVal = Array.isArray(fQtr) ? fQtr[0] : fQtr;
-      const matchQtr = periodKeys.filter(k => k.includes(qVal.replace('Q', 'Q_').replace(' ', '_')) || k.includes(qVal));
-      if (matchQtr.length > 0) activePeriod = matchQtr[0];
+    if (test) {
+      const match = sortKeysFn(actualPeriodKeysSet).filter(test)[0] || sortKeysFn(allPeriodKeysSet).filter(test)[0];
+      if (match) activePeriod = match;
     }
   }
 

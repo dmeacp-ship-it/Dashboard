@@ -283,8 +283,10 @@
     var role = (window.App && window.App.currentUser && window.App.currentUser.role) || '';
     return role === 'super_admin' || role === 'admin';
   }
+  function _noFms() { return (window.App && window.App.currentUser && window.App.currentUser.role) === 'sales_viewer'; }
   function render() {
     var v = FMS.state.view;
+    if (_noFms()) return setC(empt('ph-lock', 'Restricted', 'FMS is not available for your role.'));
     if (ADMIN_ONLY[v] && !_isAdmin()) {
       return setC(empt('ph-lock', 'Restricted', ADMIN_ONLY[v] + ' is available to Admins and Super Admins only.'));
     }
@@ -300,9 +302,15 @@
     return viewOrders('all', 'All Orders', 'ph-list-bullets', false);
   }
 
-  // Hides the admin-only views (see REPORTS) from everyone else's sidebar.
+  // Hides the admin-only views (see REPORTS) from everyone else's sidebar,
+  // and the whole FMS menu from Sales Viewers.
   FMS.applyRole = function () {
     var admin = _isAdmin();
+    var none = _noFms();
+    ['fms-dash-nav', 'fms-nav-root'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = none ? 'none' : '';
+    });
     document.querySelectorAll('.nav-item[data-fms]').forEach(function (el) {
       el.style.display = (ADMIN_ONLY[el.dataset.fms] && !admin) ? 'none' : '';
     });

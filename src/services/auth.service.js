@@ -6,7 +6,7 @@
  * the user's role + data scope (allowed_hods / allowed_zones) so the API can
  * enforce restrictions without a per-request DB lookup.
  *
- * Roles: super_admin | admin | hod | zonal_head
+ * Roles: super_admin | admin | hod | zonal_head | sales_viewer
  */
 
 const Session = require('./session');
