@@ -84,7 +84,13 @@ const COLUMN_MAP = Object.freeze({
   'PREV. HOD NAME':     'prev_hod_name',
   'PREV HOD NAME':      'prev_hod_name',
   'SKU TYPE':           'sku_type',
-  'SKU_TYPE':           'sku_type'
+  'SKU_TYPE':           'sku_type',
+  'CURRENT_COLOR_CODE': 'color_code',
+  'CURRENT COLOR CODE': 'color_code',
+  'EX_BASE_LOCATION':   'ex_base_location',
+  'EX BASE LOCATION':   'ex_base_location',
+  'EX. BASE LOCATION':  'ex_base_location',
+  'EX._BASE_LOCATION':  'ex_base_location'
 });
 
 /* ------------------------------------------------------------------ */

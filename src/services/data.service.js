@@ -163,6 +163,7 @@ function _colorCode(r) { return _s(r, 'color_code') || '-'; }
 function _billNo(r) { return _s(r, 'bill_number_sap') || '-'; }
 function _projectPct(r) { return _num(_s(r, 'project_pct')); }
 function _projectSalesPerson(r) { return _s(r, 'project_sales_person') || '-'; }
+function _exBaseLocation(r) { return _s(r, 'ex_base_location') || '-'; }
 function _pt(r)    { return _s(r, 'product_type') || 'Unknown'; }
 function _sku(r)   { return _s(r, 'sku_type').toUpperCase(); }
 function _custName(r) { return _s(r, 'customer_name') || _s(r, 'customer_code'); }
@@ -2487,22 +2488,27 @@ async function getLostTerritories(f, opts) {
 // Both pages read one cached set of customer profiles built from every month
 // of vw_customer_sale_agg, so they describe behaviour to date and ignore the
 // FY / quarter / month filters (the geo filters and the caller's scope apply).
-const PROFILE_MIGRATION_HINT = 'Run db/migrations/20_create_customer_profile_view.sql in the Supabase SQL editor, then restart the server.';
+const PROFILE_MIGRATION_HINT = 'Run db/migrations/21_customer_purchase_days.sql in the Supabase SQL editor, then restart the server.';
+// Weekly and monthly are habits, so they need enough purchase days to show
+// one: two orders in the same week would otherwise read as a weekly buyer.
+const MIN_BUY_DAYS_FOR_HABIT = 5;
 
 function _mIdx(sk) { return +sk.slice(0, 4) * 12 + +sk.slice(5, 7) - 1; }
 function _topKey(map) { return Object.keys(map).sort(function (a, b) { return map[b] - map[a]; })[0] || '-'; }
 
 // Every classification: its classes in display order and how a profile lands
-// in one. `needs` marks the ones that depend on outstanding data ('os') or on
-// the optional customer profile view from migration 20 ('view').
+// in one. `needs` marks the ones that depend on outstanding data ('os'), on
+// the optional customer profile view ('view', migration 20 or 21) or on its
+// purchase-day columns ('days', migration 21).
 const CUST_DIMS = [
-  { key: 'frequency', label: 'How often they buy',
-    note: 'Share of months with a purchase since their first one: Every month 80%+, Regular 50-79%, Irregular under 50%. Occasional bought in 2-3 months. One-time bought in a single month; large means 5,000+ sq ft.',
-    classes: ['Every month', 'Regular', 'Irregular', 'Occasional', 'One-time: recent', 'One-time: large, never came back', 'One-time: small, never came back'],
+  { key: 'frequency', label: 'How often they buy', needs: 'days',
+    note: 'By the average number of days between the days they bought on: Weekly up to 7, Monthly 8 to 30, Occasional longer. A customer with fewer than 5 purchase days is Occasional, and with one purchase day One-time.',
+    classes: ['Weekly buyers', 'Monthly buyers', 'Occasional buyers', 'One-time buyers'],
     of: function (p) {
-      if (p.n === 1) return p.idle <= 2 ? 'One-time: recent' : (p.sqft >= 5000 ? 'One-time: large, never came back' : 'One-time: small, never came back');
-      if (p.n <= 3) return 'Occasional';
-      return p.rate >= 0.8 ? 'Every month' : p.rate >= 0.5 ? 'Regular' : 'Irregular';
+      if (p.buyDays == null) return 'Unknown';
+      if (p.buyDays <= 1) return 'One-time buyers';
+      if (p.buyDays < MIN_BUY_DAYS_FOR_HABIT) return 'Occasional buyers';
+      return p.gapDays <= 7 ? 'Weekly buyers' : p.gapDays <= 30 ? 'Monthly buyers' : 'Occasional buyers';
     } },
   { key: 'size', label: 'Size',
     note: 'Ranked by total sq ft: Key customers make up the first 50% of volume, Core the next 30%, Small the next 15%, Tail the last 5%.',
@@ -2552,9 +2558,77 @@ const CUST_DIMS = [
     of: function (p) { return p.bills == null ? 'Unknown' : p.bills >= 21 ? '21+ bills' : p.bills >= 6 ? '6-20 bills' : p.bills >= 2 ? '2-5 bills' : 'One bill only'; } }
 ];
 
+// One plain line per class, shown on its card, so nobody has to decode a label.
+const CLASS_HELP = {
+  frequency: {
+    'Weekly buyers': 'Buy again within 7 days, on average',
+    'Monthly buyers': 'Buy again within 8 to 30 days, on average',
+    'Occasional buyers': 'More than a month between orders, or have bought on fewer than 5 days',
+    'One-time buyers': 'Have bought on one day only'
+  },
+  size: {
+    'Key': 'The biggest customers: together they are half of all sale',
+    'Core': 'The next biggest: together 30% of all sale',
+    'Small': 'Together 15% of all sale',
+    'Tail': 'The smallest: together only 5% of all sale'
+  },
+  recency: {
+    'Latest month': 'Bought in the latest month',
+    '1-2 months ago': 'Last order was 1 or 2 months back',
+    '3-5 months ago': 'Last order was 3 to 5 months back',
+    '6+ months ago': 'No order for 6 months or more'
+  },
+  ordersize: {
+    '20,000+ sq ft': 'Take 20,000 sq ft or more in a month they buy',
+    '5,000-19,999 sq ft': 'Take 5,000 to 19,999 sq ft in a month they buy',
+    '1,000-4,999 sq ft': 'Take 1,000 to 4,999 sq ft in a month they buy',
+    'Under 1,000 sq ft': 'Take under 1,000 sq ft in a month they buy'
+  },
+  trend: {
+    'New': 'First order was in the last 3 months',
+    'Growing': 'Last 3 months are 20% or more above the 3 months before',
+    'Steady': 'Buying about the same as before',
+    'Slowing': 'Last 3 months are 30% or more below the 3 months before',
+    'Won back': 'Came back after 3 or more months without an order',
+    'Stopped recently': 'Bought 3 to 5 months back, nothing in the last 3 months',
+    'Dormant (6+ months)': 'No order in the last 6 months'
+  },
+  tenure: {
+    'New this FY': 'First order was in this financial year',
+    'Carried over, buying this FY': 'Older customer who has bought this financial year',
+    'Not buying this FY': 'Older customer with no order this financial year'
+  },
+  payment: {
+    'No dues': 'Nothing to pay',
+    'Within 45 days': 'All dues are less than 45 days old',
+    'Slow (45-90 days)': 'Some dues are 45 to 90 days old',
+    'Over credit limit': 'Owe more than their credit limit',
+    'Stuck (90+ days)': 'Some dues are more than 90 days old'
+  },
+  salestype: {
+    'Retail': 'Almost all of their sale is retail',
+    'Both': 'Buy for retail and for projects',
+    'Projects': 'Almost all of their sale is project'
+  },
+  breadth: {
+    'Three or more products': 'Have bought 3 or more product types',
+    'Two products': 'Have bought 2 product types',
+    'Single product': 'Have bought only 1 product type'
+  },
+  bills: {
+    '21+ bills': '21 or more bills raised so far',
+    '6-20 bills': '6 to 20 bills raised so far',
+    '2-5 bills': '2 to 5 bills raised so far',
+    'One bill only': 'Only 1 bill raised so far'
+  }
+};
+
+// Realisation: net revenue (before GST) per sq ft, to one decimal.
+function _realisation(rev, sqft) { return sqft > 0 ? +(rev / sqft).toFixed(1) : null; }
+
 async function _customerProfiles(f, noOs) {
   const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' });
-  return cached('custProfiles_v1_' + (noOs ? 'nos_' : '') + _stableStringify(fGeo), async function () {
+  return cached('custProfiles_v3_' + (noOs ? 'nos_' : '') + _stableStringify(fGeo), async function () {
     const got = await Promise.all([
       _custSaleAllTime(fGeo),
       noOs ? null : _fetchOutstanding(fGeo),
@@ -2570,8 +2644,8 @@ async function _customerProfiles(f, noOs) {
       labelOfSk[sk] = m; fyOfSk[sk] = _robustFy(r);
       if (sk > curSk) curSk = sk;
       if (!firstSk || sk < firstSk) firstSk = sk;
-      const c = by[code] = by[code] || { m: {}, sqft: 0, names: {}, hods: {}, states: {}, cities: {} };
-      c.m[sk] = (c.m[sk] || 0) + sq; c.sqft += sq;
+      const c = by[code] = by[code] || { m: {}, sqft: 0, rev: 0, names: {}, hods: {}, states: {}, cities: {} };
+      c.m[sk] = (c.m[sk] || 0) + sq; c.sqft += sq; c.rev += _rev(r);
       [[c.names, _custName(r)], [c.hods, _hod(r)], [c.states, _state(r)], [c.cities, _city(r)]].forEach(function (p) {
         p[0][p[1]] = (p[0][p[1]] || 0) + sq;
       });
@@ -2605,7 +2679,7 @@ async function _customerProfiles(f, noOs) {
       const o = osBy[code] || {}, v = viewBy[code];
       return {
         code: code, name: _topKey(c.names), hod: _topKey(c.hods), state: _topKey(c.states), city: _topKey(c.cities),
-        sqft: c.sqft, n: n, idle: ci - li, rate: n / (ci - fi + 1),
+        sqft: c.sqft, rev: c.rev, n: n, idle: ci - li, span: ci - fi + 1, rate: n / (ci - fi + 1),
         avgMonth: c.sqft / n,                       // per month they bought in
         runRate: c.sqft / (li - fi + 1),            // per month while they were buying
         usualGap: n > 1 ? (li - fi) / (n - 1) : null,
@@ -2613,6 +2687,9 @@ async function _customerProfiles(f, noOs) {
         isNew: bi - fi < 3, newThisFy: fyOfSk[months[0]] === curFy,
         inCurFy: months.some(function (sk) { return fyOfSk[sk] === curFy; }),
         os: o.os || 0, os45: o.os45 || 0, os90: o.os90 || 0, creditLimit: o.limit || 0,
+        buyDays: v && v.buy_days != null ? _num(v.buy_days) : null,
+        // Average days from one purchase day to the next.
+        gapDays: v && _num(v.buy_days) > 1 ? (new Date(v.last_buy) - new Date(v.first_buy)) / 86400000 / (_num(v.buy_days) - 1) : null,
         bills: v ? _num(v.bill_count) : null,
         productTypes: v ? _num(v.product_types) : null,
         projectShare: v && _num(v.total_sqm) > 0 ? _num(v.project_sqm) / _num(v.total_sqm) : null,
@@ -2630,6 +2707,11 @@ async function _customerProfiles(f, noOs) {
 
     return {
       profiles: profiles, total: total, hasOs: !noOs, hasView: !!viewRows,
+      hasDays: !!(viewRows && viewRows.length && viewRows[0].buy_days !== undefined),
+      // The last month with a full month of sales behind it.
+      lastFullSk: curSk ? (curSk === runSk ? _skAdd(curSk, -1) : curSk) : '',
+      lastFullLabel: curSk ? (labelOfSk[curSk === runSk ? _skAdd(curSk, -1) : curSk] || '') : '',
+      avgRate: _realisation(profiles.reduce(function (s, p) { return s + p.rev; }, 0), total),
       month: labelOfSk[curSk] || '', firstMonth: labelOfSk[firstSk] || ''
     };
   });
@@ -2638,21 +2720,28 @@ async function _customerProfiles(f, noOs) {
 async function getCustomerClassification(f, opts, noOs) {
   opts = opts || {};
   const data = await _customerProfiles(f, noOs);
-  const usable = function (d) { return !!d && (d.needs !== 'os' || data.hasOs) && (d.needs !== 'view' || data.hasView); };
+  const usable = function (d) {
+    return !!d && (d.needs !== 'os' || data.hasOs) && (d.needs !== 'view' || data.hasView) && (d.needs !== 'days' || data.hasDays);
+  };
   const dimOf = function (k) { return CUST_DIMS.filter(function (d) { return d.key === k; })[0]; };
-  const by = usable(dimOf(opts.by)) ? dimOf(opts.by) : CUST_DIMS[0];
+  const by = usable(dimOf(opts.by)) ? dimOf(opts.by) : CUST_DIMS.filter(usable)[0];
   const cross = opts.cross !== by.key && usable(dimOf(opts.cross)) ? dimOf(opts.cross) : null;
 
   // Listed classes first, in their display order, then anything unexpected.
   const tally = function (dim) {
     const t = {};
-    dim.classes.forEach(function (name) { t[name] = { name: name, count: 0, sqft: 0 }; });
+    dim.classes.forEach(function (name) { t[name] = { name: name, count: 0, sqft: 0, rev: 0 }; });
     data.profiles.forEach(function (p) {
       const name = p.cls[dim.key];
-      const e = t[name] = t[name] || { name: name, count: 0, sqft: 0 };
-      e.count++; e.sqft += p.sqft;
+      const e = t[name] = t[name] || { name: name, count: 0, sqft: 0, rev: 0 };
+      e.count++; e.sqft += p.sqft; e.rev += p.rev;
     });
-    return Object.keys(t).map(function (k) { return Object.assign({}, t[k], { sqft: Math.round(t[k].sqft) }); });
+    return Object.keys(t).map(function (k) {
+      return {
+        name: k, count: t[k].count, sqft: Math.round(t[k].sqft),
+        rate: _realisation(t[k].rev, t[k].sqft), desc: (CLASS_HELP[dim.key] || {})[k] || ''
+      };
+    });
   };
   const classes = tally(by);
   const crossClasses = cross ? tally(cross) : null;
@@ -2679,10 +2768,12 @@ async function getCustomerClassification(f, opts, noOs) {
     const row = {
       'CUSTOMER NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'CITY': p.city,
       'CLASS': p.cls[by.key],
-      'SQ FT.': Math.round(p.sqft), 'MONTHS BOUGHT': p.n, 'LAST PURCHASE': p.lastLabel,
-      'AVG MONTH SQ FT': Math.round(p.avgMonth)
+      'SQ FT.': Math.round(p.sqft), 'MONTHS BOUGHT': p.n, 'MONTHS SINCE FIRST': p.span,
+      'LAST PURCHASE': p.lastLabel, 'AVG MONTH SQ FT': Math.round(p.avgMonth),
+      'RATE': _realisation(p.rev, p.sqft)
     };
     if (cross) row['CROSS CLASS'] = p.cls[cross.key];
+    if (data.hasDays) { row['BUY DAYS'] = p.buyDays; row['GAP DAYS'] = p.gapDays == null ? null : Math.round(p.gapDays); }
     if (data.hasOs) row['OUTSTANDING'] = Math.round(p.os);
     return row;
   });
@@ -2693,16 +2784,22 @@ async function getCustomerClassification(f, opts, noOs) {
     cross: cross ? cross.key : '', crossLabel: cross ? cross.label : '',
     dims: CUST_DIMS.filter(function (d) { return d.needs !== 'os' || data.hasOs; })
       .map(function (d) { return { key: d.key, label: d.label, available: usable(d) }; }),
-    setupHint: data.hasView ? '' : PROFILE_MIGRATION_HINT,
+    setupHint: data.hasDays ? '' : PROFILE_MIGRATION_HINT,
     classes: classes, crossClasses: crossClasses, matrix: matrix,
-    totalCustomers: data.profiles.length, totalSqft: Math.round(data.total),
-    month: data.month, firstMonth: data.firstMonth, hasOs: data.hasOs
+    totalCustomers: data.profiles.length, totalSqft: Math.round(data.total), avgRate: data.avgRate,
+    month: data.month, firstMonth: data.firstMonth, hasOs: data.hasOs, hasDays: data.hasDays
   });
 }
 
 // Why a customer needs a call, and the monthly sq ft that rides on it. Checked
 // in this order, so each customer appears once.
 const FOLLOWUP_REASONS = ['Stopped buying', 'Missed usual order', 'Buying less', 'One-time, never came back'];
+const FOLLOWUP_HELP = {
+  'Stopped buying': 'Used to buy, no order for 6 months or more',
+  'Missed usual order': 'Their order is late: twice their normal gap has passed',
+  'Buying less': 'Still buying, but 30% or more below the 3 months before',
+  'One-time, never came back': 'Bought once, 3 or more months back, and not again'
+};
 function _followUp(p) {
   // A single order is not a monthly rate: spread it over the months since, or
   // one-off project orders would outrank every regular account on the list.
@@ -2731,8 +2828,10 @@ async function getFollowUpList(f, opts, noOs) {
       'CUSTOMER NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'CITY': p.city,
       'REASON': fu.reason, 'AT STAKE': Math.round(fu.stake),
       'USUAL GAP': p.usualGap == null ? null : +p.usualGap.toFixed(1),
-      'MONTHS IDLE': p.idle, 'LAST PURCHASE': p.lastLabel, 'SQ FT.': Math.round(p.sqft)
+      'MONTHS IDLE': p.idle, 'MONTHS BOUGHT': p.n, 'LAST PURCHASE': p.lastLabel, 'SQ FT.': Math.round(p.sqft),
+      'LAST 3M': Math.round(p.last3), 'PREV 3M': Math.round(p.prev3), 'RATE': _realisation(p.rev, p.sqft)
     };
+    if (data.hasDays) row['CLASS'] = p.cls.frequency;   // weekly / monthly / occasional / one-time buyer
     if (data.hasOs) { row['OUTSTANDING'] = Math.round(p.os); row['OS 90+'] = Math.round(p.os90); }
     all.push(row);
   });
@@ -2741,10 +2840,180 @@ async function getFollowUpList(f, opts, noOs) {
     .sort(function (a, b) { return b['AT STAKE'] - a['AT STAKE']; });
   const result = _paginate(list, opts);
   return Object.assign(result, {
-    reasons: FOLLOWUP_REASONS.map(function (name) { return Object.assign({}, reasons[name], { stake: Math.round(reasons[name].stake) }); }),
+    reasons: FOLLOWUP_REASONS.map(function (name) {
+      return Object.assign({}, reasons[name], { stake: Math.round(reasons[name].stake), desc: FOLLOWUP_HELP[name] });
+    }),
+    avgRate: data.avgRate,
     allCount: all.length,
     allStake: Math.round(all.reduce(function (s, r) { return s + r['AT STAKE']; }, 0)),
-    month: data.month, hasOs: data.hasOs
+    month: data.month, hasOs: data.hasOs, hasDays: data.hasDays
+  });
+}
+
+// ── Action Centre ──────────────────────────────────────────────────────────
+// Fixed rules over the same customer profiles and target figures the other
+// pages show, so every suggestion can be traced to a number elsewhere in the
+// dashboard. Like those pages it reads behaviour to date: the FY / quarter /
+// month filters do not apply, the geo filters and the caller's scope do.
+const ACTION_GROUPS = [
+  { key: 'recover', label: 'Call to recover sale' },
+  { key: 'collect', label: 'Collect money' },
+  { key: 'price', label: 'Fix price' },
+  { key: 'target', label: 'Chase target' }
+];
+// A seller is "behind" below this share of their target to date.
+const TARGET_BEHIND_RATIO = 0.9;
+
+function _inr(v) { return Math.round(v).toLocaleString('en-IN'); }
+function _fyOfSk(sk) {
+  const y = +sk.slice(0, 4), m = +sk.slice(5, 7), s = m >= 4 ? y : y - 1;
+  return 'FY ' + String(s).slice(2) + '-' + String(s + 1).slice(2);
+}
+
+async function getActionCentre(f, opts, noOs) {
+  opts = opts || {};
+  const fGeo = Object.assign({}, f, { fy: 'All', quarter: 'All', month: 'All' });
+  const got = await Promise.all([
+    _customerProfiles(fGeo, noOs),
+    getTargetVsAchievement(fGeo, {}),
+    getTargetVsAchievement(fGeo, { groupBy: 'employee' })
+  ]);
+  const data = got[0];
+  const avg = data.avgRate;
+  const large = function (p) { return p.tier === 'Key' || p.tier === 'Core'; };
+  const buying = function (p) { return p.idle <= 2; };   // bought in the last 3 months
+  const custRow = function (p, detail, impact) {
+    return { 'NAME': p.name, 'STATE': p.state, 'HOD NAME': p.hod, 'DETAIL': detail, 'IMPACT': Math.round(impact) };
+  };
+
+  const actions = [];
+  // head / unit label the impact column; before / after wrap the card's total.
+  const add = function (a, rows) {
+    if (!rows.length) return;
+    rows.sort(function (x, y) { return y['IMPACT'] - x['IMPACT']; });
+    const byHod = {};
+    rows.forEach(function (r) { if (a.entity === 'Customer') byHod[r['HOD NAME']] = (byHod[r['HOD NAME']] || 0) + 1; });
+    actions.push(Object.assign({}, a, {
+      count: rows.length,
+      impact: rows.reduce(function (s, r) { return s + r['IMPACT']; }, 0),
+      top: Object.keys(byHod).sort(function (x, y) { return byHod[y] - byHod[x]; }).slice(0, 3)
+        .map(function (h) { return { name: h, count: byHod[h] }; }),
+      rows: rows
+    }));
+  };
+  const n = function (rows, one, many) { return rows.length + ' ' + (rows.length === 1 ? one : many); };
+
+  // ── Call to recover sale ────────────────────────────────────────────────
+  const fu = { large: [], missed: [], stopped: [] };
+  data.profiles.forEach(function (p) {
+    const x = _followUp(p);
+    if (!x) return;
+    if (x.reason === 'Buying less' && large(p)) {
+      fu.large.push(custRow(p, 'Last 3 months ' + _inr(p.last3) + ' sq ft; the 3 months before, ' + _inr(p.prev3) + '. Down ' + Math.round((1 - p.last3 / p.prev3) * 100) + '%.', x.stake));
+    } else if (x.reason === 'Missed usual order') {
+      fu.missed.push(custRow(p, 'Last bought in ' + p.lastLabel + '. No order for ' + p.idle + ' months.', x.stake));
+    } else if (x.reason === 'Stopped buying') {
+      fu.stopped.push(custRow(p, 'Last bought in ' + p.lastLabel + '. No order for ' + p.idle + ' months.', x.stake));
+    }
+  });
+  const losing = { head: 'Losing per Month', unit: 'sq ft', before: 'Losing ', after: ' sq ft a month', money: false };
+  add(Object.assign({ group: 'recover', id: 'large-buying-less', entity: 'Customer',
+    title: 'Call ' + n(fu.large, 'large customer', 'large customers') + ' buying less',
+    why: 'Key and Core customers whose last 3 months are 30% or more below the 3 months before.' }, losing), fu.large);
+  add(Object.assign({ group: 'recover', id: 'missed-order', entity: 'Customer',
+    title: 'Call ' + n(fu.missed, 'customer', 'customers') + ' whose usual order is late',
+    why: 'Twice their normal gap between orders has passed without one.' }, losing), fu.missed);
+  add(Object.assign({ group: 'recover', id: 'stopped', entity: 'Customer',
+    title: 'Win back ' + n(fu.stopped, 'customer', 'customers') + ' who stopped buying',
+    why: 'They bought in two or more months and have had no order for 6 months or more.' }, losing), fu.stopped);
+
+  // ── Collect money ───────────────────────────────────────────────────────
+  if (data.hasOs) {
+    // Only customers who owe money overall, as on the Outstanding page.
+    const overdue = data.profiles.filter(function (p) { return p.os > 0 && p.os90 > 0; }).map(function (p) {
+      return custRow(p, '₹' + _inr(p.os90) + ' is more than 90 days old, out of ₹' + _inr(p.os) + ' outstanding. Last bought in ' + p.lastLabel + '.', p.os90);
+    });
+    add({ group: 'collect', id: 'overdue-90', entity: 'Customer',
+      title: 'Collect from ' + n(overdue, 'customer', 'customers') + ' with dues older than 90 days',
+      why: 'Any amount in the 90+ days bucket of the outstanding sheet.',
+      head: 'Overdue 90+ Days', unit: '₹', before: '₹', after: ' overdue more than 90 days', money: true }, overdue);
+
+    const over = data.profiles.filter(function (p) { return p.creditLimit > 0 && p.os > p.creditLimit && buying(p); }).map(function (p) {
+      return custRow(p, 'Owes ₹' + _inr(p.os) + ' against a credit limit of ₹' + _inr(p.creditLimit) + ', and bought in ' + p.lastLabel + '.', p.os - p.creditLimit);
+    });
+    add({ group: 'collect', id: 'over-limit', entity: 'Customer',
+      title: 'Review supply to ' + n(over, 'customer', 'customers') + ' over their credit limit',
+      why: 'They owe more than their credit limit and have bought in the last 3 months.',
+      head: 'Over the Limit by', unit: '₹', before: '₹', after: ' over the limits in total', money: true }, over);
+  }
+
+  // ── Fix price ───────────────────────────────────────────────────────────
+  if (avg) {
+    const cheap = data.profiles.filter(function (p) { return large(p) && buying(p) && p.sqft > 0 && p.rev / p.sqft <= avg * 0.9; }).map(function (p) {
+      const rate = p.rev / p.sqft, monthly = p.last3 / 3;
+      return custRow(p, 'Pays ₹' + rate.toFixed(1) + ' per sq ft against an average of ₹' + avg.toFixed(1) + '. Buys about ' + _inr(monthly) + ' sq ft a month.', (avg - rate) * monthly);
+    });
+    add({ group: 'price', id: 'low-rate', entity: 'Customer',
+      title: 'Review the rate of ' + n(cheap, 'large customer', 'large customers') + ' paying below average',
+      why: 'Key and Core customers, still buying, at 10% or more below the average realisation of ₹' + avg.toFixed(1) + ' per sq ft.',
+      head: 'Below Average by', unit: '₹ a month', before: '₹', after: ' a month below the average rate', money: true }, cheap);
+  }
+
+  // ── Chase target ────────────────────────────────────────────────────────
+  // Target to date: the current FY's months up to the last complete month, so
+  // a full month's target is never set against part of a month's sale.
+  const curFy = data.lastFullSk ? _fyOfSk(data.lastFullSk) : '';
+  const fyMonths = (+String(data.lastFullSk || '').slice(5, 7) + 8) % 12 + 1;   // Apr = 1 ... Mar = 12
+  const behind = function (rows, nameOf) {
+    return rows.map(function (r) {
+      let t = 0, a = 0;
+      Object.keys(r.MONTHLY || {}).forEach(function (k) {
+        const sk = _mSk(k);
+        if (_fyOfSk(sk) === curFy && sk <= data.lastFullSk) { t += r.MONTHLY[k].t; a += r.MONTHLY[k].a; }
+      });
+      if (!(t > 0) || a >= t * TARGET_BEHIND_RATIO) return null;
+      const y = (r.YEARLY || {})[curFy] || { t: 0, a: 0 };
+      const left = 12 - fyMonths;
+      const need = left > 0 && y.t > y.a ? ' Needs ' + _inr((y.t - y.a) / left) + ' sq ft a month for the ' + left + ' months left to finish on target.' : '';
+      return {
+        'NAME': nameOf(r), 'STATE': r.STATE || '-', 'HOD NAME': r.HOD,
+        'DETAIL': 'Target to ' + data.lastFullLabel + ': ' + _inr(t) + ' sq ft. Sold ' + _inr(a) + ' (' + Math.round(a / t * 100) + '%).' + need,
+        'IMPACT': Math.round(t - a)
+      };
+    }).filter(Boolean);
+  };
+  if (curFy) {
+    const short = { head: 'Short of Target by', unit: 'sq ft', before: '', after: ' sq ft short of target to date', money: false };
+    const hods = behind(got[1], function (r) { return r.HOD; });
+    add(Object.assign({ group: 'target', id: 'hod-behind', entity: 'HOD',
+      title: 'Push ' + n(hods, 'HOD', 'HODs') + ' behind target',
+      why: 'Retail sale below 90% of the target for ' + curFy + ' up to ' + data.lastFullLabel + '.' }, short), hods);
+    const execs = behind(got[2].filter(function (r) { return !r.NO_TARGET; }), function (r) { return r.EMPLOYEE; });
+    add(Object.assign({ group: 'target', id: 'exec-behind', entity: 'Executive',
+      title: 'Push ' + n(execs, 'executive', 'executives') + ' behind target',
+      why: 'Sale below 90% of their own target for ' + curFy + ' up to ' + data.lastFullLabel + '.' }, short), execs);
+  }
+
+  // Display order: the groups as listed, the biggest action first in each.
+  const groups = ACTION_GROUPS.map(function (g) {
+    return {
+      key: g.key, label: g.label,
+      actions: actions.filter(function (a) { return a.group === g.key; }).sort(function (x, y) { return y.impact - x.impact; })
+    };
+  }).filter(function (g) { return g.actions.length; });
+  // With no action named (or one that no longer applies) open the first, so
+  // the list beside the menu is never empty.
+  const picked = actions.filter(function (a) { return a.id === opts.action; })[0] || (groups[0] ? groups[0].actions[0] : null);
+  const result = _paginate(picked ? picked.rows : [], opts);
+  return Object.assign(result, {
+    groups: groups.map(function (g) {
+      return {
+        key: g.key, label: g.label,
+        actions: g.actions.map(function (a) { const o = Object.assign({}, a); delete o.rows; return o; })
+      };
+    }),
+    selected: picked ? picked.id : '',
+    firstMonth: data.firstMonth, month: data.month
   });
 }
 
@@ -3168,6 +3437,7 @@ module.exports = {
   getLostTerritories,
   getCustomerClassification,
   getFollowUpList,
+  getActionCentre,
   getBrandSummary,
   getFinishSummary,
   getProductTypeSummary,
